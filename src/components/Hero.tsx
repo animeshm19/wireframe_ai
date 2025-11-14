@@ -120,18 +120,6 @@ export function Hero() {
         </motion.div>
         {/* === /card === */}
       </div>
-
-      {/* Decorative chips */}
-      <motion.div
-        className="absolute right-6 top-24 z-10 h-16 w-16 rounded-2xl bg-(--gold-500)/90 blur-[1px]"
-        animate={{ y: [0, -6, 0] }}
-        transition={{ repeat: Infinity, duration: 3 }}
-      />
-      <motion.div
-        className="absolute left-10 bottom-10 z-10 h-10 w-10 rounded-xl bg-(--gold-500)/80"
-        animate={{ y: [0, 6, 0] }}
-        transition={{ repeat: Infinity, duration: 2.6 }}
-      />
     </section>
   );
 }
