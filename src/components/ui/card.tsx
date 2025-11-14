@@ -18,7 +18,7 @@ export function CardHeader({ className, ...props }: DivProps) {
 export function CardTitle({ className, ...props }: HProps) {
   return (
     <h3
-      className={cn("text-lg font-semibold text-[var(--gold-500)]", className)}
+      className={cn("text-lg font-semibold text-(--gold-500)", className)}
       {...props}
     />
   );
