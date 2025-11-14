@@ -1,4 +1,4 @@
-// src/components/ui/wireframe/chat-shell.tsx
+// src/components/wireframe/chat-shell.tsx
 import React, { useState, useEffect } from "react";
 import type { ChatSession, ChatMessage } from "./chat-types";
 
@@ -300,6 +300,15 @@ export function ChatShell() {
         <main className="flex-1 flex flex-col bg-black/10">
           {hasMessages ? (
             <>
+              {/* Top brand bar (left corner, like ChatGPT) */}
+              <div className="px-8 py-4">
+                <div className="max-w-3xl flex items-center">
+                  <div className="bg-gradient-to-r from-white to-[#731E47] bg-clip-text text-transparent text-xl font-semibold">
+                    Wireframe
+                  </div>
+                </div>
+              </div>
+
               {/* Messages view (after first message) */}
               <div className="flex-1 overflow-y-auto px-8 py-6">
                 <div className="mx-auto max-w-3xl text-sm text-white/40 space-y-3">
