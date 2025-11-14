@@ -1,7 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
-import {GlassCard} from '@developer-hub/liquid-glass'
 const logoUrl = "src/assets/logo.png";
 
 const links = [
@@ -42,7 +41,7 @@ export function Navbar() {
           {/* right CTA */}
           <div className="flex items-center gap-2">
             <Button className="h-8 rounded-2xl px-3 text-xs md:h-9 md:rounded-3xl md:px-4 md:text-sm">
-              <span className="shiny-text hover:text-black">Login</span>
+              <span className="shiny-text hover:text-black">Book a Demo</span>
             </Button>
           </div>
         </div>

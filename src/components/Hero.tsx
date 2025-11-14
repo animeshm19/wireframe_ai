@@ -6,7 +6,14 @@ import { FireworksBackground } from "@/components/ui/shadcn-io/fireworks-backgro
 // if your generator used a different folder, check the created file path and adjust
 import { FlickeringGrid } from "@/components/ui/shadcn-io/flickering-grid";
 import chat from "@/assets/chat.svg"; 
+
+type HeroProps = {
+  onTryNow?: () => void;
+};
 export function Hero() {
+  const handleTryNow = () => {
+    window.open("/chat", "_blank", "noopener,noreferrer");
+  };
   return (
     <section className="relative min-h-screen overflow-hidden pt-28 sm:pt-36">
       {/* Backgrounds */}
@@ -72,16 +79,20 @@ export function Hero() {
         </motion.p>
 
         {/* CTA */}
-        <motion.div
-          initial={{ y: 18, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.55, delay: 0.1 }}
-          className="mt-7 flex items-center justify-center"
+      <motion.div
+        initial={{ y: 18, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.55, delay: 0.1 }}
+        className="mt-7 flex items-center justify-center"
+      >
+        <Button
+          size="lg"
+          className="h-12 rounded-xl px-6 text-base"
+          onClick={handleTryNow}
         >
-          <Button size="lg" className="h-12 rounded-xl px-6 text-base">
-            <span className="shiny-text hover:text-black">Book a Demo</span>
-          </Button>
-        </motion.div>
+          <span className="shiny-text hover:text-black">Try now</span>
+        </Button>
+      </motion.div>
 
         {/* === MeshShowcase-style card inside Hero === */}
         <motion.div

@@ -8,17 +8,25 @@ import { MeshShowcase } from "./components/MeshShowcase";
 import { DemoCTA } from "./components/DemoCTA";
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
-import { DockBar } from "./components/Dockbar"; // ⟵ add this
+import { DockBar } from "./components/DockBar";
+import { ChatShell } from "./components/wireframe/chat-shell";
 
 export default function App() {
+  const isChatRoute =
+    typeof window !== "undefined" && window.location.pathname === "/chat";
+
+  // 🔹 TOOL VIEW: /chat → only the chat UI, normal cursor, no navbar, no SmoothCursor
+  if (isChatRoute) {
+    return <ChatShell />;
+  }
+
+  // 🔹 MARKETING VIEW: / → landing page, fancy cursor, navbar etc.
   return (
     <div className="min-h-dvh cursor-none">
       <Navbar />
       <main>
         <Hero />
-        {/* Mac Dock lives immediately after the Hero */}
         <DockBar />
-
         <FeatureGrid />
         <CapabilitiesTable />
         <MeshShowcase />
