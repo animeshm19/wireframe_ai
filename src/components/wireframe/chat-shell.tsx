@@ -348,8 +348,7 @@ export function ChatShell() {
                     Wireframe
                   </div>
                   <p className="text-sm text-white/60">
-                    Turn jewelry ideas into parametric 3D CAD-ready models with
-                    natural language prompts.
+                    Use simple texts to design editable parametric 3D jewelry models.
                   </p>
                 </div>
 
