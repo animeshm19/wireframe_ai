@@ -1,0 +1,110 @@
+/* src/index.css (Tailwind v4 entry + project helpers) */
+@import "tailwindcss";
+
+/* Optional theme tokens */
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(12.956% 0.04837 342.832);
+  --foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+
+  /* Brand pink */
+  --gold-500: #f0c9d8;
+  --gold-400: #c69bb2;
+}
+
+@layer base {
+  * { @apply border-[color:var(--border)] outline-[color:oklch(0.556_0_0)/.5]; }
+  html, body, #root { height: 100%; }
+  body { @apply bg-[var(--background)] text-[var(--foreground)] antialiased; }
+}
+
+/* --------- Helpers --------- */
+
+/* Glass + outline */
+.glass {
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 0 20px rgba(225,185,92,0.25);
+  border-radius: 1.5rem;
+}
+.gold-text { color: var(--gold-500); }
+
+/* Fancy underline */
+.underline-fancy { position: relative; }
+.underline-fancy::after {
+  content: "";
+  position: absolute; left: 0; bottom: -4px; height: 2px; width: 0%;
+  background: linear-gradient(90deg, var(--gold-500), var(--gold-400));
+  transition: width .35s ease;
+}
+.underline-fancy:hover::after { width: 100%; }
+
+/* Mesh background */
+.mesh-bg {
+  background-image:
+    radial-gradient(1200px 600px at 10% 10%, rgba(225,185,92,0.08), transparent 60%),
+    radial-gradient(800px 400px at 90% 10%, rgba(87,178,255,0.07), transparent 55%),
+    radial-gradient(1000px 600px at 80% 80%, rgba(225,185,92,0.05), transparent 60%);
+  background-size: cover;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar        { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb  { background: rgba(255,255,255,.08); border-radius: 999px; }
+
+
+@layer utilities {
+  .shiny-text {
+    position: relative;
+    display: inline-block;
+    background-image: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.85) 0%,
+      rgba(255,255,255,0.85) 35%,
+      #ffffff 50%,
+      rgba(255,255,255,0.85) 65%,
+      rgba(255,255,255,0.85) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    background-size: 200% auto;
+    animation: shine 2.4s linear infinite;
+  }
+
+  .shiny-gold {
+    position: relative;
+    display: inline-block;
+    background-image: linear-gradient(
+      90deg,
+      #2e1224 0%,
+      #fcfcfc 25%,
+      #2e1224 45%,
+      #fcfcfc 55%,
+      #e7e7e7 80%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    background-size: 220% auto;
+    animation: shine 2.8s linear infinite;
+  }
+
+  @keyframes shine {
+    to { background-position: 200% center; }
+  }
+}
+
+@media (pointer: coarse) {
+  .cursor-none { cursor: auto; }
+}
