@@ -1,3 +1,4 @@
+// src/components/Navbar.tsx
 import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
@@ -10,6 +11,22 @@ const links = [
 ];
 
 export function Navbar() {
+  const handleBookDemoClick = () => {
+    // Smooth scroll to contact section if present
+    if (typeof document !== "undefined") {
+      const target = document.getElementById("contact");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+
+    // Fallback: update location hash
+    if (typeof window !== "undefined") {
+      window.location.hash = "#contact";
+    }
+  };
+
   return (
     <motion.nav
       initial={{ y: -12, opacity: 0 }}
@@ -31,7 +48,7 @@ export function Navbar() {
               <a
                 key={l.label}
                 href={l.href}
-                className="transition-colors hover:text(--gold-500)"
+                className="transition-colors hover:text-[var(--gold-400)]"
               >
                 {l.label}
               </a>
@@ -40,7 +57,10 @@ export function Navbar() {
 
           {/* right CTA */}
           <div className="flex items-center gap-2">
-            <Button className="h-8 rounded-2xl px-3 text-xs md:h-9 md:rounded-3xl md:px-4 md:text-sm">
+            <Button
+              className="h-8 rounded-2xl px-3 text-xs md:h-9 md:rounded-3xl md:px-4 md:text-sm"
+              onClick={handleBookDemoClick}
+            >
               <span className="shiny-text hover:text-black">Book a Demo</span>
             </Button>
           </div>

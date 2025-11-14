@@ -5,11 +5,12 @@ import { Hero } from "./components/Hero";
 import { FeatureGrid } from "./components/FeatureGrid";
 import { CapabilitiesTable } from "./components/CapabilitiesTable";
 import { MeshShowcase } from "./components/MeshShowcase";
-import { DemoCTA } from "./components/DemoCTA";
+// import { DemoCTA } from "./components/DemoCTA";
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
 import { DockBar } from "./components/DockBar";
 import { ChatShell } from "./components/wireframe/chat-shell";
+import { ContactSection } from "./components/ContactSection";
 
 export default function App() {
   const isChatRoute =
@@ -30,7 +31,9 @@ export default function App() {
         <FeatureGrid />
         <CapabilitiesTable />
         <MeshShowcase />
-        <DemoCTA />
+        {/* <DemoCTA /> */}
+        {/* New Book a Demo / Contact section */}
+        <ContactSection />
       </main>
       <Footer />
       <SmoothCursor />
