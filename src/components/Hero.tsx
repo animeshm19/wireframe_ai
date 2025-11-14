@@ -71,7 +71,7 @@ export function Hero() {
         >
           {/* Faux 3D glass window */}
           <div className="glass relative overflow-hidden rounded-3xl p-4">
-            <div className="relative aspect-[16/9] overflow-hidden rounded-2xl border border-white/10">
+            <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10">
               <svg viewBox="0 0 800 450" className="h-full w-full">
                 <defs>
                   <linearGradient id="g-hero" x1="0" y1="0" x2="1" y2="1">
@@ -123,12 +123,12 @@ export function Hero() {
 
       {/* Decorative chips */}
       <motion.div
-        className="absolute right-6 top-24 z-10 h-16 w-16 rounded-2xl bg-[var(--gold-500)]/90 blur-[1px]"
+        className="absolute right-6 top-24 z-10 h-16 w-16 rounded-2xl bg-(--gold-500)/90 blur-[1px]"
         animate={{ y: [0, -6, 0] }}
         transition={{ repeat: Infinity, duration: 3 }}
       />
       <motion.div
-        className="absolute left-10 bottom-10 z-10 h-10 w-10 rounded-xl bg-[var(--gold-500)]/80"
+        className="absolute left-10 bottom-10 z-10 h-10 w-10 rounded-xl bg-(--gold-500)/80"
         animate={{ y: [0, 6, 0] }}
         transition={{ repeat: Infinity, duration: 2.6 }}
       />
