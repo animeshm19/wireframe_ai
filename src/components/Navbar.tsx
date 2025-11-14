@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
+import {GlassCard} from '@developer-hub/liquid-glass'
 const logoUrl = "src/assets/logo.png";
 
 const links = [

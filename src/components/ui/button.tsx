@@ -15,7 +15,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       "inline-flex items-center justify-center rounded-4xl transition-all active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none";
 
     const variants = {
-      default: "bg-[var(--gold-500)] text-black hover:bg-[var(--gold-400)]",
+      default: "bg-[var(--background)] text-white hover:bg-[var(--gold-400)] hover:text-black",
       ghost: "bg-transparent text-[var(--gold-500)] hover:bg-white/5",
       outline:
         "border border-[color:var(--gold-500)]/40 text-[var(--gold-500)] hover:bg-[color:var(--gold-500)]/10",

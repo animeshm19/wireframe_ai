@@ -2,6 +2,8 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import LightRays from "./LightRays";
+import { FireworksBackground } from "@/components/ui/shadcn-io/fireworks-background";
+// if your generator used a different folder, check the created file path and adjust
 
 export function Hero() {
   return (
@@ -22,7 +24,17 @@ export function Hero() {
           className="custom-rays"
         />
       </div>
-
+      {/* 3) Fireworks overlay (canvas is transparent, won’t change bg color) */}
+      <FireworksBackground
+        className="absolute inset-0 z-15 pointer-events-none"
+        // keep clicks on your buttons; fireworks still auto-launch
+        color={["rgb(240, 201, 216)", "rgb(198, 155, 178)"]}           // your gold + white
+        population={0.5}                           // how many auto fireworks (higher = more)
+        fireworkSpeed={{ min: 4, max: 7 }}
+        fireworkSize={{ min: 2, max: 4 }}
+        particleSpeed={{ min: 2, max: 7 }}
+        particleSize={{ min: 1, max: 4 }}
+      />
       {/* CONTENT */}
       <div className="relative z-20 mx-auto max-w-5xl px-4 text-center min-h-screen">
         <motion.h1

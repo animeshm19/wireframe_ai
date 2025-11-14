@@ -12,19 +12,20 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(12.956% 0.04837 342.832);
+  --background: rgb(19, 1, 12);
   --foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
 
   /* Brand pink */
-  --gold-500: #f0c9d8;
-  --gold-400: #c69bb2;
+  --gold-500: rgb(240, 201, 216);
+  --gold-400: rgb(198, 155, 178);
+  --pink-500: #2g3824;
 }
 
 @layer base {
-  * { @apply border-[color:var(--border)] outline-[color:oklch(0.556_0_0)/.5]; }
+  * { @apply border-(--border) outline-[oklch(0.556_0_0)/.5]; }
   html, body, #root { height: 100%; }
-  body { @apply bg-[var(--background)] text-[var(--foreground)] antialiased; }
+  body { @apply bg-(--background) text-(--foreground) antialiased; }
 }
 
 /* --------- Helpers --------- */
