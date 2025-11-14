@@ -4,7 +4,8 @@ import { Button } from "./ui/button";
 import LightRays from "./LightRays";
 import { FireworksBackground } from "@/components/ui/shadcn-io/fireworks-background";
 // if your generator used a different folder, check the created file path and adjust
-
+import { FlickeringGrid } from "@/components/ui/shadcn-io/flickering-grid";
+import chat from "@/assets/chat.svg"; 
 export function Hero() {
   return (
     <section className="relative min-h-screen overflow-hidden pt-28 sm:pt-36">
@@ -25,15 +26,23 @@ export function Hero() {
         />
       </div>
       {/* 3) Fireworks overlay (canvas is transparent, won’t change bg color) */}
-      <FireworksBackground
+      {/* <FireworksBackground
         className="absolute inset-0 z-15 pointer-events-none"
         // keep clicks on your buttons; fireworks still auto-launch
         color={["rgb(240, 201, 216)", "rgb(198, 155, 178)"]}           // your gold + white
         population={0.5}                           // how many auto fireworks (higher = more)
-        fireworkSpeed={{ min: 4, max: 7 }}
-        fireworkSize={{ min: 2, max: 4 }}
-        particleSpeed={{ min: 2, max: 7 }}
-        particleSize={{ min: 1, max: 4 }}
+        fireworkSpeed={{ min: 4, max: 5 }}
+        fireworkSize={{ min: 2, max: 2 }}
+        particleSpeed={{ min: 2, max: 5 }}
+        particleSize={{ min: 1, max: 2 }}
+      /> */}
+      <FlickeringGrid
+        className="absolute inset-0"
+        squareSize={4}
+        gridGap={6}
+        flickerChance={0.3}
+        color="rgb(100, 100, 100)"
+        maxOpacity={0.2}
       />
       {/* CONTENT */}
       <div className="relative z-20 mx-auto max-w-5xl px-4 text-center min-h-screen">
@@ -70,7 +79,7 @@ export function Hero() {
           className="mt-7 flex items-center justify-center"
         >
           <Button size="lg" className="h-12 rounded-xl px-6 text-base">
-            Book a Demo
+            <span className="shiny-text hover:text-black">Book a Demo</span>
           </Button>
         </motion.div>
 
@@ -83,7 +92,17 @@ export function Hero() {
         >
           {/* Faux 3D glass window */}
           <div className="glass relative overflow-hidden rounded-3xl p-4">
-            <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10">
+            <div className="relative aspect-auto overflow-hidden rounded-2xl border border-white/10">
+              <motion.img
+                src={chat}
+                alt="chat card"
+                className="absolute inset-0 h-full w-full object-contain transform-gpu"
+                initial={{ scale: 0.94 }}           // start slightly smaller so hover never crops
+                whileHover={{ scale: 1.0 }}         // zoom to full size
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 260, damping: 24, mass: 0.6 }}
+              />
+
               <svg viewBox="0 0 800 450" className="h-full w-full">
                 <defs>
                   <linearGradient id="g-hero" x1="0" y1="0" x2="1" y2="1">
@@ -122,7 +141,7 @@ export function Hero() {
                 className="pointer-events-none absolute inset-0"
                 style={{
                   background:
-                    "linear-gradient(120deg, transparent, rgba(225,185,92,0.08), transparent)",
+                    "linear-gradient(120deg, transparent, rgba(19, 1, 12, 0.08), transparent)",
                 }}
                 animate={{ x: ["-20%", "120%"] }}
                 transition={{ repeat: Infinity, duration: 3.8, ease: "easeInOut" }}

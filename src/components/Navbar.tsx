@@ -42,7 +42,7 @@ export function Navbar() {
           {/* right CTA */}
           <div className="flex items-center gap-2">
             <Button className="h-8 rounded-2xl px-3 text-xs md:h-9 md:rounded-3xl md:px-4 md:text-sm">
-              Book a Demo
+              <span className="shiny-text hover:text-black">Login</span>
             </Button>
           </div>
         </div>
