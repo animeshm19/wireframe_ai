@@ -17,6 +17,20 @@ function createEmptyChat(label?: string): ChatSession {
   };
 }
 
+// Generate a chat title from the user's text (max 5 words)
+function generateTitleFromText(text: string): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "New chat";
+
+  // Remove most punctuation so title is clean
+  const stripped = cleaned.replace(/[^\w\s]/g, "");
+  const words = stripped.split(" ").filter(Boolean);
+  if (words.length === 0) return "New chat";
+
+  const preview = words.slice(0, 5).join(" ");
+  return preview.charAt(0).toUpperCase() + preview.slice(1);
+}
+
 export function ChatShell() {
   // 1) Chat sessions
   const [chats, setChats] = useState<ChatSession[]>(() => [createEmptyChat()]);
@@ -34,6 +48,12 @@ export function ChatShell() {
 
   // 5) Delete confirmation
   const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
+
+  // 6) Message editing modal
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(
+    null
+  );
+  const [editValue, setEditValue] = useState<string>("");
 
   const activeChat = chats.find((c) => c.id === activeChatId) ?? chats[0];
   const hasMessages = activeChat.messages.length > 0;
@@ -116,13 +136,10 @@ export function ChatShell() {
 
         const isFirstMessage = chat.messages.length === 0;
 
-        // Auto-name chat from the first message
         let newTitle = chat.title;
         if (isFirstMessage) {
-          const firstLine = text.split("\n")[0].trim();
-          const sliced =
-            firstLine.length > 40 ? firstLine.slice(0, 40) + "…" : firstLine;
-          newTitle = sliced || "New chat";
+          // Auto-name chat from the first user message (max 5 words)
+          newTitle = generateTitleFromText(text);
         }
 
         return {
@@ -135,6 +152,53 @@ export function ChatShell() {
     );
 
     setInput("");
+  };
+
+  // Start editing a user message
+  const handleStartEditMessage = (message: ChatMessage) => {
+    if (message.role !== "user") return;
+    setEditingMessage(message);
+    setEditValue(message.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+    setEditValue("");
+  };
+
+  const handleConfirmEdit = () => {
+    if (!editingMessage) return;
+    const trimmed = editValue.trim();
+    if (!trimmed) return;
+
+    setChats((prev) =>
+      prev.map((chat) => {
+        if (chat.id !== activeChatId) return chat;
+
+        const updatedMessages = chat.messages.map((m) =>
+          m.id === editingMessage.id ? { ...m, content: trimmed } : m
+        );
+
+        // Recompute title from the first user message after edit
+        const firstUserMessage = updatedMessages.find(
+          (m) => m.role === "user"
+        );
+        let newTitle = chat.title;
+        if (firstUserMessage) {
+          newTitle = generateTitleFromText(firstUserMessage.content);
+        }
+
+        return {
+          ...chat,
+          messages: updatedMessages,
+          title: newTitle,
+          updatedAt: Date.now(),
+        };
+      })
+    );
+
+    setEditingMessage(null);
+    setEditValue("");
   };
 
   // ---- sidebar resize + collapse logic ----
@@ -232,61 +296,80 @@ export function ChatShell() {
             </button>
           </div>
 
-          {/* Scrollable chat list */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1 text-sm">
-            {sortedChats.map((chat) => {
-              const isActive = chat.id === activeChatId;
-              return (
-                <div
-                  key={chat.id}
-                  role="button"
-                  onClick={() => setActiveChatId(chat.id)}
-                  className={[
-                    "flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer",
-                    isActive
-                      ? "bg-white/15 text-white"
-                      : "bg-transparent text-white/60 hover:bg-white/5 hover:text-white",
-                  ].join(" ")}
-                >
-                  <span className="truncate flex-1">
-                    {chat.title || "New chat"}
-                  </span>
-
-                  {/* Pin button with png icon */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleTogglePin(chat.id);
-                    }}
-                    className="flex items-center justify-center w-8 h-8 rounded group hover:bg-white/10"
-                    aria-label={chat.isPinned ? "Unpin chat" : "Pin chat"}
+          {/* Chat list + account section */}
+          <div className="flex-1 flex flex-col">
+            {/* Scrollable chat list */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1 text-sm">
+              {sortedChats.map((chat) => {
+                const isActive = chat.id === activeChatId;
+                return (
+                  <div
+                    key={chat.id}
+                    role="button"
+                    onClick={() => setActiveChatId(chat.id)}
+                    className={[
+                      "flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer",
+                      isActive
+                        ? "bg-white/15 text-white"
+                        : "bg-transparent text-white/60 hover:bg-white/5 hover:text-white",
+                    ].join(" ")}
                   >
-                    <img
-                      src="/icons/pin.png"
-                      alt={chat.isPinned ? "Pinned chat" : "Pin chat"}
-                      className={
-                        "h-3 w-3 transition-opacity " +
-                        (chat.isPinned
-                          ? "opacity-100"
-                          : "opacity-30 group-hover:opacity-70")
-                      }
-                    />
-                  </button>
+                    <span className="truncate flex-1">
+                      {chat.title || "New chat"}
+                    </span>
 
-                  {/* Delete button (opens confirm UI) */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setChatToDelete(chat);
-                    }}
-                    className="text-[18px] px-1 py-0.5 rounded hover:bg-red-500/20 hover:text-red-300"
-                    aria-label="Delete chat"
-                  >
-                    ✕
-                  </button>
-                </div>
-              );
-            })}
+                    {/* Pin button with png icon */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTogglePin(chat.id);
+                      }}
+                      className="flex items-center justify-center w-8 h-8 rounded group hover:bg-white/10"
+                      aria-label={chat.isPinned ? "Unpin chat" : "Pin chat"}
+                    >
+                      <img
+                        src="/icons/pin.png"
+                        alt={chat.isPinned ? "Pinned chat" : "Pin chat"}
+                        className={
+                          "h-3 w-3 transition-opacity " +
+                          (chat.isPinned
+                            ? "opacity-100"
+                            : "opacity-30 group-hover:opacity-70")
+                        }
+                      />
+                    </button>
+
+                    {/* Delete button (opens confirm UI) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChatToDelete(chat);
+                      }}
+                      className="text-[18px] px-1 py-0.5 rounded hover:bg-red-500/20 hover:text-red-300"
+                      aria-label="Delete chat"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Account / subscription section at bottom */}
+            <div className="border-t border-white/10 px-3 py-3 flex items-center gap-3 text-xs text-white">
+              {/* Simple avatar circle with initials */}
+              <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center text-[11px] font-semibold">
+                AM
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-white">
+                  Animesh Mittal
+                </span>
+                <span className="text-[11px] text-white/60">Free plan</span>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -321,7 +404,20 @@ export function ChatShell() {
                           : "mr-auto max-w-[70%] rounded-xl bg-white/5 px-3 py-2 text-white/90 text-sm"
                       }
                     >
-                      {m.content}
+                      <div className="flex justify-between gap-2">
+                        <div className="whitespace-pre-wrap break-words flex-1">
+                          {m.content}
+                        </div>
+                        {m.role === "user" && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditMessage(m)}
+                            className="ml-2 self-start text-[10px] text-white/60 hover:text-white/90"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -339,6 +435,7 @@ export function ChatShell() {
                       onChange={handleInputChange}
                     />
                     <button
+                      type="button"
                       onClick={handleSend}
                       className="shrink-0 rounded-lg bg-white/15 text-xs text-white px-3 py-2 hover:bg-white/25 transition"
                     >
@@ -357,7 +454,8 @@ export function ChatShell() {
                     Wireframe
                   </div>
                   <p className="text-sm text-white/60">
-                    Use simple texts to design editable parametric 3D jewelry models.
+                    Use simple texts to design editable parametric 3D jewelry
+                    models.
                   </p>
                 </div>
 
@@ -371,6 +469,7 @@ export function ChatShell() {
                       onChange={handleInputChange}
                     />
                     <button
+                      type="button"
                       onClick={handleSend}
                       className="shrink-0 rounded-lg bg-white/15 text-xs text-white px-3 py-2 hover:bg-white/25 transition"
                     >
@@ -397,16 +496,49 @@ export function ChatShell() {
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                type="button"
                 onClick={handleCancelDelete}
                 className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white hover:bg-white/10 transition"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleConfirmDelete}
                 className="rounded-lg bg-red-500 px-3 py-1.5 text-xs text-white hover:bg-red-600 transition"
               >
                 Delete chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit message overlay */}
+      {editingMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#13010C] p-5 shadow-xl">
+            <h2 className="text-sm font-semibold text-white">Edit message</h2>
+            <textarea
+              rows={5}
+              className="mt-3 w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/30 resize-none outline-none"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white hover:bg-white/10 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEdit}
+                className="rounded-lg bg-white/90 px-3 py-1.5 text-xs text-black hover:bg-white transition"
+              >
+                Save
               </button>
             </div>
           </div>
