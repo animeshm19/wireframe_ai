@@ -16,13 +16,10 @@ export function ContactSection() {
   return (
     <section
       id="contact"
-      className="relative overflow-hidden py-20 sm:py-24 lg:py-28"
+      className="relative overflow-hidden py-20 sm:py-24 lg:py-28 bg-gradient-to-b from-[#050003] via-[#13010c] to-[#050003]"
     >
       {/* Ambient glow / orbs */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="float-slow absolute -top-32 -left-24 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_center,rgba(225,185,92,0.35),transparent_60%)] blur-3xl opacity-70" />
-        <div className="float-slow-delayed absolute bottom-[-5rem] right-[-5rem] h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,rgba(87,178,255,0.32),transparent_65%)] blur-3xl opacity-80" />
-        <div className="absolute inset-x-0 top-1/3 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       </div>
 
       <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">

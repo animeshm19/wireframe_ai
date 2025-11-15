@@ -11,6 +11,7 @@ import { SmoothCursor } from "@/components/ui/smooth-cursor";
 import { DockBar } from "./components/DockBar";
 import { ChatShell } from "./components/wireframe/chat-shell";
 import { ContactSection } from "./components/ContactSection";
+import { Pricing } from "./components/Pricing";
 
 export default function App() {
   const isChatRoute =
@@ -32,6 +33,7 @@ export default function App() {
         <CapabilitiesTable />
         <MeshShowcase />
         {/* <DemoCTA /> */}
+        <Pricing/>
         {/* New Book a Demo / Contact section */}
         <ContactSection />
       </main>

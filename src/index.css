@@ -12,7 +12,7 @@
 
 :root {
   --radius: 0.625rem;
-  --background: rgb(19, 1, 12);
+  --background: #13010c;
   --foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
 

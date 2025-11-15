@@ -430,7 +430,7 @@ export function ChatShell() {
                     <textarea
                       rows={3}
                       className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 resize-none outline-none max-h-60"
-                      placeholder="Start Designing Jewelry with AI..."
+                      placeholder="Start Designing ..."
                       value={input}
                       onChange={handleInputChange}
                     />
