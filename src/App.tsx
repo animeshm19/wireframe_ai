@@ -4,7 +4,7 @@ import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
 import { FeatureGrid } from "./components/FeatureGrid";
 import { CapabilitiesTable } from "./components/CapabilitiesTable";
-import { MeshShowcase } from "./components/MeshShowcase";
+// import { MeshShowcase } from "./components/MeshShowcase";
 // import { DemoCTA } from "./components/DemoCTA";
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
@@ -31,7 +31,7 @@ export default function App() {
         <DockBar />
         <FeatureGrid />
         <CapabilitiesTable />
-        <MeshShowcase />
+        {/* <MeshShowcase /> */}
         {/* <DemoCTA /> */}
         <Pricing/>
         {/* New Book a Demo / Contact section */}
