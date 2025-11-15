@@ -158,9 +158,153 @@ export function PrivacyPage() {
               </ul>
             </section>
 
-            {/* 4–11 same as earlier template – truncated here for brevity in this message, 
-                but keep all sections in your file exactly as I wrote previously. */}
-            {/* ... */}
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                4. Sharing & service providers
+              </h3>
+              <p className="mt-2">
+                We do not sell your personal data. We may share information with:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  <span className="font-medium">Service providers</span> – such
+                  as cloud hosting, analytics, payment processing, email, and
+                  customer support tools that process data on our behalf.
+                </li>
+                <li>
+                  <span className="font-medium">Professional advisors</span> –
+                  lawyers, accountants, and similar professionals when reasonably
+                  necessary.
+                </li>
+                <li>
+                  <span className="font-medium">Compliance & safety</span> – if
+                  required by law, legal process, or to protect our rights,
+                  users, or the public.
+                </li>
+                <li>
+                  <span className="font-medium">Business transfers</span> – in
+                  connection with a merger, acquisition, financing, or sale of
+                  all or a portion of our business, subject to appropriate
+                  safeguards.
+                </li>
+              </ul>
+              <p className="mt-2 text-xs text-white/55">
+                Service providers are only allowed to use your data as needed to
+                perform services for us and must handle it consistently with
+                this policy.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                5. Data retention
+              </h3>
+              <p className="mt-2">
+                We keep personal data only for as long as it is reasonably
+                necessary for the purposes described above, or as required by
+                law. For example:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>Account data is retained while your account is active.</li>
+                <li>
+                  Billing records are kept for the periods required by tax and
+                  accounting laws.
+                </li>
+                <li>
+                  Design data is retained while your workspace or collections
+                  remain in the product, unless you delete it or request
+                  deletion.
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                6. Security
+              </h3>
+              <p className="mt-2">
+                We use reasonable technical and organizational measures to
+                protect your data, such as encrypted connections, access
+                controls, and monitoring. However, no online service can
+                guarantee absolute security. You are responsible for choosing a
+                strong password, keeping login details confidential, and
+                promptly notifying us of any suspected unauthorized access.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                7. Your rights & choices
+              </h3>
+              <p className="mt-2">
+                Depending on your location, you may have rights such as:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>Accessing the personal data we hold about you.</li>
+                <li>Requesting corrections to inaccurate information.</li>
+                <li>Requesting deletion of certain data.</li>
+                <li>
+                  Objecting to or restricting certain types of processing.
+                </li>
+                <li>Exporting your data in a portable format, where feasible.</li>
+              </ul>
+              <p className="mt-2">
+                To exercise these rights, contact us using the details below. We
+                may need to verify your identity before responding.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                8. International use
+              </h3>
+              <p className="mt-2">
+                Our infrastructure and providers may be located in different
+                countries. By using the Service, you understand that your
+                information may be transferred to and processed in jurisdictions
+                that may have different data protection laws than your country.
+                Where required, we use appropriate safeguards for these
+                transfers.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                9. Children&apos;s privacy
+              </h3>
+              <p className="mt-2">
+                The Service is not directed to children and is intended for
+                professional or business use. We do not knowingly collect
+                personal data from children. If you believe a child has provided
+                us with personal data, please contact us so we can delete it.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                10. Changes to this policy
+              </h3>
+              <p className="mt-2">
+                We may update this Privacy Policy from time to time. If we make
+                material changes, we will notify you through the Service or by
+                email. Your continued use of wireframe after changes become
+                effective means you accept the updated policy.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-white">
+                11. Contact
+              </h3>
+              <p className="mt-2">
+                If you have questions about this Privacy Policy or how we handle
+                data, you can reach us at:
+              </p>
+              <p className="mt-2 text-sm text-white/80">
+                <span className="block font-medium">wireframe</span>
+                <span className="block">Email: hello@wireframe.studio</span>
+              </p>
+            </section>
           </div>
         </div>
       </div>
