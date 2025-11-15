@@ -1,5 +1,7 @@
 import React from "react";
 import { Button } from "./ui/button";
+import { Link } from "react-router-dom";
+
 
 const logoUrl = "/icons/Wireframe.png";
 
@@ -82,9 +84,10 @@ export function Footer() {
                 <a href="#partners" className="hover:text-(--gold-500)">
                   Studio partners
                 </a>
-                <a href="#careers" className="hover:text-(--gold-500)">
+                <Link to="/careers" className="hover:text-[var(--gold-500)]">
                   Careers
-                </a>
+                </Link>
+
               </nav>
             </div>
 
@@ -99,12 +102,13 @@ export function Footer() {
                 <a href="#support" className="hover:text-(--gold-500)">
                   Support
                 </a>
-                <a href="#privacy" className="hover:text-(--gold-500)">
+                <Link to="/privacy" className="hover:text-[var(--gold-500)]">
                   Privacy policy
-                </a>
-                <a href="#terms" className="hover:text-(--gold-500)">
+                </Link>
+
+                <Link to="/privacy" className="hover:text-[var(--gold-500)]">
                   Terms
-                </a>
+                </Link>
               </nav>
             </div>
           </div>
