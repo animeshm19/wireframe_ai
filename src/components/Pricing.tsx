@@ -31,12 +31,12 @@ export function Pricing() {
 
   const prices = {
     starter: {
-      monthly: 49,
-      yearly: 39,
+      monthly: 25,
+      yearly: 20,
     },
     studio: {
-      monthly: 129,
-      yearly: 99,
+      monthly: 99,
+      yearly: 79,
     },
     enterprise: {
       monthly: 0,
