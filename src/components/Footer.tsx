@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "./ui/button";
 
-const logoUrl = "src/assets/logo.png";
+const logoUrl = "/icons/Wireframe.png";
 
 export function Footer() {
   const year = new Date().getFullYear();

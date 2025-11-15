@@ -2,7 +2,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
-const logoUrl = "src/assets/logo.png";
+const logoUrl = "/icons/Wireframe.png";
 
 const links = [
   { href: "#features", label: "Features" },
