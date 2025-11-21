@@ -2,7 +2,6 @@ import React from "react";
 import { Button } from "./ui/button";
 import { Link } from "react-router-dom";
 
-
 const logoUrl = "/icons/Wireframe.png";
 
 export function Footer() {
@@ -58,18 +57,18 @@ export function Footer() {
                 Product
               </h3>
               <nav className="flex flex-col gap-2 text-sm">
-                <a href="#features" className="hover:text-(--gold-500)">
+                <Link to="/features" className="hover:text-(--gold-500)">
                   Features
-                </a>
-                <a href="#mesh" className="hover:text-(--gold-500)">
+                </Link>
+                <Link to="/mesh" className="hover:text-(--gold-500)">
                   Mesh engine
-                </a>
-                <a href="#pricing" className="hover:text-(--gold-500)">
+                </Link>
+                <Link to="/pricing" className="hover:text-(--gold-500)">
                   Pricing
-                </a>
-                <a href="#blog" className="hover:text-(--gold-500)">
+                </Link>
+                <Link to="/changelog" className="hover:text-(--gold-500)">
                   Changelog
-                </a>
+                </Link>
               </nav>
             </div>
 
@@ -78,16 +77,15 @@ export function Footer() {
                 Company
               </h3>
               <nav className="flex flex-col gap-2 text-sm">
-                <a href="#about" className="hover:text-(--gold-500)">
+                <Link to="/about" className="hover:text-(--gold-500)">
                   About
-                </a>
-                <a href="#partners" className="hover:text-(--gold-500)">
+                </Link>
+                <Link to="/partners" className="hover:text-(--gold-500)">
                   Studio partners
-                </a>
+                </Link>
                 <Link to="/careers" className="hover:text-[var(--gold-500)]">
                   Careers
                 </Link>
-
               </nav>
             </div>
 
@@ -96,17 +94,16 @@ export function Footer() {
                 Resources
               </h3>
               <nav className="flex flex-col gap-2 text-sm">
-                <a href="#docs" className="hover:text-(--gold-500)">
+                <Link to="/docs" className="hover:text-(--gold-500)">
                   Docs
-                </a>
-                <a href="#support" className="hover:text-(--gold-500)">
+                </Link>
+                <Link to="/support" className="hover:text-(--gold-500)">
                   Support
-                </a>
+                </Link>
                 <Link to="/privacy" className="hover:text-[var(--gold-500)]">
                   Privacy policy
                 </Link>
-
-                <Link to="/privacy" className="hover:text-[var(--gold-500)]">
+                <Link to="/terms" className="hover:text-[var(--gold-500)]">
                   Terms
                 </Link>
               </nav>

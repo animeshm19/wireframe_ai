@@ -14,6 +14,8 @@ import { Pricing } from "./components/Pricing";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { CareersPage } from "./pages/CareersPage";
 import { ChatPage } from "./pages/ChatPage";
+import ComingSoonPage from "./components/ComingSoonPage";
+import { AboutPage } from "./pages/AboutPage";
 
 // 👇 Home (marketing) page composed from your existing sections
 function HomePage() {
@@ -46,12 +48,15 @@ export default function App() {
 
       <div className="flex-1">
         <Routes>
+          {/* Real pages */}
           <Route path="/" element={<HomePage />} />
           <Route path="/careers" element={<CareersPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/chat" element={<ChatPage />} />
-          {/* fallback: unknown route → home */}
-          <Route path="*" element={<HomePage />} />
+          <Route path="/about" element={<AboutPage />} />
+
+          {/* Everything else → ComingSoonPage */}
+          <Route path="*" element={<ComingSoonPage />} />
         </Routes>
       </div>
 
