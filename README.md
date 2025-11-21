@@ -1,1 +1,1 @@
-# AI Powered CAD Jewelry Designs
+# AI Powered CAD Jewelry Design
