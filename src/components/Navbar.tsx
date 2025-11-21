@@ -2,12 +2,14 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
+import { Link } from "react-router-dom";
+
 const logoUrl = "/icons/Wireframe.png";
 
 const links = [
-  { href: "#features", label: "Features" },
-  { href: "#mesh", label: "Mesh" },
-  { href: "#blog", label: "Blog" },
+  { href: "#features", label: "Features", type: "anchor" as const },
+  { href: "/mesh", label: "Mesh", type: "route" as const },
+  { href: "#blog", label: "Blog", type: "anchor" as const },
 ];
 
 export function Navbar() {
@@ -44,15 +46,25 @@ export function Navbar() {
 
           {/* center links (md+) */}
           <div className="hidden md:flex items-center gap-12 text-[12px] text-white/80 md:text-sm">
-            {links.map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                className="transition-colors hover:text-[var(--gold-400)]"
-              >
-                {l.label}
-              </a>
-            ))}
+            {links.map((l) =>
+              l.type === "route" ? (
+                <Link
+                  key={l.label}
+                  to={l.href}
+                  className="transition-colors hover:text-[var(--gold-400)]"
+                >
+                  {l.label}
+                </Link>
+              ) : (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  className="transition-colors hover:text-[var(--gold-400)]"
+                >
+                  {l.label}
+                </a>
+              )
+            )}
           </div>
 
           {/* right CTA */}

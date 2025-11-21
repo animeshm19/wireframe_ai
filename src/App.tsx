@@ -16,6 +16,9 @@ import { CareersPage } from "./pages/CareersPage";
 import { ChatPage } from "./pages/ChatPage";
 import ComingSoonPage from "./components/ComingSoonPage";
 import { AboutPage } from "./pages/AboutPage";
+import { MeshPage } from "./pages/MeshPage";
+
+
 
 // 👇 Home (marketing) page composed from your existing sections
 function HomePage() {
@@ -54,6 +57,7 @@ export default function App() {
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/mesh" element={<MeshPage />} />
 
           {/* Everything else → ComingSoonPage */}
           <Route path="*" element={<ComingSoonPage />} />
