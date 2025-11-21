@@ -9,7 +9,7 @@ const logoUrl = "/icons/Wireframe.png";
 const links = [
   { href: "#features", label: "Features", type: "anchor" as const },
   { href: "/mesh", label: "Mesh", type: "route" as const },
-  { href: "#blog", label: "Blog", type: "anchor" as const },
+  { href: "/blog", label: "Blog" },
 ];
 
 export function Navbar() {

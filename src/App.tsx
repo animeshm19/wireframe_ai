@@ -17,6 +17,11 @@ import { ChatPage } from "./pages/ChatPage";
 import ComingSoonPage from "./components/ComingSoonPage";
 import { AboutPage } from "./pages/AboutPage";
 import { MeshPage } from "./pages/MeshPage";
+import { ChangelogPage } from "./pages/ChangelogPage";
+import { DocsPage } from "./pages/DocsPage";
+import { PartnersPage } from "./pages/PartnersPage";
+import { SupportPage } from "./pages/SupportPage";
+import { BlogPage } from "./pages/BlogPage";
 
 
 
@@ -58,6 +63,11 @@ export default function App() {
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/mesh" element={<MeshPage />} />
+          <Route path="/changelog" element={<ChangelogPage />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/partners" element={<PartnersPage />} />
+          <Route path="/support" element={<SupportPage />} />
+          <Route path="/blog" element={<BlogPage />} />
 
           {/* Everything else → ComingSoonPage */}
           <Route path="*" element={<ComingSoonPage />} />
