@@ -64,6 +64,9 @@ const POSTS: BlogPost[] = [
 
 const TAGS = ["All", "Product", "Studios", "Workflow"];
 
+const ORBIT_DURATION = 24; // seconds for a full orbit
+const ORBIT_RADIUS = 70;   // px from center
+
 export function BlogPage() {
   const [activeTag, setActiveTag] = useState<string>("All");
 
@@ -125,7 +128,9 @@ export function BlogPage() {
               </p>
             </div>
             <div className="flex flex-col items-start gap-2 text-xs text-white/55 md:items-end">
-              <p>Occasional long-form posts · focused on real work, not announcements.</p>
+              <p>
+                Occasional long-form posts · focused on real work, not announcements.
+              </p>
               <Button
                 size="sm"
                 className="rounded-full border border-(--gold-500) bg-(--gold-500)/90 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-black hover:bg-(--gold-500)"
@@ -137,7 +142,7 @@ export function BlogPage() {
           </div>
         </motion.header>
 
-        {/* Hero: crazy layout – orbit chips + 3D featured article */}
+        {/* Hero: orbit + featured article */}
         <section className="mb-10 grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)] lg:items-center">
           {/* Left: Featured post in a 3D-ish stack */}
           <motion.div
@@ -217,43 +222,34 @@ export function BlogPage() {
                 </span>
               </div>
 
-              {/* floating tag chips */}
+              {/* orbiting tag chips */}
               {TAGS.map((tag, index) => {
                 const isActive = tag === activeTag;
-                const common =
-                  "absolute rounded-full border text-[11px] px-3 py-1.5 bg-black/85 backdrop-blur transform-gpu";
-                const basePos =
-                  index === 0
-                    ? "top-0 left-1/2 -translate-x-1/2"
-                    : index === 1
-                    ? "left-0 top-1/2 -translate-y-1/2"
-                    : index === 2
-                    ? "right-0 top-1/2 -translate-y-1/2"
-                    : "bottom-0 left-1/2 -translate-x-1/2";
+                const delay = (ORBIT_DURATION / TAGS.length) * index;
 
                 return (
                   <motion.button
                     key={tag}
                     type="button"
                     onClick={() => setActiveTag(tag)}
-                    className={
-                      common +
-                      " " +
-                      basePos +
-                      " " +
-                      (isActive
-                        ? "border-(--gold-500)/80 text-(--gold-500)"
-                        : "border-white/25 text-white/70 hover:border-(--gold-500)/60 hover:text-(--gold-500)")
-                    }
-                    animate={
-                      index % 2 === 0
-                        ? { y: [-2, 2, -2] }
-                        : { x: [-2, 2, -2] }
-                    }
+                    className={`
+                      absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+                      rounded-full border px-3 py-1.5 bg-black/85 backdrop-blur text-[11px] transform-gpu
+                      ${
+                        isActive
+                          ? "border-(--gold-500)/80 text-(--gold-500)"
+                          : "border-white/25 text-white/70 hover:border-(--gold-500)/60 hover:text-(--gold-500)"
+                      }
+                    `}
+                    animate={{
+                      x: [0, ORBIT_RADIUS, 0, -ORBIT_RADIUS, 0],
+                      y: [-ORBIT_RADIUS, 0, ORBIT_RADIUS, 0, -ORBIT_RADIUS],
+                    }}
                     transition={{
-                      duration: 4 + index * 0.4,
+                      duration: ORBIT_DURATION,
                       repeat: Infinity,
-                      ease: "easeInOut",
+                      ease: "linear",
+                      delay,
                     }}
                   >
                     {tag}
@@ -307,7 +303,7 @@ export function BlogPage() {
 
           <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-black/80 px-4 py-4 sm:px-5 sm:py-5">
             {/* subtle skewed highlight bar */}
-            <div className="pointer-events-none absolute -left-20 top-0 h-full w-40 -skew-x-12 bg-gradient-to-b from-(--gold-500)/18 via-transparent to-transparent opacity-75" />
+            <div className="pointer-events-none absolute -left-20 top-0 h	full w-40 -skew-x-12 bg-gradient-to-b from-(--gold-500)/18 via-transparent to-transparent opacity-75" />
 
             <div className="grid gap-4 md:grid-cols-2">
               {filteredRest.map((post, index) => (
@@ -315,7 +311,11 @@ export function BlogPage() {
                   key={post.id}
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, ease: "easeOut", delay: index * 0.05 }}
+                  transition={{
+                    duration: 0.35,
+                    ease: "easeOut",
+                    delay: index * 0.05,
+                  }}
                   className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/75 sm:text-[13px]"
                 >
                   <div className="mb-2 flex items-center justify-between gap-3 text-[11px] text-white/55">
