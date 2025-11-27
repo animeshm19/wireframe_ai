@@ -10,11 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "@developer-hub/liquid-glass": "^1.2.3",
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.1.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "firebase": "^12.6.0",
     "framer-motion": "^12.23.24",
     "liquid-glass-react": "^1.1.1",
     "lucide-react": "^0.553.0",
@@ -24,7 +26,7 @@
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.6",
     "tailwind-merge": "^3.3.1",
-    "three": "^0.181.1"
+    "three": "^0.181.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

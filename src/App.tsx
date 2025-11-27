@@ -1,7 +1,7 @@
 // src/App.tsx
 import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
-
+import { auth } from "./lib/firebase";
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
 import { FeatureGrid } from "./components/FeatureGrid";
@@ -80,3 +80,13 @@ export default function App() {
     </div>
   );
 }
+
+console.log("FB env", {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+});
+
+console.log("UID:", auth.currentUser?.uid);

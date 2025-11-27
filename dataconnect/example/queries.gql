@@ -1,0 +1,68 @@
+mutation CreateCADModel(
+  $ownerId: UUID!
+  $projectId: UUID!
+  $description: String!
+  $isPublic: Boolean!
+  $modelData: String!
+  $name: String!
+  $thumbnailUrl: String!
+) @auth(level: USER) {
+  cADModel_insert(
+    data: {
+      ownerId: $ownerId
+      projectId: $projectId
+      description: $description
+      isPublic: $isPublic
+      modelData: $modelData
+      name: $name
+      thumbnailUrl: $thumbnailUrl
+    }
+  )
+}
+
+query ListPublicCADModels @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  cADModels(where: {isPublic: {eq: true}}) {
+    id
+    name
+    description
+    thumbnailUrl
+  }
+}
+
+mutation CreateFeedback(
+  $cadModelId: UUID!
+  $promptId: UUID!
+  $userId: UUID!
+  $comments: String!
+  $rating: Int!
+  $type: String!
+) @auth(level: USER) {
+  feedback_insert(
+    data: {
+      cadModelId: $cadModelId
+      promptId: $promptId
+      userId: $userId
+      comments: $comments
+      rating: $rating
+      type: $type
+    }
+  )
+}
+
+query GetCADModel($id: UUID!) @auth(level: USER) {
+  cADModel(id: $id) {
+    id
+    name
+    description
+    modelData
+    thumbnailUrl
+    owner {
+      id
+      displayName
+    }
+    project {
+      id
+      name
+    }
+  }
+}

@@ -1,0 +1,96 @@
+mutation CreateSeedData @transaction @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      displayName: "demouser1",
+      createdAt: "2024-04-26T12:00:00Z",
+      email: "demouser1@example.com"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      displayName: "demouser2",
+      createdAt: "2024-04-26T12:00:00Z",
+      email: "demouser2@example.com"
+    }
+  ])
+  project_insertMany(data: [
+    {
+      id: "650e8400-e29b-41d4-a716-446655440000",
+      ownerId: "550e8400-e29b-41d4-a716-446655440000",
+      name: "Demo Project 1",
+      createdAt: "2024-04-26T12:00:00Z",
+      updatedAt: "2024-04-26T12:00:00Z",
+      description: "This is an example project"
+    },
+    {
+      id: "650e8400-e29b-41d4-a716-446655440001",
+      ownerId: "550e8400-e29b-41d4-a716-446655440001",
+      name: "Demo Project 2",
+      createdAt: "2024-04-26T12:00:00Z",
+      updatedAt: "2024-04-26T12:00:00Z",
+      description: "Another example project"
+    }
+  ])
+  cADModel_insertMany(data: [
+    {
+      id: "750e8400-e29b-41d4-a716-446655440000",
+      projectId: "650e8400-e29b-41d4-a716-446655440000",
+      ownerId: "550e8400-e29b-41d4-a716-446655440000",
+      name: "Demo CAD Model 1",
+      createdAt: "2024-04-26T12:00:00Z",
+      updatedAt: "2024-04-26T12:00:00Z",
+      description: "This is an example CAD model",
+      modelData: "Some model data",
+      isPublic: true
+    },
+    {
+      id: "750e8400-e29b-41d4-a716-446655440001",
+      projectId: "650e8400-e29b-41d4-a716-446655440001",
+      ownerId: "550e8400-e29b-41d4-a716-446655440001",
+      name: "Demo CAD Model 2",
+      createdAt: "2024-04-26T12:00:00Z",
+      updatedAt: "2024-04-26T12:00:00Z",
+      description: "Another example CAD model",
+      modelData: "More model data",
+      isPublic: false
+    }
+  ])
+  prompt_insertMany(data: [
+    {
+      id: "850e8400-e29b-41d4-a716-446655440000",
+      modelGeneratedId: "750e8400-e29b-41d4-a716-446655440000",
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      text: "Generate a demo CAD model",
+      createdAt: "2024-04-26T12:00:00Z"
+    },
+    {
+      id: "850e8400-e29b-41d4-a716-446655440001",
+      modelGeneratedId: "750e8400-e29b-41d4-a716-446655440001",
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      text: "Generate another demo CAD model",
+      createdAt: "2024-04-26T12:00:00Z"
+    }
+  ])
+  feedback_insertMany(data: [
+    {
+      id: "950e8400-e29b-41d4-a716-446655440000",
+      cadModelId: "750e8400-e29b-41d4-a716-446655440000",
+      promptId: "850e8400-e29b-41d4-a716-446655440000",
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      rating: 5,
+      createdAt: "2024-04-26T12:00:00Z",
+      type: "positive",
+      comments: "Great model!"
+    },
+    {
+      id: "950e8400-e29b-41d4-a716-446655440001",
+      cadModelId: "750e8400-e29b-41d4-a716-446655440001",
+      promptId: "850e8400-e29b-41d4-a716-446655440001",
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      rating: 3,
+      createdAt: "2024-04-26T12:00:00Z",
+      type: "negative",
+      comments: "Could be better"
+    }
+  ])
+}

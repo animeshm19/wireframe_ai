@@ -2,12 +2,13 @@
 
 export type ChatRole = "user" | "assistant";
 
-export interface ChatMessage {
+export type ChatMessage = {
   id: string;
-  role: ChatRole;
+  role: "user" | "assistant";
   content: string;
   createdAt: number;
-}
+  designJobId?: string; // add this
+};
 
 export interface ChatSession {
   id: string;

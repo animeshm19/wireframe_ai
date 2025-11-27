@@ -1,6 +1,10 @@
 // src/components/wireframe/chat-shell.tsx
 import React, { useState, useEffect, useRef } from "react";
 import type { ChatSession, ChatMessage } from "./chat-types";
+import { AuthDialog } from "./auth-dialog";
+import { useAuth } from "../../auth/auth-context";
+import { createDesignJob } from "@/lib/design-jobs";
+import { DesignJobCard } from "./design-job-card";
 
 const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 420;
@@ -34,7 +38,7 @@ function generateTitleFromText(text: string): string {
 
   // Remove most punctuation so title is clean
   const stripped = cleaned.replace(/[^\w\s]/g, "");
-  const words = stripped.split("").length ? stripped.split(" ") : [];
+  const words = stripped.split(/\s+/).filter(Boolean);
   if (words.length === 0) return "New chat";
 
   const preview = words.slice(0, 5).join(" ");
@@ -77,45 +81,35 @@ function loadPersistedState(): PersistedState | null {
   }
 }
 
-// Very simple “fake” Wireframe reply for now.
-// Later, you can replace this with a real API call.
-function buildAssistantReply(userText: string): string {
-  return [
-    "Here is how Wireframe would start thinking about this piece:",
-    "",
-    `• Interpreting your brief: "${userText}"`,
-    "• Turning it into constraints like stone sizes, prong counts and shank width.",
-    "• Preparing a parametric CAD plan that you can tweak before export.",
-    "",
-    "Later, this reply will come from the real Wireframe engine instead of this placeholder.",
-  ].join("\n");
+function initials(nameOrEmail?: string | null) {
+  const s = (nameOrEmail ?? "").trim();
+  if (!s) return "WF";
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return s.slice(0, 2).toUpperCase();
 }
 
 export function ChatShell() {
+  const { user, signOut } = useAuth();
+
   // ----- state initialisation with persistence -----
   const persisted = loadPersistedState();
 
   // 1) Chat sessions
-  const [chats, setChats] = useState<ChatSession[]>(
-    persisted?.chats ?? [createEmptyChat()],
-  );
+  const [chats, setChats] = useState<ChatSession[]>(persisted?.chats ?? [createEmptyChat()]);
 
   // 2) Which chat is open
   const [activeChatId, setActiveChatId] = useState<string>(
-    persisted?.activeChatId ?? (persisted?.chats?.[0]?.id ?? (chats[0]?.id ?? "")),
+    persisted?.activeChatId ?? (persisted?.chats?.[0]?.id ?? (persisted?.chats?.[0]?.id ?? ""))
   );
 
   // 3) Prompt input
   const [input, setInput] = useState<string>("");
 
   // 4) Sidebar layout
-  const [sidebarWidth, setSidebarWidth] = useState<number>(
-    persisted?.sidebarWidth ?? 280,
-  );
+  const [sidebarWidth, setSidebarWidth] = useState<number>(persisted?.sidebarWidth ?? 280);
   const [isResizing, setIsResizing] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
-    persisted?.isSidebarCollapsed ?? false,
-  );
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(persisted?.isSidebarCollapsed ?? false);
 
   // 5) Delete confirmation
   const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
@@ -124,11 +118,15 @@ export function ChatShell() {
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [editValue, setEditValue] = useState<string>("");
 
-  // 7) Assistant / generation state
+  // 7) Assistant / generation state (now means "creating job")
   const [isGenerating, setIsGenerating] = useState(false);
 
   // 8) For auto-scroll
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // 9) Auth gate state
+  const [authOpen, setAuthOpen] = useState(false);
+  const pendingPromptRef = useRef<string | null>(null);
 
   // Ensure we always have a valid activeChatId
   useEffect(() => {
@@ -154,14 +152,14 @@ export function ChatShell() {
     if (typeof window === "undefined") return;
     const payload: PersistedState = {
       chats,
-      activeChatId,
+      activeChatId: activeChat?.id ?? activeChatId,
       sidebarWidth,
       isSidebarCollapsed,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [chats, activeChatId, sidebarWidth, isSidebarCollapsed]);
+  }, [chats, activeChatId, sidebarWidth, isSidebarCollapsed, activeChat?.id]);
 
-  // Auto-scroll to bottom whenever messages change or assistant is generating
+  // Auto-scroll to bottom whenever messages change
   useEffect(() => {
     if (!messagesEndRef.current) return;
     messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -177,11 +175,7 @@ export function ChatShell() {
 
   // Toggle pin
   const handleTogglePin = (id: string) => {
-    setChats((prev) =>
-      prev.map((chat) =>
-        chat.id === id ? { ...chat, isPinned: !chat.isPinned } : chat,
-      ),
-    );
+    setChats((prev) => prev.map((chat) => (chat.id === id ? { ...chat, isPinned: !chat.isPinned } : chat)));
   };
 
   // Actually delete chat (after confirmation)
@@ -197,10 +191,7 @@ export function ChatShell() {
         return [newChat];
       }
 
-      if (nextActiveId === id) {
-        nextActiveId = filtered[0].id;
-      }
-
+      if (nextActiveId === id) nextActiveId = filtered[0].id;
       return filtered;
     });
 
@@ -214,18 +205,17 @@ export function ChatShell() {
     }
   };
 
-  const handleCancelDelete = () => {
-    setChatToDelete(null);
-  };
+  const handleCancelDelete = () => setChatToDelete(null);
 
   // Append an assistant message to a specific chat
-  const appendAssistantMessage = (chatId: string, content: string) => {
+  const appendAssistantMessage = (chatId: string, msg: Omit<ChatMessage, "id" | "createdAt"> & Partial<Pick<ChatMessage, "id" | "createdAt">>) => {
     const now = Date.now();
     const assistantMessage: ChatMessage = {
-      id: `msg-${now}`,
+      id: msg.id ?? `msg-${now}`,
       role: "assistant",
-      content,
-      createdAt: now,
+      content: msg.content ?? "",
+      createdAt: msg.createdAt ?? now,
+      designJobId: (msg as any).designJobId,
     };
 
     setChats((prev) =>
@@ -236,31 +226,13 @@ export function ChatShell() {
           messages: [...chat.messages, assistantMessage],
           updatedAt: now,
         };
-      }),
+      })
     );
   };
 
-  // Simulate a Wireframe reply (placeholder for real backend)
-  const simulateAssistantResponse = (chatId: string, userText: string) => {
-    setIsGenerating(true);
-    const replyText = buildAssistantReply(userText);
-    const delay = Math.min(2200, 600 + userText.length * 25);
-
-    window.setTimeout(() => {
-      appendAssistantMessage(chatId, replyText);
-      setIsGenerating(false);
-    }, delay);
-  };
-
-  // Add a user message to the active chat
-  const handleSend = () => {
-    if (!activeChat) return;
-    const text = input.trim();
-    if (!text) return;
-
+  // (NEW) Send text -> create backend job -> show card message
+  const sendTextToChat = async (chatId: string, text: string) => {
     const now = Date.now();
-    const chatId = activeChat.id;
-
     const newMessage: ChatMessage = {
       id: `msg-${now}`,
       role: "user",
@@ -273,12 +245,8 @@ export function ChatShell() {
         if (chat.id !== chatId) return chat;
 
         const isFirstMessage = chat.messages.length === 0;
-
         let newTitle = chat.title;
-        if (isFirstMessage) {
-          // Auto-name chat from the first user message (max 5 words)
-          newTitle = generateTitleFromText(text);
-        }
+        if (isFirstMessage) newTitle = generateTitleFromText(text);
 
         return {
           ...chat,
@@ -286,13 +254,59 @@ export function ChatShell() {
           messages: [...chat.messages, newMessage],
           updatedAt: now,
         };
-      }),
+      })
     );
 
-    setInput("");
+    // Create a job
+    setIsGenerating(true);
+    try {
+      const { jobId } = await createDesignJob(text, chatId);
 
-    // For now simulate an assistant reply. Later this is where you plug your real API.
-    simulateAssistantResponse(chatId, text);
+      appendAssistantMessage(chatId, {
+        role: "assistant",
+        content: "Generating your CAD model now.",
+        designJobId: jobId,
+      } as any);
+    } catch (e: any) {
+      appendAssistantMessage(chatId, {
+        role: "assistant",
+        content:
+          "I couldn’t start the CAD job. This is usually a Firebase Functions / permissions issue.\n\n" +
+          `Error: ${String(e?.message ?? e)}`,
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Add a user message to the active chat (GATED)
+  const handleSend = async () => {
+    if (!activeChat) return;
+    if (isGenerating) return;
+
+    const text = input.trim();
+    if (!text) return;
+
+    // Gate right before job creation
+    if (!user) {
+      pendingPromptRef.current = text;
+      setAuthOpen(true);
+      return;
+    }
+
+    setInput("");
+    await sendTextToChat(activeChat.id, text);
+  };
+
+  // After auth completes, auto-send pending prompt
+  const handleAuthed = async () => {
+    if (!activeChat) return;
+    const pending = pendingPromptRef.current?.trim() ?? "";
+    pendingPromptRef.current = null;
+    if (!pending) return;
+
+    setInput("");
+    await sendTextToChat(activeChat.id, pending);
   };
 
   // Start editing a user message
@@ -316,16 +330,12 @@ export function ChatShell() {
       prev.map((chat) => {
         if (chat.id !== activeChatId) return chat;
 
-        const updatedMessages = chat.messages.map((m) =>
-          m.id === editingMessage.id ? { ...m, content: trimmed } : m,
-        );
+        const updatedMessages = chat.messages.map((m) => (m.id === editingMessage.id ? { ...m, content: trimmed } : m));
 
         // Recompute title from the first user message after edit
         const firstUserMessage = updatedMessages.find((m) => m.role === "user");
         let newTitle = chat.title;
-        if (firstUserMessage) {
-          newTitle = generateTitleFromText(firstUserMessage.content);
-        }
+        if (firstUserMessage) newTitle = generateTitleFromText(firstUserMessage.content);
 
         return {
           ...chat,
@@ -333,7 +343,7 @@ export function ChatShell() {
           title: newTitle,
           updatedAt: Date.now(),
         };
-      }),
+      })
     );
 
     setEditingMessage(null);
@@ -341,30 +351,25 @@ export function ChatShell() {
   };
 
   // ---- sidebar resize + collapse logic ----
-
   const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isSidebarCollapsed) return;
     e.preventDefault();
     setIsResizing(true);
   };
 
-  const toggleSidebar = () => {
-    setIsSidebarCollapsed((prev) => !prev);
-  };
+  const toggleSidebar = () => setIsSidebarCollapsed((prev) => !prev);
 
   useEffect(() => {
     if (!isResizing || isSidebarCollapsed) return;
 
     const handleMouseMove = (event: MouseEvent) => {
-      let newWidth = event.clientX; // distance from left edge
+      let newWidth = event.clientX;
       if (newWidth < MIN_SIDEBAR_WIDTH) newWidth = MIN_SIDEBAR_WIDTH;
       if (newWidth > MAX_SIDEBAR_WIDTH) newWidth = MAX_SIDEBAR_WIDTH;
       setSidebarWidth(newWidth);
     };
 
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
+    const handleMouseUp = () => setIsResizing(false);
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
@@ -376,14 +381,13 @@ export function ChatShell() {
   }, [isResizing, isSidebarCollapsed]);
 
   // ---- auto-resizing textarea + keyboard shortcuts ----
-
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const el = e.target;
     setInput(el.value);
 
     // Auto-resize height
     el.style.height = "auto";
-    const maxHeight = 240; // px (~6-7 lines)
+    const maxHeight = 240;
     const newHeight = Math.min(el.scrollHeight, maxHeight);
     el.style.height = `${newHeight}px`;
   };
@@ -391,12 +395,14 @@ export function ChatShell() {
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
   return (
     <div className="relative min-h-screen bg-[#13010C]">
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onAuthed={handleAuthed} />
+
       {/* Floating expand button when sidebar is collapsed */}
       {isSidebarCollapsed && (
         <button
@@ -405,22 +411,16 @@ export function ChatShell() {
           className="absolute left-3 top-3 z-30 rounded-full border border-white/20 bg-black/80 p-1 hover:bg-black/95"
           aria-label="Show sidebar"
         >
-          <img
-            src="/icons/sidebar.png"
-            alt="Show sidebar"
-            className="h-4 w-4"
-          />
+          <img src="/icons/sidebar.png" alt="Show sidebar" className="h-4 w-4" />
         </button>
       )}
 
-      {/* Full-screen split layout */}
       <div className="flex h-screen max-h-screen">
         {/* Sidebar */}
         <aside
           style={{ width: isSidebarCollapsed ? 0 : sidebarWidth }}
           className="border-r border-white/10 bg-black/20 flex flex-col overflow-hidden transition-[width] duration-150"
         >
-          {/* Header with New chat + sidebar toggle */}
           <div className="flex items-center gap-2 p-4 border-b border-white/10">
             <button
               onClick={handleNewChat}
@@ -434,17 +434,11 @@ export function ChatShell() {
               className="flex items-center justify-center rounded-md border border-white/15 bg-black/60 p-1 hover:bg-black/90"
               aria-label={isSidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
             >
-              <img
-                src="/icons/sidebar.png"
-                alt="Toggle sidebar"
-                className="h-4 w-4"
-              />
+              <img src="/icons/sidebar.png" alt="Toggle sidebar" className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Chat list + account section */}
           <div className="flex-1 flex flex-col">
-            {/* Scrollable chat list */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1 text-sm">
               {sortedChats.map((chat) => {
                 const isActive = chat.id === activeChatId;
@@ -455,16 +449,11 @@ export function ChatShell() {
                     onClick={() => setActiveChatId(chat.id)}
                     className={[
                       "flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer",
-                      isActive
-                        ? "bg-white/15 text-white"
-                        : "bg-transparent text-white/60 hover:bg-white/5 hover:text-white",
+                      isActive ? "bg-white/15 text-white" : "bg-transparent text-white/60 hover:bg-white/5 hover:text-white",
                     ].join(" ")}
                   >
-                    <span className="truncate flex-1">
-                      {chat.title || "New chat"}
-                    </span>
+                    <span className="truncate flex-1">{chat.title || "New chat"}</span>
 
-                    {/* Pin button with png icon */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -479,14 +468,11 @@ export function ChatShell() {
                         alt={chat.isPinned ? "Pinned chat" : "Pin chat"}
                         className={
                           "h-3 w-3 transition-opacity " +
-                          (chat.isPinned
-                            ? "opacity-100"
-                            : "opacity-30 group-hover:opacity-70")
+                          (chat.isPinned ? "opacity-100" : "opacity-30 group-hover:opacity-70")
                         }
                       />
                     </button>
 
-                    {/* Delete button (opens confirm UI) */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -503,18 +489,35 @@ export function ChatShell() {
               })}
             </div>
 
-            {/* Account / subscription section at bottom */}
             <div className="border-t border-white/10 px-3 py-3 flex items-center gap-3 text-xs text-white">
-              {/* Simple avatar circle with initials */}
               <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center text-[11px] font-semibold">
-                AM
+                {initials(user?.displayName || user?.email || "WF")}
               </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-white">
-                  Animesh Mittal
+
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <span className="text-xs font-medium text-white truncate">
+                  {user ? (user.displayName || user.email) : "Guest"}
                 </span>
-                <span className="text-[11px] text-white/60">Free plan</span>
+                <span className="text-[11px] text-white/60">{user ? "Signed in" : "Sign in to unlock answers"}</span>
               </div>
+
+              {user ? (
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="rounded-md border border-white/15 bg-black/40 px-2 py-1 text-[11px] text-white/80 hover:bg-black/70"
+                >
+                  Sign out
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAuthOpen(true)}
+                  className="rounded-md border border-white/15 bg-black/40 px-2 py-1 text-[11px] text-white/80 hover:bg-black/70"
+                >
+                  Sign in
+                </button>
+              )}
             </div>
           </div>
         </aside>
@@ -529,7 +532,6 @@ export function ChatShell() {
         <main className="flex-1 flex flex-col bg-black/10">
           {hasMessages ? (
             <>
-              {/* Top brand bar (left corner, like ChatGPT) */}
               <div className="px-8 py-4">
                 <div className="max-w-3xl flex items-center">
                   <div className="bg-gradient-to-r from-white to-[#731E47] bg-clip-text text-transparent text-xl font-semibold">
@@ -538,7 +540,6 @@ export function ChatShell() {
                 </div>
               </div>
 
-              {/* Messages view (after first message) */}
               <div className="flex-1 overflow-y-auto px-8 py-6">
                 <div className="mx-auto max-w-3xl text-sm text-white/40 space-y-3">
                   {activeChat.messages.map((m) => (
@@ -547,13 +548,11 @@ export function ChatShell() {
                       className={
                         m.role === "user"
                           ? "ml-auto max-w-[70%] rounded-xl bg-white/15 px-3 py-2 text-white text-sm"
-                          : "mr-auto max-w-[70%] rounded-xl bg-white/5 px-3 py-2 text-white/90 text-sm"
+                          : "mr-auto max-w-[75%] rounded-xl bg-white/5 px-3 py-2 text-white/90 text-sm"
                       }
                     >
                       <div className="flex justify-between gap-2">
-                        <div className="whitespace-pre-wrap break-words flex-1">
-                          {m.content}
-                        </div>
+                        <div className="whitespace-pre-wrap break-words flex-1">{m.content}</div>
                         {m.role === "user" && (
                           <button
                             type="button"
@@ -564,6 +563,8 @@ export function ChatShell() {
                           </button>
                         )}
                       </div>
+
+                      {m.role === "assistant" && m.designJobId ? <DesignJobCard jobId={m.designJobId} /> : null}
                     </div>
                   ))}
 
@@ -571,7 +572,7 @@ export function ChatShell() {
                     <div className="mr-auto max-w-[60%] rounded-xl bg-white/5 px-3 py-2 text-xs text-white/80">
                       <span className="inline-flex items-center gap-1.5">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        Wireframe is thinking about your brief…
+                        Starting the CAD job…
                       </span>
                     </div>
                   )}
@@ -580,7 +581,6 @@ export function ChatShell() {
                 </div>
               </div>
 
-              {/* Bottom prompt bar (chat mode) */}
               <div className="border-t border-white/10 p-4">
                 <div className="mx-auto max-w-3xl">
                   <div className="flex items-end gap-3 rounded-xl border border-white/20 bg-black/30 px-3 py-2">
@@ -594,31 +594,25 @@ export function ChatShell() {
                     />
                     <button
                       type="button"
-                      onClick={handleSend}
-                      disabled={!input.trim()}
+                      onClick={() => void handleSend()}
+                      disabled={!input.trim() || isGenerating}
                       className="shrink-0 rounded-lg bg-white/15 text-xs text-white px-3 py-2 hover:bg-white/25 transition disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Send
                     </button>
                   </div>
-                  <p className="mt-1 text-[11px] text-white/40">
-                    Press Enter to send · Shift+Enter for a new line
-                  </p>
+                  <p className="mt-1 text-[11px] text-white/40">Press Enter to send · Shift+Enter for a new line</p>
                 </div>
               </div>
             </>
           ) : (
-            /* Centered first-prompt view (landing state) */
             <div className="flex flex-1 items-center justify-center px-4">
               <div className="w-full max-w-3xl space-y-6">
                 <div className="text-center space-y-2">
                   <div className="bg-gradient-to-r from-white to-[#731E47] bg-clip-text text-transparent text-4xl font-semibold">
                     Wireframe
                   </div>
-                  <p className="text-sm text-white/60">
-                    Use simple texts to design editable parametric 3D jewelry
-                    models.
-                  </p>
+                  <p className="text-sm text-white/60">Use simple texts to design editable parametric 3D jewelry models.</p>
                 </div>
 
                 <div className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3">
@@ -633,16 +627,14 @@ export function ChatShell() {
                     />
                     <button
                       type="button"
-                      onClick={handleSend}
-                      disabled={!input.trim()}
-                      className="shrink-0 rounded-lg bg:white/15 text-xs text-white px-3 py-2 hover:bg-white/25 transition disabled:cursor-not-allowed disabled:opacity-40 bg-white/15"
+                      onClick={() => void handleSend()}
+                      disabled={!input.trim() || isGenerating}
+                      className="shrink-0 rounded-lg bg-white/15 text-xs text-white px-3 py-2 hover:bg-white/25 transition disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Send
                     </button>
                   </div>
-                  <p className="mt-1 text-[11px] text-white/40">
-                    Press Enter to send · Shift+Enter for a new line
-                  </p>
+                  <p className="mt-1 text-[11px] text-white/40">Press Enter to send · Shift+Enter for a new line</p>
                 </div>
               </div>
             </div>
@@ -654,12 +646,9 @@ export function ChatShell() {
       {chatToDelete && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#13010C] p-5 shadow-xl">
-            <h2 className="text-sm font-semibold text-white">
-              Delete this conversation?
-            </h2>
+            <h2 className="text-sm font-semibold text-white">Delete this conversation?</h2>
             <p className="mt-2 text-xs text-white/60">
-              “{chatToDelete.title || "New chat"}” will be permanently removed.
-              This action cannot be undone.
+              “{chatToDelete.title || "New chat"}” will be permanently removed. This action cannot be undone.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -684,7 +673,7 @@ export function ChatShell() {
       {/* Edit message overlay */}
       {editingMessage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border:white/15 bg-[#13010C] p-5 shadow-xl border-white/15">
+          <div className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#13010C] p-5 shadow-xl">
             <h2 className="text-sm font-semibold text-white">Edit message</h2>
             <textarea
               rows={5}
@@ -692,7 +681,7 @@ export function ChatShell() {
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
             />
-            <div className="mt-4 flex justify:end gap-2 justify-end">
+            <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={handleCancelEdit}

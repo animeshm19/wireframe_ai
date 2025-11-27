@@ -1,0 +1,45 @@
+type User @table {
+  displayName: String!
+  createdAt: Timestamp!
+  email: String
+  photoUrl: String
+}
+
+type CADModel @table {
+  name: String!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+  modelData: String!
+  isPublic: Boolean!
+  description: String
+  promptUsed: String
+  thumbnailUrl: String
+  owner: User
+  project: Project
+}
+
+type Prompt @table {
+  text: String!
+  createdAt: Timestamp!
+  feedback: String
+  user: User
+  modelGenerated: CADModel
+}
+
+type Project @table {
+  name: String!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+  description: String
+  owner: User
+}
+
+type Feedback @table {
+  rating: Int!
+  createdAt: Timestamp!
+  comments: String
+  type: String
+  user: User
+  cadModel: CADModel
+  prompt: Prompt
+}
