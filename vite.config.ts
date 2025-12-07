@@ -9,5 +9,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
       'motion/react': 'framer-motion',
     }
+  },
+  build: {
+    outDir: "dist", // Explicitly matching Vercel's expectation
   }
 });
