@@ -1,7 +1,7 @@
 // src/lib/design-jobs.ts
 import { httpsCallable } from "firebase/functions";
 import { doc, onSnapshot } from "firebase/firestore";
-import { getDownloadURL, ref } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
 
 export type DesignJob = {
@@ -15,9 +15,11 @@ export type DesignJob = {
   outputs?: { stlPath?: string; stepPath?: string };
 };
 
-export async function createDesignJob(prompt: string, chatId?: string) {
+// Updated to accept attachment URLs
+export async function createDesignJob(prompt: string, chatId?: string, attachmentUrls?: string[]) {
   const fn = httpsCallable(functions, "createDesignJob");
-  const res = await fn({ prompt, chatId });
+  // Pass attachments to the Cloud Function
+  const res = await fn({ prompt, chatId, attachments: attachmentUrls });
   const data = res.data as any;
   return { jobId: String(data.jobId) };
 }
@@ -38,4 +40,23 @@ export function subscribeDesignJob(
 export async function jobFileUrl(path?: string) {
   if (!path) return null;
   return await getDownloadURL(ref(storage, path));
+}
+
+// New helper: Uploads file to Firebase Storage
+export async function uploadJobAttachment(file: File, uid: string) {
+  const timestamp = Date.now();
+  // Sanitize filename to prevent issues
+  const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+  const path = `user-uploads/${uid}/${timestamp}_${safeName}`;
+  const storageRef = ref(storage, path);
+  
+  const snapshot = await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(snapshot.ref);
+  
+  return { 
+    name: file.name,
+    path,
+    url, // The public download URL
+    type: file.type || 'application/octet-stream'
+  };
 }

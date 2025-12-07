@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 // Types for the component
-interface DockApp {
+export interface DockApp {
   id: string;
   name: string;
   icon: string;
@@ -11,14 +11,12 @@ interface DockApp {
 
 interface MacOSDockProps {
   apps: DockApp[];
-  onAppClick: (appId: string) => void;
+  // UPDATED: Now receives the DOMRect of the clicked icon for animation origin
+  onAppClick: (appId: string, iconRect?: DOMRect) => void;
   openApps?: string[];
   className?: string;
-  /** Only these ids are allowed to magnify on hover. Others stay at min scale. */
   magnifyOnlyIds?: string[];
-  /** These ids will be scaled up even when not hovering. */
   alwaysMagnifyIds?: string[];
-  /** The idle scale for alwaysMagnifyIds (clamped to <= maxScale). Default 1.3 */
   alwaysScale?: number;
 }
 
@@ -47,28 +45,24 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     const smallerDimension = Math.min(window.innerWidth, window.innerHeight);
 
     if (smallerDimension < 480) {
-      // Mobile phones
       return {
         baseIconSize: Math.max(40, smallerDimension * 0.08),
         maxScale: 1.4,
         effectWidth: smallerDimension * 0.4,
       };
     } else if (smallerDimension < 768) {
-      // Tablets
       return {
         baseIconSize: Math.max(48, smallerDimension * 0.07),
         maxScale: 1.5,
         effectWidth: smallerDimension * 0.35,
       };
     } else if (smallerDimension < 1024) {
-      // Small laptops
       return {
         baseIconSize: Math.max(56, smallerDimension * 0.06),
         maxScale: 1.6,
         effectWidth: smallerDimension * 0.3,
       };
     } else {
-      // Desktop and large screens
       return {
         baseIconSize: Math.max(64, Math.min(80, smallerDimension * 0.05)),
         maxScale: 1.8,
@@ -91,7 +85,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [getResponsiveConfig]);
 
-  /** Ensure "always" icons are at least alwaysScale (clamped to <= maxScale). */
   const applyAlwaysMagnify = useCallback(
     (scales: number[]) =>
       scales.map((s, i) =>
@@ -102,17 +95,14 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     [alwaysMagnifyIds, apps, alwaysScale, maxScale]
   );
 
-  // Authentic macOS cosine-based magnification algorithm
   const calculateTargetMagnification = useCallback(
     (mousePosition: number | null) => {
       if (mousePosition === null) {
-        // At rest, everyone is minScale, then bump the "always" ones
         const base = apps.map(() => minScale);
         return applyAlwaysMagnify(base);
       }
 
       const hovered = apps.map((app, index) => {
-        // If only some ids may magnify, clamp others to min
         if (magnifyOnlyIds && !magnifyOnlyIds.includes(app.id)) {
           return minScale;
         }
@@ -132,7 +122,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
         return minScale + scaleFactor * (maxScale - minScale);
       });
 
-      // Keep "always" ones boosted even while hovering nearby
       return applyAlwaysMagnify(hovered);
     },
     [
@@ -147,7 +136,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     ]
   );
 
-  // Calculate positions based on current scales
   const calculatePositions = useCallback(
     (scales: number[]) => {
       let currentX = 0;
@@ -161,7 +149,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     [baseIconSize, baseSpacing]
   );
 
-  // Initialize positions (respect alwaysMagnifyIds at rest)
   useEffect(() => {
     const initialScales = applyAlwaysMagnify(apps.map(() => minScale));
     const initialPositions = calculatePositions(initialScales);
@@ -169,7 +156,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     setCurrentPositions(initialPositions);
   }, [apps, calculatePositions, minScale, config, applyAlwaysMagnify]);
 
-  // Animation loop
   const animateToTarget = useCallback(() => {
     const targetScales = calculateTargetMagnification(mouseX);
     const targetPositions = calculatePositions(targetScales);
@@ -207,7 +193,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     currentPositions,
   ]);
 
-  // Start/stop animation loop
   useEffect(() => {
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     animationFrameRef.current = requestAnimationFrame(animateToTarget);
@@ -216,7 +201,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     };
   }, [animateToTarget]);
 
-  // Throttled mouse movement handler
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       const now = performance.now();
@@ -236,38 +220,12 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
     setMouseX(null);
   }, []);
 
-  const createBounceAnimation = (element: HTMLElement) => {
-    const bounceHeight = Math.max(-8, -baseIconSize * 0.15);
-    element.style.transition = 'transform 0.2s ease-out';
-    element.style.transform = `translateY(${bounceHeight}px)`;
-    setTimeout(() => {
-      element.style.transform = 'translateY(0px)';
-    }, 200);
-  };
-
   const handleAppClick = (appId: string, index: number) => {
-    if (iconRefs.current[index]) {
-      if (typeof window !== 'undefined' && (window as any).gsap) {
-        const gsap = (window as any).gsap;
-        const bounceHeight =
-          currentScales[index] > 1.3 ? -baseIconSize * 0.2 : -baseIconSize * 0.15;
-
-        gsap.to(iconRefs.current[index], {
-          y: bounceHeight,
-          duration: 0.2,
-          ease: 'power2.out',
-          yoyo: true,
-          repeat: 1,
-          transformOrigin: 'bottom center',
-        });
-      } else {
-        createBounceAnimation(iconRefs.current[index]!);
-      }
-    }
-    onAppClick(appId);
+    // Get the exact screen position of this icon for the genie effect
+    const rect = iconRefs.current[index]?.getBoundingClientRect();
+    onAppClick(appId, rect);
   };
 
-  // Calculate content width
   const contentWidth =
     currentPositions.length > 0
       ? Math.max(
@@ -283,8 +241,7 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
       className={`backdrop-blur-md ${className}`}
       style={{
         width: `${contentWidth + padding * 2}px`,
-        // NOTE: '#2g3824' is not a valid hex. If you intended a green, use something like '#2e3824'.
-        background: '--background', // keep your color vibe, but valid hex
+        background: 'rgba(20, 20, 20, 0.4)', // Fixed hex
         borderRadius: `${Math.max(12, baseIconSize * 0.4)}px`,
         border: '1px solid rgba(255, 255, 255, 0.15)',
         boxShadow: `
@@ -346,7 +303,6 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
                 }}
               />
 
-              {/* App Indicator Dot */}
               {openApps.includes(app.id) && (
                 <div
                   className="absolute"

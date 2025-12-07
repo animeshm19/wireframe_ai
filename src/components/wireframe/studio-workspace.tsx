@@ -1,3 +1,4 @@
+// src/components/wireframe/studio-workspace.tsx
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -31,7 +32,7 @@ const DEFAULT_PARAMS: StudioParams = {
   gemSize: 1.0,
   gemShape: "round",
   prongCount: 6,
-  metalType: "18k_gold",
+  metalType: "platinum",
 };
 
 export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
@@ -39,20 +40,25 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
   const [params, setParams] = useState<StudioParams>(DEFAULT_PARAMS);
   const [viewMode, setViewMode] = useState<"rendered" | "wireframe">("rendered");
 
+  // Three.js Refs
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   
+  // Geometry Refs
   const shankMeshRef = useRef<THREE.Mesh | null>(null);
   const gemMeshRef = useRef<THREE.Mesh | null>(null);
   const prongsGroupRef = useRef<THREE.Group | null>(null);
 
+  // --- 1. Initialization ---
   useEffect(() => {
     if (!mountRef.current) return;
 
     const w = mountRef.current.clientWidth;
     const h = mountRef.current.clientHeight;
+
+    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true });
     renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -63,15 +69,19 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
+    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#050505");
-    scene.environment = null;
     sceneRef.current = scene;
 
+    // Camera
     const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
-    camera.position.set(4, 3, 6);
+    // MOBILE FIX: Pull camera back if screen is narrow
+    const isMobile = w < 600;
+    camera.position.set(isMobile ? 6 : 4, isMobile ? 5 : 3, isMobile ? 9 : 6);
     cameraRef.current = camera;
 
+    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -80,6 +90,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     controls.target.set(0, 0.5, 0);
     controlsRef.current = controls;
 
+    // Lighting
     RectAreaLightUniformsLib.init();
 
     const spotLight = new THREE.SpotLight(0xffffff, 20);
@@ -95,11 +106,12 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     rectLight.lookAt(0, 0, 0);
     scene.add(rectLight);
 
-    const rimLight = new THREE.SpotLight(0xbfdbfe, 10);
+    const rimLight = new THREE.SpotLight(0xc69bb2, 8);
     rimLight.position.set(0, 5, -8);
     rimLight.lookAt(0, 0, 0);
     scene.add(rimLight);
 
+    // Environment
     const floorGeom = new THREE.PlaneGeometry(100, 100);
     const floorMat = new THREE.ShadowMaterial({ opacity: 0.3 });
     const floor = new THREE.Mesh(floorGeom, floorMat);
@@ -112,6 +124,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     grid.position.y = -1.2;
     scene.add(grid);
 
+    // Initial Empty Meshes
     const shankMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial());
     shankMesh.castShadow = true;
     shankMesh.receiveShadow = true;
@@ -127,6 +140,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     scene.add(prongsGroup);
     prongsGroupRef.current = prongsGroup;
 
+    // Loop
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
@@ -140,6 +154,11 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
       const nw = mountRef.current.clientWidth;
       const nh = mountRef.current.clientHeight;
       camera.aspect = nw / nh;
+      
+      // Re-evaluate mobile camera position on heavy resize
+      const isNarrow = nw < 600;
+      // We don't reset position on every frame, just aspect
+      
       camera.updateProjectionMatrix();
       renderer.setSize(nw, nh);
     };
@@ -153,13 +172,14 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     };
   }, []);
 
+  // --- 2. Updates (Geometry & Material) ---
   useEffect(() => {
     if (!shankMeshRef.current || !gemMeshRef.current || !prongsGroupRef.current) return;
 
     const metalColors = {
-      "18k_gold": new THREE.Color("#FFD700"),
-      "14k_rose": new THREE.Color("#F4C2C2"),
-      "platinum": new THREE.Color("#E5E4E2"),
+      "18k_gold": new THREE.Color("#836E76"), // Antique Mauve
+      "14k_rose": new THREE.Color("#C69BB2"), // Brand Rose
+      "platinum": new THREE.Color("#F5F5F5"), // Bright Platinum
     };
 
     const metalMat = new THREE.MeshStandardMaterial({
@@ -181,12 +201,14 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
       attenuationDistance: 0.5,
     });
 
+    // Update Materials
     shankMeshRef.current.material = metalMat;
     shankMeshRef.current.material.wireframe = viewMode === "wireframe";
 
     gemMeshRef.current.material = diamondMat;
     gemMeshRef.current.material.wireframe = viewMode === "wireframe";
 
+    // 1. Shank Geometry
     const baseRadius = 0.8 + (params.ringSize - 6) * 0.05;
     const tubeThickness = params.bandWidth * 0.04;
 
@@ -201,6 +223,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     shankMeshRef.current.rotation.x = Math.PI / 2;
     shankMeshRef.current.position.y = 0;
 
+    // 2. Gem Geometry
     const gemScale = 0.3 + (params.gemSize - 0.5) * 0.15;
     const gemGeom = new THREE.CylinderGeometry(gemScale * 0.6, 0, gemScale, 8);
     
@@ -211,6 +234,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     gemMeshRef.current.position.set(0, gemY, 0);
     gemMeshRef.current.rotation.y = Math.PI / 8;
 
+    // 3. Prongs
     while(prongsGroupRef.current.children.length > 0){ 
         prongsGroupRef.current.remove(prongsGroupRef.current.children[0]); 
     }
@@ -228,7 +252,6 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
       const prongMesh = new THREE.Mesh(prongGeom, metalMat);
       
       prongMesh.position.set(x, gemY - (gemScale * 0.2), z);
-      
       prongMesh.lookAt(0, gemY + gemScale, 0); 
       
       prongsGroupRef.current.add(prongMesh);
@@ -239,6 +262,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
   return (
     <div className="flex h-full w-full bg-[#0a0005] overflow-hidden rounded-l-3xl shadow-2xl border-l border-white/10 relative animate-in slide-in-from-right duration-500">
       
+      {/* Top Toolbar */}
       <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
         <div className="flex gap-2 pointer-events-auto">
           <div className="bg-[#13010C]/90 backdrop-blur-md border border-white/10 rounded-lg p-1 flex gap-1">
@@ -276,6 +300,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
         </div>
       </div>
 
+      {/* 3D Viewport */}
       <div 
         ref={mountRef} 
         className="flex-1 h-full cursor-move relative"
@@ -284,6 +309,7 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
         <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-size-[100px_100px]" />
       </div>
 
+      {/* Sidebar Controls */}
       <div className="absolute top-20 right-4 bottom-4 w-72 bg-[#13010C]/80 backdrop-blur-xl border border-white/10 rounded-2xl flex flex-col shadow-2xl z-20 overflow-hidden">
         
         <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
@@ -306,19 +332,19 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
             <div className="grid grid-cols-3 gap-2 mb-4">
               <MaterialButton 
                 active={params.metalType === "18k_gold"} 
-                color="#FFD700" 
-                label="18K" 
+                color="#836E76" 
+                label="Antique" 
                 onClick={() => setParams(p => ({ ...p, metalType: "18k_gold" }))} 
               />
               <MaterialButton 
                 active={params.metalType === "14k_rose"} 
-                color="#F4C2C2" 
+                color="#C69BB2" 
                 label="Rose" 
                 onClick={() => setParams(p => ({ ...p, metalType: "14k_rose" }))} 
               />
               <MaterialButton 
                 active={params.metalType === "platinum"} 
-                color="#E5E4E2" 
+                color="#F5F5F5" 
                 label="Plat" 
                 onClick={() => setParams(p => ({ ...p, metalType: "platinum" }))} 
               />
@@ -399,6 +425,8 @@ export function StudioWorkspace({ jobId, onClose }: StudioWorkspaceProps) {
     </div>
   );
 }
+
+// --- Sub-Components ---
 
 function ToolButton({ active, onClick, icon: Icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) {
   return (

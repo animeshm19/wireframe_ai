@@ -1,10 +1,12 @@
 // src/App.tsx
 import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion"; // Import Animation Components
 import { auth } from "./lib/firebase";
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
-import { InteractiveCapabilities } from "./components/InteractiveCapabilities"; // Updated to use the new one!
+import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid"; // Or your new InteractiveFeatureGrid
+import { CapabilitiesTable } from "./components/CapabilitiesTable"; // Or InteractiveCapabilities
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
 import { DockBar } from "./components/DockBar";
@@ -21,60 +23,73 @@ import { DocsPage } from "./pages/DocsPage";
 import { PartnersPage } from "./pages/PartnersPage";
 import { SupportPage } from "./pages/SupportPage";
 import { BlogPage } from "./pages/BlogPage";
-import { SettingsPage } from "./pages/SettingsPage"; // <-- Import this
-import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid"; // New interactive FeatureGrid component
+import { SettingsPage } from "./pages/SettingsPage"; // If you added this
+import { InteractiveCapabilities } from "./components/InteractiveCapabilities";
 
-// 👇 Home (marketing) page composed from your existing sections
+// Wrapper for page transitions
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+      className="flex-1 w-full"
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 function HomePage() {
   return (
-    <main>
+    <PageWrapper>
       <Hero />
       <DockBar />
-      <InteractiveFeatureGrid /> {/* Using the new interactive grid */}
-      <InteractiveCapabilities /> {/* Using the new interactive capabilities */}
+      <InteractiveFeatureGrid />
+      <InteractiveCapabilities />
       <Pricing />
       <ContactSection />
-    </main>
+    </PageWrapper>
   );
 }
 
 export default function App() {
   const location = useLocation();
-  // Hide navbar/footer on app-like pages (Chat & Settings)
   const isAppRoute = location.pathname === "/chat" || location.pathname === "/settings";
 
   return (
-    <div
-      className={
-        "flex min-h-screen flex-col" + (isAppRoute ? "" : " cursor-none")
-      }
-    >
-      {/* No navbar on App Routes so the tool feels like a focused app */}
+    <div className={"flex min-h-screen flex-col" + (isAppRoute ? "" : " cursor-none")}>
       {!isAppRoute && <Navbar />}
 
-      <div className="flex-1">
-        <Routes>
-          {/* Real pages */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/careers" element={<CareersPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/settings" element={<SettingsPage />} /> {/* <-- Add Route */}
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/mesh" element={<MeshPage />} />
-          <Route path="/changelog" element={<ChangelogPage />} />
-          <Route path="/docs" element={<DocsPage />} />
-          <Route path="/partners" element={<PartnersPage />} />
-          <Route path="/support" element={<SupportPage />} />
-          <Route path="/blog" element={<BlogPage />} />
+      <div className="flex-1 flex flex-col">
+        {/* AnimatePresence enables exit animations */}
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<HomePage />} />
+            
+            {/* Wrap individual pages or handle them in a generic wrapper */}
+            <Route path="/chat" element={<PageWrapper><ChatPage /></PageWrapper>} />
+            <Route path="/settings" element={<PageWrapper><SettingsPage /></PageWrapper>} />
+            <Route path="/mesh" element={<PageWrapper><MeshPage /></PageWrapper>} />
+            
+            <Route path="/about" element={<PageWrapper><AboutPage /></PageWrapper>} />
+            <Route path="/blog" element={<PageWrapper><BlogPage /></PageWrapper>} />
+            <Route path="/careers" element={<PageWrapper><CareersPage /></PageWrapper>} />
+            <Route path="/privacy" element={<PageWrapper><PrivacyPage /></PageWrapper>} />
+            <Route path="/changelog" element={<PageWrapper><ChangelogPage /></PageWrapper>} />
+            <Route path="/docs" element={<PageWrapper><DocsPage /></PageWrapper>} />
+            <Route path="/partners" element={<PageWrapper><PartnersPage /></PageWrapper>} />
+            <Route path="/support" element={<PageWrapper><SupportPage /></PageWrapper>} />
 
-          {/* Everything else → ComingSoonPage */}
-          <Route path="*" element={<ComingSoonPage />} />
-        </Routes>
+            <Route path="*" element={<PageWrapper><ComingSoonPage /></PageWrapper>} />
+          </Routes>
+        </AnimatePresence>
       </div>
 
-      {/* No footer / fancy cursor on app routes */}
       {!isAppRoute && <Footer />}
+      
+      {/* Enhanced Cursor - only show on non-app routes to avoid conflicting with complex UI like 3D studios */}
       {!isAppRoute && <SmoothCursor />}
     </div>
   );

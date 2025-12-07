@@ -1,13 +1,21 @@
-// src/components/ui/wireframe/chat-types.ts
+// src/components/wireframe/chat-types.ts
 
 export type ChatRole = "user" | "assistant";
+
+export type ChatAttachment = {
+  name: string;
+  url: string;
+  type: string;
+};
 
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: number;
-  designJobId?: string; // add this
+  designJobId?: string;
+  // New field for files
+  attachments?: ChatAttachment[];
 };
 
 export interface ChatSession {
@@ -16,5 +24,5 @@ export interface ChatSession {
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
-  isPinned?: boolean; // 👈 new
+  isPinned?: boolean;
 }
