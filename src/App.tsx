@@ -4,8 +4,7 @@ import { Routes, Route, useLocation } from "react-router-dom";
 import { auth } from "./lib/firebase";
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
-import { FeatureGrid } from "./components/FeatureGrid";
-import { CapabilitiesTable } from "./components/CapabilitiesTable";
+import { InteractiveCapabilities } from "./components/InteractiveCapabilities"; // Updated to use the new one!
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
 import { DockBar } from "./components/DockBar";
@@ -22,9 +21,8 @@ import { DocsPage } from "./pages/DocsPage";
 import { PartnersPage } from "./pages/PartnersPage";
 import { SupportPage } from "./pages/SupportPage";
 import { BlogPage } from "./pages/BlogPage";
-import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
-
-
+import { SettingsPage } from "./pages/SettingsPage"; // <-- Import this
+import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid"; // New interactive FeatureGrid component
 
 // 👇 Home (marketing) page composed from your existing sections
 function HomePage() {
@@ -32,10 +30,8 @@ function HomePage() {
     <main>
       <Hero />
       <DockBar />
-      <InteractiveFeatureGrid />
-      <CapabilitiesTable />
-      {/* <MeshShowcase /> */}
-      {/* <DemoCTA /> */}
+      <InteractiveFeatureGrid /> {/* Using the new interactive grid */}
+      <InteractiveCapabilities /> {/* Using the new interactive capabilities */}
       <Pricing />
       <ContactSection />
     </main>
@@ -44,16 +40,17 @@ function HomePage() {
 
 export default function App() {
   const location = useLocation();
-  const isChatRoute = location.pathname === "/chat";
+  // Hide navbar/footer on app-like pages (Chat & Settings)
+  const isAppRoute = location.pathname === "/chat" || location.pathname === "/settings";
 
   return (
     <div
       className={
-        "flex min-h-screen flex-col" + (isChatRoute ? "" : " cursor-none")
+        "flex min-h-screen flex-col" + (isAppRoute ? "" : " cursor-none")
       }
     >
-      {/* No navbar on /chat so the tool feels like a focused app */}
-      {!isChatRoute && <Navbar />}
+      {/* No navbar on App Routes so the tool feels like a focused app */}
+      {!isAppRoute && <Navbar />}
 
       <div className="flex-1">
         <Routes>
@@ -62,6 +59,7 @@ export default function App() {
           <Route path="/careers" element={<CareersPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/settings" element={<SettingsPage />} /> {/* <-- Add Route */}
           <Route path="/about" element={<AboutPage />} />
           <Route path="/mesh" element={<MeshPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
@@ -75,9 +73,9 @@ export default function App() {
         </Routes>
       </div>
 
-      {/* No footer / fancy cursor on chat route */}
-      {!isChatRoute && <Footer />}
-      {!isChatRoute && <SmoothCursor />}
+      {/* No footer / fancy cursor on app routes */}
+      {!isAppRoute && <Footer />}
+      {!isAppRoute && <SmoothCursor />}
     </div>
   );
 }

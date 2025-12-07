@@ -42,8 +42,8 @@ export function CapabilitiesTable() {
             </thead>
             <tbody className="divide-y divide-white/10">
               {rows.map((r) => (
-                <tr key={r.feature} className="hover:bg-white/[0.03]">
-                  <td className="px-4 py-3 sm:px-6 font-medium text-[var(--gold-500)]">
+                <tr key={r.feature} className="hover:bg-white/3">
+                  <td className="px-4 py-3 sm:px-6 font-medium text-(--gold-500)">
                     {r.feature}
                   </td>
                   <td className="px-4 py-3 sm:px-6 text-white/80">{r.desc}</td>

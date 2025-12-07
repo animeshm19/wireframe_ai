@@ -8,7 +8,6 @@ import {
   ArrowUpRight
 } from "lucide-react";
 
-// --- Types ---
 type Feature = {
   title: string;
   desc: string;
@@ -35,7 +34,7 @@ const FEATURES: Feature[] = [
   {
     id: "export",
     title: "3D Exports",
-    desc: "Production-ready logic. Hover to inspect the geometry.",
+    desc: "Production-ready solitaire geometry. Hover to rotate and inspect the setting.",
     icon: Box,
     colSpan: "md:col-span-1",
   },
@@ -76,7 +75,6 @@ export function InteractiveFeatureGrid() {
   );
 }
 
-// --- Card Wrapper with 3D Tilt ---
 function BentoCard({ feature }: { feature: Feature }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -96,23 +94,21 @@ function BentoCard({ feature }: { feature: Feature }) {
       viewport={{ once: true }}
       onMouseMove={onMouseMove}
       className={`
-        relative group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] backdrop-blur-sm
+        relative group overflow-hidden rounded-3xl border border-white/10 bg-white/2 backdrop-blur-sm
         ${feature.colSpan} flex flex-col
       `}
     >
-      {/* Interactive Background Layer */}
       <div className="absolute inset-0 z-0">
         {feature.id === "ai" && <ElasticMeshVisual />}
         {feature.id === "parametric" && <ParametricSliderVisual />}
-        {feature.id === "export" && <CubeVisual mouseX={mouseX} mouseY={mouseY} />}
+        {feature.id === "export" && <SolitaireRingVisual mouseX={mouseX} mouseY={mouseY} />}
         {feature.id === "browser" && <GlobeVisual />}
       </div>
 
-      {/* Content Layer (on top) */}
       <div className="relative z-10 flex flex-col h-full p-8 pointer-events-none">
         <div className="mb-auto flex items-center justify-between">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 border border-white/10 backdrop-blur-md">
-            <feature.icon className="h-5 w-5 text-[var(--gold-400)]" />
+            <feature.icon className="h-5 w-5 text-(--gold-400)" />
           </div>
           <ArrowUpRight className="h-5 w-5 text-white/20 group-hover:text-white/60 transition-colors" />
         </div>
@@ -125,13 +121,11 @@ function BentoCard({ feature }: { feature: Feature }) {
         </div>
       </div>
 
-      {/* Hover Spotlight */}
       <SpotlightOverlay mouseX={mouseX} mouseY={mouseY} />
     </motion.div>
   );
 }
 
-// --- Visual: Elastic Mesh (Dots that repel mouse) ---
 function ElasticMeshVisual() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dots, setDots] = useState<Array<{x: number, y: number, baseX: number, baseY: number}>>([]);
@@ -170,7 +164,7 @@ function ElasticMeshVisual() {
         const angle = Math.atan2(dy, dx);
         return {
           ...dot,
-          x: dot.baseX - Math.cos(angle) * force * 40, // Repel force
+          x: dot.baseX - Math.cos(angle) * force * 40,
           y: dot.baseY - Math.sin(angle) * force * 40
         };
       }
@@ -200,29 +194,26 @@ function ElasticMeshVisual() {
   );
 }
 
-// --- Visual: Parametric Slider (Interactive shape) ---
 function ParametricSliderVisual() {
   const [value, setValue] = useState(50);
   const handleDrag = (e: React.ChangeEvent<HTMLInputElement>) => setValue(Number(e.target.value));
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto">
-      {/* The parametric shape */}
       <motion.div 
-        className="relative mb-8 border border-[var(--gold-500)] bg-[var(--gold-500)]/10"
+        className="relative mb-8 border border-(--gold-500) bg-(--gold-500)/10"
         style={{
-          width: 80 + value, // Width driven by slider
+          width: 80 + value,
           height: 80,
-          borderRadius: 40 - (value * 0.3), // Radius driven by slider
+          borderRadius: 40 - (value * 0.3),
         }}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
       >
-        <div className="absolute inset-0 flex items-center justify-center text-[10px] text-[var(--gold-500)] font-mono">
+        <div className="absolute inset-0 flex items-center justify-center text-[10px] text-(--gold-500) font-mono">
           {value}mm
         </div>
       </motion.div>
 
-      {/* The controls */}
       <div className="w-48 px-4 py-3 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3">
         <span className="text-[10px] text-white/50 font-mono">WIDTH</span>
         <input 
@@ -231,37 +222,101 @@ function ParametricSliderVisual() {
           max="100" 
           value={value} 
           onChange={handleDrag}
-          className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--gold-500)]"
+          className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-(--gold-500)"
         />
       </div>
     </div>
   );
 }
 
-// --- Visual: 3D Cube (Reacts to mouse spring) ---
-function CubeVisual({ mouseX, mouseY }: { mouseX: any, mouseY: any }) {
-  const rotateX = useTransform(mouseY, [0, 320], [25, -25]);
-  const rotateY = useTransform(mouseX, [0, 320], [-25, 25]);
+function SolitaireRingVisual({ mouseX, mouseY }: { mouseX: any, mouseY: any }) {
+  const rotateX = useTransform(mouseY, [0, 320], [10, -10]);
+  const rotateY = useTransform(mouseX, [0, 320], [-30, 30]);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center perspective-[800px]">
+    <div className="absolute inset-0 flex items-center justify-center perspective-midrange">
       <motion.div
-        style={{ rotateX, rotateY, rotateZ: 10 }}
-        className="w-24 h-24 relative preserve-3d"
+        style={{ rotateX, rotateY, rotateZ: 0 }}
+        className="relative preserve-3d"
+        animate={{ rotateY: 360 }}
+        transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
       >
-        <div className="absolute inset-0 border border-[var(--gold-500)] bg-[var(--gold-500)]/5 translate-z-[48px]" />
-        <div className="absolute inset-0 border border-[var(--gold-500)] bg-[var(--gold-500)]/5 -translate-z-[48px]" />
-        <div className="absolute inset-0 border border-[var(--gold-500)] bg-[var(--gold-500)]/5 rotate-y-90 translate-z-[48px]" />
-        <div className="absolute inset-0 border border-[var(--gold-500)] bg-[var(--gold-500)]/5 rotate-y-90 -translate-z-[48px]" />
-        <div className="absolute inset-0 border border-[var(--gold-500)] bg-[var(--gold-500)]/5 rotate-x-90 translate-z-[48px]" />
-        <div className="absolute inset-0 border border-[var(--gold-500)] bg-[var(--gold-500)]/5 rotate-x-90 -translate-z-[48px]" />
+        <div className="absolute inset-0 -top-16 -left-16 h-32 w-32 rounded-full border-2 border-(--gold-500)/50 translate-z-[3px]" />
+        <div className="absolute inset-0 -top-16 -left-16 h-32 w-32 rounded-full border-2 border-(--gold-500)/50 -translate-z-[3px]" />
+        
+        {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+          <div
+            key={deg}
+            className="absolute bg-(--gold-500)/30"
+            style={{
+              width: '6px', height: '1px',
+              top: '0', left: '0',
+              transform: `rotate(${deg}deg) translate(64px) rotateY(90deg)`
+            }}
+          />
+        ))}
+
+        <div 
+          className="absolute preserve-3d" 
+          style={{ transform: "rotate(-90deg) translate(64px) rotateY(90deg)" }}
+        >
+          <div className="absolute w-8 h-8 -left-4 -top-4 rounded-full border border-(--gold-500)/40 rotate-x-90" />
+
+          {[0, 60, 120, 180, 240, 300].map((deg) => (
+            <div key={deg} className="preserve-3d absolute inset-0">
+               <div 
+                 className="absolute w-px bg-(--gold-500) origin-bottom"
+                 style={{
+                   height: '24px',
+                   bottom: '0',
+                   left: '0',
+                   transform: `rotateY(${deg}deg) translateZ(4px) rotateX(-12deg)`
+                 }}
+               />
+            </div>
+          ))}
+
+          <div className="absolute -translate-y-5 preserve-3d">
+             <DiamondWireframe />
+          </div>
+        </div>
+
       </motion.div>
-      <style>{`.preserve-3d { transform-style: preserve-3d; } .rotate-y-90 { transform: rotateY(90deg) translateZ(48px); } .rotate-x-90 { transform: rotateX(90deg) translateZ(48px); } .translate-z { transform: translateZ(48px); } .-translate-z { transform: translateZ(-48px); }`}</style>
+      <style>{`
+        .preserve-3d { transform-style: preserve-3d; } 
+        .translate-z-\[3px\] { transform: translateZ(3px); } 
+        .-translate-z-\[3px\] { transform: translateZ(-3px); }
+        .rotate-x-90 { transform: rotateX(90deg); }
+      `}</style>
     </div>
   );
 }
 
-// --- Visual: Globe / Map ---
+function DiamondWireframe() {
+  return (
+    <div className="relative preserve-3d">
+      {[0, 60, 120].map((deg) => (
+        <div
+          key={deg}
+          className="absolute border-[0.5px] border-white/60 bg-white/5"
+          style={{
+            width: '18px', 
+            height: '16px',
+            left: '-9px',
+            top: '-8px',
+            transform: `rotateY(${deg}deg)`,
+            clipPath: 'polygon(25% 0%, 75% 0%, 100% 30%, 50% 100%, 0% 30%)'
+          }}
+        />
+      ))}
+      
+      <div className="absolute w-[18px] h-[18px] -left-[9px] -top-[3px] rounded-full border border-white/30 rotate-x-90" />
+      <div className="absolute w-2 h-2 -left-1 -top-2 border border-white/30 rotate-x-90" />
+      <div className="absolute w-8 h-8 -left-4 -top-4 bg-white/20 blur-md rounded-full animate-pulse" />
+    </div>
+  )
+}
+
 function GlobeVisual() {
   return (
     <div className="absolute inset-0 opacity-30">
