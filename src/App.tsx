@@ -22,6 +22,7 @@ import { DocsPage } from "./pages/DocsPage";
 import { PartnersPage } from "./pages/PartnersPage";
 import { SupportPage } from "./pages/SupportPage";
 import { BlogPage } from "./pages/BlogPage";
+import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
 
 
 
@@ -31,7 +32,7 @@ function HomePage() {
     <main>
       <Hero />
       <DockBar />
-      <FeatureGrid />
+      <InteractiveFeatureGrid />
       <CapabilitiesTable />
       {/* <MeshShowcase /> */}
       {/* <DemoCTA /> */}
