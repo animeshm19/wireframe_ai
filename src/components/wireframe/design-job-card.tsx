@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "../ui/card";
 import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+// 1. Import the StlPreview component
+import { StlPreview } from "./stl-preview"; 
 
 export function DesignJobCard({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<DesignJob | null>(null);
@@ -71,6 +73,14 @@ export function DesignJobCard({ jobId }: { jobId: string }) {
               style={{ width: `${progress}%` }} 
             />
           </div>
+        )}
+
+        {/* 2. THE FIX: Display the 3D Model when done */}
+        {/* We use the 'modelUrl' field that the backend worker saved */}
+        {job?.status === "done" && (job as any).modelUrl && (
+            <div className="mt-4 border border-white/10 rounded-lg overflow-hidden">
+                <StlPreview url={(job as any).modelUrl} height={200} />
+            </div>
         )}
 
         {/* Specs Display */}

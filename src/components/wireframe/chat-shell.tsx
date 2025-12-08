@@ -5,7 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { 
   Menu, Plus, X, Pin, Trash2, Settings, 
   PanelLeftClose, Cpu, ArrowUpRight, Box, Paperclip, 
-  File as FileIcon, Loader2, LogOut, LogIn // Added LogIn icon
+  File as FileIcon, Loader2, LogOut, LogIn,
+  CheckSquare, Square //
 } from "lucide-react";
 import type { ChatSession, ChatMessage, ChatAttachment } from "./chat-types";
 import { AuthDialog } from "./auth-dialog";
@@ -67,7 +68,6 @@ function initials(nameOrEmail?: string | null) {
 function PulsatingBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Orb 1: Gold - Top Left */}
       <motion.div
         className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full bg-[var(--gold-500)] blur-[120px]"
         initial={{ opacity: 0.15, scale: 1 }}
@@ -81,8 +81,6 @@ function PulsatingBackground() {
           ease: "easeInOut",
         }}
       />
-      
-      {/* Orb 2: Brand Dark Pink - Bottom Right */}
       <motion.div
         className="absolute top-[20%] -right-[10%] w-[80%] h-[80%] rounded-full bg-[#731E47] blur-[140px]"
         initial={{ opacity: 0.1, scale: 1 }}
@@ -97,8 +95,6 @@ function PulsatingBackground() {
           delay: 2,
         }}
       />
-      
-      {/* Orb 3: Center Accent */}
       <motion.div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[150px]"
         animate={{
@@ -135,6 +131,10 @@ export function ChatShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeWorkspaceJobId, setActiveWorkspaceJobId] = useState<string | null>(null);
 
+  // Bulk Selection State
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set());
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   
@@ -166,6 +166,7 @@ export function ChatShell() {
     setActiveWorkspaceJobId(null);
     setInput("");
     setSelectedFiles([]);
+    setIsSelectionMode(false); // Reset selection mode on new chat
   };
 
   const deleteChat = async (e: React.MouseEvent, id: string) => {
@@ -174,19 +175,60 @@ export function ChatShell() {
     const confirmDelete = window.confirm("Are you sure you want to delete this collection? This will permanently remove all designs associated with it.");
     if (!confirmDelete) return;
 
-    const newChats = chats.filter(c => c.id !== id);
+    await performDelete([id]);
+  };
+
+  //
+  const performDelete = async (idsToDelete: string[]) => {
+    const idsSet = new Set(idsToDelete);
+    const newChats = chats.filter(c => !idsSet.has(c.id));
+    
     if (newChats.length === 0) newChats.push(createEmptyChat());
     setChats(newChats);
-    if (activeChatId === id) setActiveChatId(newChats[0].id);
+    
+    // If active chat was deleted, switch to the first available
+    if (idsSet.has(activeChatId)) {
+      setActiveChatId(newChats[0].id);
+    }
 
     if (user) {
       try {
-        console.log("Deleting backend data for chat:", id);
-        await deleteChatFromBackend(id);
+        console.log("Deleting backend data for chats:", idsToDelete);
+        // Execute deletions in parallel
+        await Promise.all(idsToDelete.map(id => deleteChatFromBackend(id)));
       } catch (err) {
         console.error("Failed to cleanup backend jobs:", err);
       }
     }
+  };
+
+  //
+  const deleteSelectedChats = async () => {
+    if (selectedChatIds.size === 0) return;
+    
+    const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedChatIds.size} collections?`);
+    if (!confirmDelete) return;
+
+    await performDelete(Array.from(selectedChatIds));
+    setIsSelectionMode(false);
+    setSelectedChatIds(new Set());
+  };
+
+  //
+  const toggleChatSelection = (id: string) => {
+    const next = new Set(selectedChatIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedChatIds(next);
+  };
+
+  //
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedChatIds(new Set());
   };
 
   const togglePin = (e: React.MouseEvent, id: string) => {
@@ -369,45 +411,89 @@ export function ChatShell() {
                 </button>
               </div>
 
+              {/* */}
               <div className="p-3">
-                <button 
-                  onClick={handleNewChat}
-                  className={`w-full flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 hover:bg-white/10 hover:border-[var(--gold-500)]/30 transition-all ${isSidebarCollapsed ? "justify-center px-0" : ""}`}
-                >
-                  <Plus className="h-4 w-4 text-[var(--gold-500)]" />
-                  {!isSidebarCollapsed && <span>New Collection</span>}
-                </button>
+                {isSelectionMode ? (
+                  <button 
+                    onClick={deleteSelectedChats}
+                    disabled={selectedChatIds.size === 0}
+                    className={`w-full flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400 hover:bg-red-500/20 transition-all ${isSidebarCollapsed ? "justify-center px-0" : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {!isSidebarCollapsed && <span>Delete ({selectedChatIds.size})</span>}
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleNewChat}
+                    className={`w-full flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 hover:bg-white/10 hover:border-[var(--gold-500)]/30 transition-all ${isSidebarCollapsed ? "justify-center px-0" : ""}`}
+                  >
+                    <Plus className="h-4 w-4 text-[var(--gold-500)]" />
+                    {!isSidebarCollapsed && <span>New Collection</span>}
+                  </button>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-                {!isSidebarCollapsed && <div className="px-2 py-2 text-[10px] font-medium uppercase tracking-widest text-white/30">History</div>}
+                {/* */}
+                {!isSidebarCollapsed && (
+                  <div className="flex items-center justify-between px-2 py-2">
+                    <div className="text-[10px] font-medium uppercase tracking-widest text-white/30">History</div>
+                    <button 
+                      onClick={toggleSelectionMode}
+                      className="text-[10px] text-[var(--gold-500)] hover:text-white transition-colors uppercase tracking-widest"
+                    >
+                      {isSelectionMode ? "Done" : "Edit"}
+                    </button>
+                  </div>
+                )}
                 
                 {sortedChats.map((chat) => (
                   <button
                     key={chat.id}
-                    onClick={() => { setActiveChatId(chat.id); setMobileMenuOpen(false); }}
+                    onClick={() => { 
+                      if (isSelectionMode) {
+                        toggleChatSelection(chat.id);
+                      } else {
+                        setActiveChatId(chat.id); 
+                        setMobileMenuOpen(false); 
+                      }
+                    }}
                     title={chat.title}
                     className={`group relative flex w-full items-center gap-3 rounded-lg p-2.5 text-left text-sm transition-all duration-200
-                      ${chat.id === activeChatId 
+                      ${!isSelectionMode && chat.id === activeChatId 
                         ? "bg-white/10 text-white shadow-lg" 
                         : "text-white/50 hover:bg-white/5 hover:text-white/80"
                       } ${isSidebarCollapsed ? "justify-center" : ""}`}
                   >
                     {isSidebarCollapsed ? (
-                      <div className="h-4 w-4 text-white/50">{chat.id === activeChatId && <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--gold-500)]" />}</div>
+                       //
+                       isSelectionMode ? (
+                        <div className={`h-4 w-4 rounded border ${selectedChatIds.has(chat.id) ? "bg-[var(--gold-500)] border-[var(--gold-500)]" : "border-white/30"}`} />
+                       ) : (
+                        <div className="h-4 w-4 text-white/50">{chat.id === activeChatId && <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--gold-500)]" />}</div>
+                       )
                     ) : (
                       <>
+                        {/* */}
+                        {isSelectionMode && (
+                          <div className={selectedChatIds.has(chat.id) ? "text-[var(--gold-500)]" : "text-white/30"}>
+                            {selectedChatIds.has(chat.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                          </div>
+                        )}
+
                         <span className="truncate flex-1">{chat.title}</span>
-                        {chat.isPinned && <Pin className="h-3 w-3 text-[var(--gold-500)] rotate-45" />}
+                        {!isSelectionMode && chat.isPinned && <Pin className="h-3 w-3 text-[var(--gold-500)] rotate-45" />}
                         
-                        <div className="hidden group-hover:flex items-center gap-1 absolute right-2 bg-[#0a0005] shadow-xl pl-2 rounded-l-lg border-l border-white/10">
-                          <div onClick={(e) => togglePin(e, chat.id)} className="p-1.5 hover:text-[var(--gold-500)]">
-                            <Pin className="h-3 w-3" />
+                        {!isSelectionMode && (
+                          <div className="hidden group-hover:flex items-center gap-1 absolute right-2 bg-[#0a0005] shadow-xl pl-2 rounded-l-lg border-l border-white/10">
+                            <div onClick={(e) => togglePin(e, chat.id)} className="p-1.5 hover:text-[var(--gold-500)]">
+                              <Pin className="h-3 w-3" />
+                            </div>
+                            <div onClick={(e) => deleteChat(e, chat.id)} className="p-1.5 hover:text-red-400">
+                              <Trash2 className="h-3 w-3" />
+                            </div>
                           </div>
-                          <div onClick={(e) => deleteChat(e, chat.id)} className="p-1.5 hover:text-red-400">
-                            <Trash2 className="h-3 w-3" />
-                          </div>
-                        </div>
+                        )}
                       </>
                     )}
                   </button>

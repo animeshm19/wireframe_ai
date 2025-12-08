@@ -1,9 +1,16 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Allow access to the 'models' folder if needed by authenticated users
+    // (Though Signed URLs bypass this, this is a fallback)
+    match /models/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only the backend worker (admin) writes here
+    }
+    
+    // User specific files
     match /users/{uid}/{allPaths=**} {
       allow read: if request.auth != null && request.auth.uid == uid;
-      // If only server/admin uploads, keep write off:
       allow write: if false;
     }
   }
