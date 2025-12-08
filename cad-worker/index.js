@@ -19,7 +19,7 @@ Schema:
   "gemShape": "round" | "princess" | "oval" (default "round"),
   "gemSize": number (carats, default 1.0),
   "prongCount": 4 | 6 (default 6),
-  "metalType": "18k_gold" | "14k_rose" | "platinum" (default "18k_gold")
+  "metalType": "18k_gold" | "14k_rose" | "platinum" | "silver"
 }
 `;
 
@@ -35,7 +35,10 @@ async function processJob(doc) {
 
     // 2. Call AI
     console.log(`   - Analyzing prompt: "${job.prompt}"`);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: SYSTEM_INSTRUCTION });
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash", 
+        systemInstruction: SYSTEM_INSTRUCTION 
+    });
     const result = await model.generateContent(job.prompt);
     const responseText = result.response.text().replace(/```json|```/g, "").trim();
 

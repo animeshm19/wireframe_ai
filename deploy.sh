@@ -1,16 +1,27 @@
 #!/bin/bash
 
 # --- CONFIGURATION ---
-# Replace these with your actual values once
 PROJECT_ID="wireframe-v1"
 REGION="us-central1"
 WORKER_SERVICE_NAME="wireframe-worker"
-
-# Secrets (You can also set these as environment variables on your machine)
-# Replace with your actual keys
-GEMINI_API_KEY="AIzaSyDhDf0ZaUpK_ezcj6HAA_aoxK_EId0omxk"
-CAD_WORKER_SECRET="bcba184da7569fe3a9cddd0b3940abbf18012d15f4e8957ab37a8c5e7e1c1855"
 STORAGE_BUCKET="wireframe-v1.firebasestorage.app"
+
+# --- SECRETS MANAGEMENT ---
+# 1. Try to load from a local .env file (if it exists)
+if [ -f .env ]; then
+  echo "Loading secrets from .env file..."
+  export $(grep -v '^#' .env | xargs)
+fi
+
+# 2. Verify secrets are present
+if [ -z "$GEMINI_API_KEY" ]; then
+  echo "❌ Error: GEMINI_API_KEY is missing."
+  echo "Please set it in your environment or add it to a .env file."
+  exit 1
+fi
+
+# (CAD_WORKER_SECRET is likely not needed anymore with the new architecture, 
+# but if you still use it, ensure it's checked here too)
 
 echo "=================================================="
 echo "🚀 STARTING DEPLOYMENT FOR $PROJECT_ID"
@@ -21,42 +32,22 @@ echo ""
 echo "📦 Deploying CAD Worker to Cloud Run..."
 cd cad-worker
 
-# We capture the output URL automatically using some bash magic
+# Deploy using the environment variable
 gcloud run deploy $WORKER_SERVICE_NAME \
   --source . \
   --region $REGION \
   --project $PROJECT_ID \
   --allow-unauthenticated \
-  --set-env-vars CAD_WORKER_SECRET=$CAD_WORKER_SECRET,GEMINI_API_KEY=$GEMINI_API_KEY,FIREBASE_STORAGE_BUCKET=$STORAGE_BUCKET
+  --set-env-vars GEMINI_API_KEY="$GEMINI_API_KEY",FIREBASE_STORAGE_BUCKET="$STORAGE_BUCKET"
 
-# Get the URL of the deployed service
-WORKER_URL=$(gcloud run services describe $WORKER_SERVICE_NAME --platform managed --region $REGION --format 'value(status.url)')
-
-echo "✅ Worker deployed at: $WORKER_URL"
+echo "✅ Worker deployed."
 cd ..
 
-# 2. CONFIGURE BACKEND
-echo ""
-echo "🔗 Linking Worker to Cloud Functions..."
-
-# Create/Overwrite the .env file for functions with the new URL
-cat > functions/.env <<EOF
-CAD_WORKER_URL=$WORKER_URL
-CAD_WORKER_SECRET=$CAD_WORKER_SECRET
-EOF
-
-# 3. DEPLOY DATABASE SCHEMA (Safety check)
-echo ""
-echo "🗄️  Checking Database Schema..."
-firebase deploy --only dataconnect
-
-# 4. DEPLOY FUNCTIONS
-echo ""
-echo "⚡ Deploying Orchestrator (Cloud Functions)..."
-firebase deploy --only functions
+# NOTE: Steps 2, 3, and 4 (Cloud Functions/DataConnect) have been removed 
+# because you deleted those folders in the previous migration steps.
+# The Frontend + Firestore + Cloud Run Worker architecture doesn't use them.
 
 echo ""
 echo "=================================================="
 echo "🎉 DEPLOYMENT COMPLETE!"
-echo "🌍 App is live."
 echo "=================================================="

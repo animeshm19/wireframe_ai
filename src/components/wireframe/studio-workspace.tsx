@@ -57,10 +57,21 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string, onClose: ()
         meshRef.current.geometry.dispose();
       }
 
+      // Define colors for the metal types
+      const metalColors: Record<string, string> = {
+        "18k_gold": "#FFD700",  // Gold
+        "14k_rose": "#C69BB2",  // Rose Gold
+        "platinum": "#E5E4E2",  // Platinum
+        "silver": "#C0C0C0",    // Silver
+      };
+
+      // Select color based on AI params (default to platinum if missing)
+      const activeColor = params?.metalType ? metalColors[params.metalType] : "#E5E4E2";
+
       const material = new THREE.MeshStandardMaterial({ 
-        color: 0xc69bb2, 
-        metalness: 0.8, 
-        roughness: 0.2 
+        color: new THREE.Color(activeColor), 
+        metalness: 1.0, // High metalness for shiny look
+        roughness: 0.15 // Low roughness for polish
       });
       
       const mesh = new THREE.Mesh(geometry, material);

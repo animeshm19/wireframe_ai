@@ -1,6 +1,7 @@
 import { primitives, booleans, transforms, utils } from '@jscad/modeling';
 import { serializers } from '@jscad/io';
-import { Geom3 } from '@jscad/modeling/src/geometries/types'; // Import this
+
+// ❌ DELETE THIS LINE -> import { Geom3 } from '@jscad/modeling/src/geometries/types';
 
 const { torus, cylinder, cuboid } = primitives;
 const { union, subtract } = booleans;
@@ -47,24 +48,22 @@ function generateRingGeometry(params: any) {
   const tubeRadius = bandWidth / 2;
   const torusMajor = innerRadius + tubeRadius;
 
-  // Explicitly type 'band' as Geom3
-  let band: Geom3;
+  let band;
 
   if (profile === 'flat') {
      const outer = cylinder({ radius: innerRadius + thickness, height: bandWidth, segments: 64 });
      const inner = cylinder({ radius: innerRadius, height: bandWidth + 1, segments: 64 });
      
-     // FIX: Cast result to Geom3 so TypeScript knows it's 3D
-     band = subtract(outer, inner) as unknown as Geom3;
+     // FIX: Use 'as any' instead of Geom3 to prevent import crash
+     band = subtract(outer, inner) as any;
      band = rotateX(degToRad(90), band);
   } else {
-     // Torus is naturally Geom3
      band = torus({
        innerRadius: tubeRadius,
        outerRadius: torusMajor,
        innerSegments: 32, 
        outerSegments: 64
-     }) as unknown as Geom3;
+     }) as any;
   }
 
   // Gem Setting Head
@@ -72,20 +71,20 @@ function generateRingGeometry(params: any) {
   const headHeight = 4 + (gemSize * 0.5);
   const headY = innerRadius + thickness - 0.5;
 
-  const prongs: Geom3[] = [];
+  const prongs = [];
   for (let i = 0; i < prongCount; i++) {
     const angle = (i / prongCount) * 360;
     let prong = cylinder({ radius: 0.4, height: headHeight + 1, segments: 16 });
     prong = translate([gemRadiusMM, 0, 0], prong); 
     prong = rotateZ(degToRad(angle), prong);
-    prongs.push(prong as unknown as Geom3);
+    prongs.push(prong as any);
   }
   
   let settingHead = union(prongs);
   let basket = cylinder({ radius: gemRadiusMM * 0.7, height: 0.8, segments: 32 });
   basket = translate([0, 0, headHeight * 0.3], basket);
   
-  settingHead = union(settingHead, basket as unknown as Geom3);
+  settingHead = union(settingHead, basket as any);
 
   // Position Head
   settingHead = translate([0, headY + (headHeight/2), 0], settingHead);

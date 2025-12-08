@@ -1,163 +1,87 @@
-// src/components/wireframe/design-job-card.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "../ui/card";
-import { Button } from "../ui/button";
-import { DesignJob, jobFileUrl, subscribeDesignJob } from "../../lib/design-jobs";
-import { StlPreview } from "./stl-preview";
+import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
+import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export function DesignJobCard({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<DesignJob | null>(null);
-  const [subError, setSubError] = useState<string | null>(null);
-
-  const [stlUrl, setStlUrl] = useState<string | null>(null);
-  const [stepUrl, setStepUrl] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSubError(null);
-    setJob(null);
-
-    if (!jobId) {
-      setSubError("Missing jobId");
-      return;
-    }
-
-    // IMPORTANT: subscribeDesignJob should return an unsubscribe fn.
-    // Also: it should accept an error callback. If yours doesn't, update it (recommended).
+    if (!jobId) return;
     const unsub = subscribeDesignJob(
       jobId,
-      (j) => {
-        setSubError(null);
-        setJob(j);
-      },
-      (err) => {
-        setSubError(err?.message ?? String(err));
-      }
+      (j) => setJob(j),
+      (err) => setError(err?.message || "Error subscribing to job")
     );
-
-    return () => {
-      try {
-        unsub?.();
-      } catch {
-        // ignore
-      }
-    };
+    return () => unsub && unsub();
   }, [jobId]);
 
   const progress = Math.max(0, Math.min(100, job?.progress ?? 0));
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      setStlUrl(null);
-      setStepUrl(null);
-      setFileError(null);
-
-      if (!job || job.status !== "done") return;
-
-      const stlPath = job.outputs?.stlPath ?? null;
-      const stepPath = job.outputs?.stepPath ?? null;
-
-      try {
-        const [a, b] = await Promise.all([
-          stlPath ? jobFileUrl(stlPath) : Promise.resolve(null),
-          stepPath ? jobFileUrl(stepPath) : Promise.resolve(null),
-        ]);
-
-        if (!cancelled) {
-          setStlUrl(a);
-          setStepUrl(b);
-        }
-      } catch (e: any) {
-        if (!cancelled) {
-          setFileError(e?.message ?? String(e));
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [job]);
-
-  const statusLabel = useMemo(() => {
-    if (subError) return "Blocked (permissions?)";
-    if (!job) return "Loading…";
-    if (job.status === "queued") return "Queued";
-    if (job.status === "running") return `Generating (${progress}%)`;
-    if (job.status === "done") return "Done";
-    return "Error";
-  }, [job, progress, subError]);
-
-  const dlBtnClass =
-    "border-white/15 bg-white/10 text-white hover:bg-white/20 hover:border-white/25 " +
-    "disabled:opacity-50 disabled:hover:bg-white/10 disabled:cursor-not-allowed";
+  
+  // Format the spec for display
+  const specs = useMemo(() => {
+    if (!job?.spec) return null;
+    return (
+      <div className="grid grid-cols-2 gap-2 text-xs text-white/70 mt-2">
+        <div className="bg-white/5 p-1.5 rounded border border-white/10">
+          <span className="block text-[10px] text-white/40 uppercase">Metal</span>
+          {job.spec.metalType?.replace(/_/g, ' ') || "Platinum"}
+        </div>
+        <div className="bg-white/5 p-1.5 rounded border border-white/10">
+          <span className="block text-[10px] text-white/40 uppercase">Gem</span>
+          {job.spec.gemShape || "Round"}
+        </div>
+        <div className="bg-white/5 p-1.5 rounded border border-white/10">
+          <span className="block text-[10px] text-white/40 uppercase">Size</span>
+          US {job.spec.ringSize || "6"}
+        </div>
+        <div className="bg-white/5 p-1.5 rounded border border-white/10">
+          <span className="block text-[10px] text-white/40 uppercase">Carat</span>
+          {job.spec.gemSize || "1.0"} ct
+        </div>
+      </div>
+    );
+  }, [job?.spec]);
 
   return (
-    <Card className="mt-3 border-white/10 bg-white/4">
+    <Card className="mt-3 border-white/10 bg-white/5 overflow-hidden">
       <CardContent className="p-4 space-y-3">
+        {/* Header */}
         <div className="flex items-center justify-between gap-3">
-          <div className="text-sm text-white/80">
-            <div className="font-medium text-white/90">CAD Job</div>
-            <div className="text-white/60">{statusLabel}</div>
+          <div className="flex items-center gap-2">
+            {job?.status === "running" && <Loader2 className="h-4 w-4 animate-spin text-[var(--gold-500)]" />}
+            {job?.status === "done" && <CheckCircle2 className="h-4 w-4 text-green-400" />}
+            {job?.status === "error" && <AlertCircle className="h-4 w-4 text-red-400" />}
+            
+            <div className="text-sm font-medium text-white/90">
+              {job?.status === "running" ? "Generating Specs..." : "Design Parameters"}
+            </div>
           </div>
-          <div className="text-[11px] text-white/40 font-mono truncate max-w-[180px]">
-            {jobId}
+          <div className="text-[10px] text-white/40 font-mono">
+            {progress}%
           </div>
         </div>
 
-        <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-          <div className="h-full bg-white/40" style={{ width: `${progress}%` }} />
-        </div>
-
-        {!!subError && (
-          <div className="text-sm text-red-300/90 whitespace-pre-wrap">
-            Firestore subscribe failed: {subError}
-            {"\n"}
-            Most common fix: Firestore Rules are denying reads for this doc.
+        {/* Progress Bar */}
+        {job?.status === "running" && (
+          <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+            <div 
+              className="h-full bg-[var(--gold-500)] transition-all duration-500" 
+              style={{ width: `${progress}%` }} 
+            />
           </div>
         )}
 
+        {/* Specs Display */}
+        {job?.status === "done" && specs}
+
+        {/* Error Message */}
         {job?.status === "error" && (
-          <div className="text-sm text-red-300/90 whitespace-pre-wrap">
-            {job.error ?? "Unknown error"}
+          <div className="text-xs text-red-300 bg-red-900/20 p-2 rounded border border-red-500/20">
+            {job.error || "Generation failed"}
           </div>
         )}
-
-        {!!fileError && (
-          <div className="text-sm text-red-300/90 whitespace-pre-wrap">
-            Storage download URL failed: {fileError}
-            {"\n"}
-            Most common fix: Storage Rules are denying reads.
-          </div>
-        )}
-
-        {stlUrl && (
-          <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20">
-            <StlPreview url={stlUrl} />
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            className={dlBtnClass}
-            disabled={!stlUrl}
-            onClick={() => stlUrl && window.open(stlUrl, "_blank", "noopener,noreferrer")}
-          >
-            Download STL
-          </Button>
-
-          <Button
-            variant="outline"
-            className={dlBtnClass}
-            disabled={!stepUrl}
-            onClick={() => stepUrl && window.open(stepUrl, "_blank", "noopener,noreferrer")}
-          >
-            Download STEP
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
