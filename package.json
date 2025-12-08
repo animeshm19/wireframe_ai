@@ -12,6 +12,8 @@
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
     "@developer-hub/liquid-glass": "^1.2.3",
+    "@jscad/io": "^2.4.12",
+    "@jscad/modeling": "^2.12.6",
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.1.17",
     "class-variance-authority": "^0.7.1",

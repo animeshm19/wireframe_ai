@@ -1,10 +1,19 @@
-// src/lib/design-jobs.ts
-import { httpsCallable } from "firebase/functions";
-import { doc, onSnapshot } from "firebase/firestore";
+import { 
+  doc, 
+  onSnapshot, 
+  updateDoc, 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  getDocs, 
+  writeBatch 
+} from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { db, functions, storage } from "./firebase";
+import { db, storage, auth } from "./firebase"; 
 
 export type DesignJob = {
+  id?: string;
   ownerUid: string;
   chatId?: string | null;
   prompt: string;
@@ -13,34 +22,77 @@ export type DesignJob = {
   error?: string;
   spec?: any;
   outputs?: { stlPath?: string; stepPath?: string };
+  updatedAt?: number;
+  createdAt?: number;
 };
 
-// Updated to accept attachment URLs
+// --- MODIFIED: Create Job directly in Firestore (No Cloud Function needed) ---
 export async function createDesignJob(prompt: string, chatId?: string, attachmentUrls?: string[]) {
-  const fn = httpsCallable(functions, "createDesignJob");
-  // Pass attachments to the Cloud Function
-  const res = await fn({ prompt, chatId, attachments: attachmentUrls });
-  const data = res.data as any;
-  return { jobId: String(data.jobId) };
+  // Ensure user is logged in
+  if (!auth.currentUser) throw new Error("User must be logged in");
+
+  const jobsRef = collection(db, "designJobs");
+  const newJob: Omit<DesignJob, 'id'> = {
+    ownerUid: auth.currentUser.uid,
+    chatId: chatId || null,
+    prompt,
+    status: "queued",
+    progress: 0,
+    spec: null,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+
+  const docRef = await addDoc(jobsRef, newJob);
+  console.log("Job created with ID:", docRef.id);
+  return { jobId: docRef.id };
 }
 
-// --- NEW: Function to delete chat history from backend ---
+// --- MODIFIED: Delete history directly in Firestore ---
 export async function deleteChatFromBackend(chatId: string) {
-  const fn = httpsCallable(functions, "deleteChatHistory");
-  await fn({ chatId });
-}
-// ---------------------------------------------------------
+  console.log("Deleting jobs for chat:", chatId);
+  
+  const jobsRef = collection(db, "designJobs");
+  const q = query(jobsRef, where("chatId", "==", chatId));
+  const snapshot = await getDocs(q);
 
+  if (snapshot.empty) return;
+
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+
+  await batch.commit();
+  console.log("Cleanup complete");
+}
+
+// --- Updates a job (Save functionality) ---
+export async function updateDesignJob(jobId: string, data: Partial<DesignJob>) {
+  const ref = doc(db, "designJobs", jobId);
+  await updateDoc(ref, data);
+}
+
+// --- Subscribe to job updates ---
 export function subscribeDesignJob(
   jobId: string,
-  onJob: (job: any) => void,
+  onJob: (job: DesignJob) => void,
   onError?: (err: any) => void
 ) {
+  if (!jobId) return () => {};
+  
   const ref = doc(db, "designJobs", jobId);
   return onSnapshot(
     ref,
-    (snap) => onJob(snap.exists() ? ({ id: snap.id, ...snap.data() } as any) : null),
-    (err) => onError?.(err)
+    (snap) => {
+      if (snap.exists()) {
+        onJob({ id: snap.id, ...snap.data() } as DesignJob);
+      }
+    },
+    (err) => {
+      console.error("Firestore Subscribe Error:", err);
+      onError?.(err);
+    }
   );
 }
 
@@ -52,7 +104,6 @@ export async function jobFileUrl(path?: string) {
 // Helper: Uploads file to Firebase Storage
 export async function uploadJobAttachment(file: File, uid: string) {
   const timestamp = Date.now();
-  // Sanitize filename to prevent issues
   const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
   const path = `user-uploads/${uid}/${timestamp}_${safeName}`;
   const storageRef = ref(storage, path);
@@ -63,7 +114,7 @@ export async function uploadJobAttachment(file: File, uid: string) {
   return { 
     name: file.name,
     path,
-    url, // The public download URL
+    url,
     type: file.type || 'application/octet-stream'
   };
 }
