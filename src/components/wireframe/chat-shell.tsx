@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   Menu, Plus, X, Pin, Trash2, Settings, 
   PanelLeftClose, Cpu, ArrowUpRight, Box, Paperclip, 
-  File as FileIcon, Loader2, LogOut 
+  File as FileIcon, Loader2, LogOut, LogIn // Added LogIn icon
 } from "lucide-react";
 import type { ChatSession, ChatMessage, ChatAttachment } from "./chat-types";
 import { AuthDialog } from "./auth-dialog";
@@ -62,17 +62,18 @@ function initials(nameOrEmail?: string | null) {
   if (!s) return "WF";
   return s.slice(0, 2).toUpperCase();
 }
-// --- UPDATED: Pulsating Background Component ---
+
+// --- Pulsating Background Component ---
 function PulsatingBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Orb 1: Gold - Top Left - INCREASED OPACITY */}
+      {/* Orb 1: Gold - Top Left */}
       <motion.div
         className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full bg-[var(--gold-500)] blur-[120px]"
         initial={{ opacity: 0.15, scale: 1 }}
         animate={{
           scale: [1, 1.15, 1],
-          opacity: [0.15, 0.25, 0.15], // Bounced up from nearly 0 to 15-25%
+          opacity: [0.15, 0.25, 0.15],
         }}
         transition={{
           duration: 10,
@@ -81,13 +82,13 @@ function PulsatingBackground() {
         }}
       />
       
-      {/* Orb 2: Brand Dark Pink - Bottom Right - INCREASED OPACITY */}
+      {/* Orb 2: Brand Dark Pink - Bottom Right */}
       <motion.div
         className="absolute top-[20%] -right-[10%] w-[80%] h-[80%] rounded-full bg-[#731E47] blur-[140px]"
         initial={{ opacity: 0.1, scale: 1 }}
         animate={{
           scale: [1, 1.2, 1],
-          opacity: [0.1, 0.2, 0.1], // Bounced up
+          opacity: [0.1, 0.2, 0.1],
         }}
         transition={{
           duration: 14,
@@ -97,7 +98,7 @@ function PulsatingBackground() {
         }}
       />
       
-      {/* Orb 3: Center Accent (New) - Adds depth in the middle */}
+      {/* Orb 3: Center Accent */}
       <motion.div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[150px]"
         animate={{
@@ -422,13 +423,22 @@ export function ChatShell() {
                   {!isSidebarCollapsed && <span>Studio Settings</span>}
                 </button>
 
-                {user && (
+                {/* SIGN IN / SIGN OUT BUTTONS */}
+                {user ? (
                   <button 
                     onClick={handleSignOut}
                     className={`w-full flex items-center gap-3 rounded-lg p-2.5 text-sm text-red-400/70 hover:bg-white/5 hover:text-red-400 transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
                   >
                     <LogOut className="h-4 w-4" />
                     {!isSidebarCollapsed && <span>Sign Out</span>}
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setAuthOpen(true)}
+                    className={`w-full flex items-center gap-3 rounded-lg p-2.5 text-sm text-[var(--gold-500)] hover:bg-white/5 hover:text-white transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    {!isSidebarCollapsed && <span>Sign In</span>}
                   </button>
                 )}
                 
@@ -466,10 +476,8 @@ export function ChatShell() {
             ${activeWorkspaceJobId ? "hidden md:flex max-w-[400px]" : "w-full flex"}
           `}
         >
-          {/* Pulsating Background Layer */}
-          <div className="absolute inset-0 z-0 pointer-events-none">
-            <PulsatingBackground />
-          </div>
+          {/* Pulsating Background */}
+          <PulsatingBackground />
 
           <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
             <FlickeringGrid squareSize={3} gridGap={24} color="#e1b95c" maxOpacity={0.15} flickerChance={0.2} />
@@ -558,8 +566,10 @@ export function ChatShell() {
             </div>
           </div>
 
+          {/* Floating Command Bar */}
           <div className="p-4 md:p-6 bg-[#13010C] border-t border-white/5">
             <div className="mx-auto max-w-3xl space-y-3">
+              
               <AnimatePresence>
                 {selectedFiles.length > 0 && (
                   <motion.div 
