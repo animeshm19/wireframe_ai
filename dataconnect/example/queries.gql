@@ -1,4 +1,4 @@
-mutation CreateCADModel(
+mutation CreateCadModel(
   $ownerId: UUID!
   $projectId: UUID!
   $description: String!
@@ -7,7 +7,8 @@ mutation CreateCADModel(
   $name: String!
   $thumbnailUrl: String!
 ) @auth(level: USER) {
-  cADModel_insert(
+  # Updated to camelCase 'cadModel_insert'
+  cadModel_insert(
     data: {
       ownerId: $ownerId
       projectId: $projectId
@@ -16,12 +17,13 @@ mutation CreateCADModel(
       modelData: $modelData
       name: $name
       thumbnailUrl: $thumbnailUrl
+      # createdAt / updatedAt are now handled automatically
     }
   )
 }
 
-query ListPublicCADModels @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
-  cADModels(where: {isPublic: {eq: true}}) {
+query ListPublicCadModels @auth(level: PUBLIC) {
+  cadModels(where: {isPublic: {eq: true}}) {
     id
     name
     description
@@ -49,8 +51,8 @@ mutation CreateFeedback(
   )
 }
 
-query GetCADModel($id: UUID!) @auth(level: USER) {
-  cADModel(id: $id) {
+query GetCadModel($id: UUID!) @auth(level: USER) {
+  cadModel(id: $id) {
     id
     name
     description

@@ -1,22 +1,20 @@
 // src/components/wireframe/chat-shell.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { 
   Menu, Plus, X, Pin, Trash2, Settings, 
-  PanelLeftClose, PanelLeftOpen, Cpu, Sparkles, 
-  History, ArrowUpRight, Box, Paperclip, 
-  Image as ImageIcon, File as FileIcon, Loader2
+  PanelLeftClose, Cpu, ArrowUpRight, Box, Paperclip, 
+  File as FileIcon, Loader2, LogOut 
 } from "lucide-react";
 import type { ChatSession, ChatMessage, ChatAttachment } from "./chat-types";
 import { AuthDialog } from "./auth-dialog";
 import { useAuth } from "../../auth/auth-context";
-import { createDesignJob, uploadJobAttachment } from "@/lib/design-jobs";
+import { createDesignJob, uploadJobAttachment, deleteChatFromBackend } from "@/lib/design-jobs";
 import { DesignJobCard } from "./design-job-card";
 import { FlickeringGrid } from "../ui/shadcn-io/flickering-grid";
 import { StudioWorkspace } from "./studio-workspace";
 
-// 1. Import your branding
 import logo from "../../assets/logo.png";
 
 const STORAGE_KEY = "wireframe-chat-v1";
@@ -64,9 +62,60 @@ function initials(nameOrEmail?: string | null) {
   if (!s) return "WF";
   return s.slice(0, 2).toUpperCase();
 }
+// --- UPDATED: Pulsating Background Component ---
+function PulsatingBackground() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Orb 1: Gold - Top Left - INCREASED OPACITY */}
+      <motion.div
+        className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full bg-[var(--gold-500)] blur-[120px]"
+        initial={{ opacity: 0.15, scale: 1 }}
+        animate={{
+          scale: [1, 1.15, 1],
+          opacity: [0.15, 0.25, 0.15], // Bounced up from nearly 0 to 15-25%
+        }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+      
+      {/* Orb 2: Brand Dark Pink - Bottom Right - INCREASED OPACITY */}
+      <motion.div
+        className="absolute top-[20%] -right-[10%] w-[80%] h-[80%] rounded-full bg-[#731E47] blur-[140px]"
+        initial={{ opacity: 0.1, scale: 1 }}
+        animate={{
+          scale: [1, 1.2, 1],
+          opacity: [0.1, 0.2, 0.1], // Bounced up
+        }}
+        transition={{
+          duration: 14,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 2,
+        }}
+      />
+      
+      {/* Orb 3: Center Accent (New) - Adds depth in the middle */}
+      <motion.div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[150px]"
+        animate={{
+          opacity: [0.05, 0.12, 0.05],
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 5,
+        }}
+      />
+    </div>
+  );
+}
 
 export function ChatShell() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const persisted = loadPersistedState();
 
@@ -118,17 +167,39 @@ export function ChatShell() {
     setSelectedFiles([]);
   };
 
-  const deleteChat = (e: React.MouseEvent, id: string) => {
+  const deleteChat = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    
+    const confirmDelete = window.confirm("Are you sure you want to delete this collection? This will permanently remove all designs associated with it.");
+    if (!confirmDelete) return;
+
     const newChats = chats.filter(c => c.id !== id);
     if (newChats.length === 0) newChats.push(createEmptyChat());
     setChats(newChats);
     if (activeChatId === id) setActiveChatId(newChats[0].id);
+
+    if (user) {
+      try {
+        console.log("Deleting backend data for chat:", id);
+        await deleteChatFromBackend(id);
+      } catch (err) {
+        console.error("Failed to cleanup backend jobs:", err);
+      }
+    }
   };
 
   const togglePin = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setChats(chats.map(c => c.id === id ? { ...c, isPinned: !c.isPinned } : c));
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setMobileMenuOpen(false);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
   // --- File Handling ---
@@ -243,7 +314,6 @@ export function ChatShell() {
         <button onClick={() => setMobileMenuOpen(true)} className="p-2 text-white/70 hover:text-white">
           <Menu className="h-5 w-5" />
         </button>
-        {/* Mobile Brand Logo */}
         <div className="flex items-center gap-2">
           <img src={logo} alt="Wireframe" className="h-5 w-auto" />
           <span className="text-sm font-semibold tracking-wide uppercase text-white/90">Wireframe AI</span>
@@ -274,7 +344,6 @@ export function ChatShell() {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-white/10 bg-[#0a0005] md:relative"
             >
-              {/* Sidebar Header with Brand Logo */}
               <div className={`flex items-center h-16 px-4 border-b border-white/5 ${isSidebarCollapsed ? "justify-center" : "justify-between"}`}>
                 {!isSidebarCollapsed && (
                   <div className="flex items-center gap-3">
@@ -288,7 +357,6 @@ export function ChatShell() {
                   className="hidden md:flex p-2 text-white/40 hover:text-white transition-colors"
                 >
                   {isSidebarCollapsed ? (
-                    /* Show Icon when collapsed */
                     <img src={logo} alt="Wireframe" className="h-6 w-6 object-contain" />
                   ) : (
                     <PanelLeftClose className="h-4 w-4" />
@@ -325,7 +393,7 @@ export function ChatShell() {
                       } ${isSidebarCollapsed ? "justify-center" : ""}`}
                   >
                     {isSidebarCollapsed ? (
-                      <History className={`h-4 w-4 ${chat.id === activeChatId ? "text-[var(--gold-500)]" : ""}`} />
+                      <div className="h-4 w-4 text-white/50">{chat.id === activeChatId && <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--gold-500)]" />}</div>
                     ) : (
                       <>
                         <span className="truncate flex-1">{chat.title}</span>
@@ -353,6 +421,16 @@ export function ChatShell() {
                   <Settings className="h-4 w-4" />
                   {!isSidebarCollapsed && <span>Studio Settings</span>}
                 </button>
+
+                {user && (
+                  <button 
+                    onClick={handleSignOut}
+                    className={`w-full flex items-center gap-3 rounded-lg p-2.5 text-sm text-red-400/70 hover:bg-white/5 hover:text-red-400 transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {!isSidebarCollapsed && <span>Sign Out</span>}
+                  </button>
+                )}
                 
                 <div className={`flex items-center gap-3 rounded-xl bg-white/5 p-2.5 mt-2 ${isSidebarCollapsed ? "justify-center" : ""}`}>
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--gold-500)] to-[#731E47] text-[10px] font-bold text-white shadow-inner">
@@ -363,7 +441,9 @@ export function ChatShell() {
                       <p className="truncate text-xs font-medium text-white">
                         {user?.displayName || "Guest"}
                       </p>
-                      <p className="truncate text-[10px] text-white/40">Pro Plan</p>
+                      <p className="truncate text-[10px] text-white/40">
+                        {user ? "Pro Plan" : "Sign in to save"}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -373,7 +453,6 @@ export function ChatShell() {
         )}
       </AnimatePresence>
 
-      {/* --- Main Content Area --- */}
       <div className="relative flex flex-1 overflow-hidden">
         
         {/* LEFT: Chat Feed */}
@@ -387,6 +466,11 @@ export function ChatShell() {
             ${activeWorkspaceJobId ? "hidden md:flex max-w-[400px]" : "w-full flex"}
           `}
         >
+          {/* Pulsating Background Layer */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            <PulsatingBackground />
+          </div>
+
           <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
             <FlickeringGrid squareSize={3} gridGap={24} color="#e1b95c" maxOpacity={0.15} flickerChance={0.2} />
           </div>
@@ -394,10 +478,8 @@ export function ChatShell() {
           <div className="relative z-10 flex-1 overflow-y-auto px-4 pt-20 pb-4 md:px-8 md:pt-10 scrollbar-hide">
             <div className="mx-auto max-w-3xl space-y-10">
               
-              {/* Empty State */}
               {activeChat.messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-24 text-center opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-forwards">
-                  {/* Brand Logo Large */}
                   <div className="mb-6 flex h-24 w-24 items-center justify-center">
                     <img src={logo} alt="Wireframe" className="h-full w-auto object-contain drop-shadow-[0_0_30px_rgba(131,110,118,0.3)]" />
                   </div>
@@ -411,7 +493,6 @@ export function ChatShell() {
                 </div>
               )}
 
-              {/* Chat History */}
               {activeChat.messages.map((msg) => (
                 <div key={msg.id} className="group relative pl-8 md:pl-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
                   <div className="absolute left-[11px] top-0 -bottom-10 w-px bg-white/10 group-last:bottom-0 md:left-[15px]" />
@@ -456,19 +537,15 @@ export function ChatShell() {
                     )}
 
                     {msg.designJobId && (
-                      <div className="mt-4 w-full">
-                        <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex items-center justify-between group-hover:border-[var(--gold-500)]/30 transition-colors cursor-pointer active:bg-white/10" onClick={() => setActiveWorkspaceJobId(msg.designJobId!)}>
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-black/40 flex items-center justify-center">
-                              <Box className="h-5 w-5 text-white/70" />
-                            </div>
-                            <div>
-                              <div className="text-sm font-medium text-white">CAD Geometry Ready</div>
-                              <div className="text-xs text-white/40">ID: {msg.designJobId.slice(0,8)}...</div>
-                            </div>
-                          </div>
-                          <button className="px-3 py-1.5 rounded-lg bg-[var(--gold-500)] text-black text-xs font-bold hover:bg-white transition-colors">
-                            Open
+                      <div className="mt-4 w-full max-w-md">
+                        <DesignJobCard jobId={msg.designJobId} />
+                        
+                        <div className="mt-2 flex justify-end">
+                          <button 
+                            onClick={() => setActiveWorkspaceJobId(msg.designJobId!)}
+                            className="text-[10px] text-white/50 hover:text-[var(--gold-500)] flex items-center gap-1 transition-colors uppercase tracking-widest font-semibold"
+                          >
+                            Open in Studio <ArrowUpRight className="h-3 w-3" />
                           </button>
                         </div>
                       </div>
@@ -481,11 +558,8 @@ export function ChatShell() {
             </div>
           </div>
 
-          {/* Floating Command Bar */}
           <div className="p-4 md:p-6 bg-[#13010C] border-t border-white/5">
             <div className="mx-auto max-w-3xl space-y-3">
-              
-              {/* Draft Preview */}
               <AnimatePresence>
                 {selectedFiles.length > 0 && (
                   <motion.div 
@@ -523,7 +597,6 @@ export function ChatShell() {
                 )}
               </AnimatePresence>
 
-              {/* Input Area */}
               <div className="relative flex items-end gap-2 rounded-3xl border border-white/10 bg-[#0a0005]/80 p-2 shadow-[0_0_40px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-all focus-within:border-[var(--gold-500)]/40 focus-within:bg-[#0a0005]">
                 <input 
                   type="file" 

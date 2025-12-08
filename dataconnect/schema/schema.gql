@@ -1,14 +1,15 @@
 type User @table {
   displayName: String!
-  createdAt: Timestamp!
+  createdAt: Timestamp! @default(expr: "request.time")
   email: String
   photoUrl: String
 }
 
-type CADModel @table {
+# Renamed to CadModel to satisfy linter
+type CadModel @table {
   name: String!
-  createdAt: Timestamp!
-  updatedAt: Timestamp!
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
   modelData: String!
   isPublic: Boolean!
   description: String
@@ -20,26 +21,26 @@ type CADModel @table {
 
 type Prompt @table {
   text: String!
-  createdAt: Timestamp!
+  createdAt: Timestamp! @default(expr: "request.time")
   feedback: String
   user: User
-  modelGenerated: CADModel
+  modelGenerated: CadModel
 }
 
 type Project @table {
   name: String!
-  createdAt: Timestamp!
-  updatedAt: Timestamp!
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
   description: String
   owner: User
 }
 
 type Feedback @table {
   rating: Int!
-  createdAt: Timestamp!
+  createdAt: Timestamp! @default(expr: "request.time")
   comments: String
   type: String
   user: User
-  cadModel: CADModel
+  cadModel: CadModel
   prompt: Prompt
 }

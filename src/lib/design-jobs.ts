@@ -24,6 +24,13 @@ export async function createDesignJob(prompt: string, chatId?: string, attachmen
   return { jobId: String(data.jobId) };
 }
 
+// --- NEW: Function to delete chat history from backend ---
+export async function deleteChatFromBackend(chatId: string) {
+  const fn = httpsCallable(functions, "deleteChatHistory");
+  await fn({ chatId });
+}
+// ---------------------------------------------------------
+
 export function subscribeDesignJob(
   jobId: string,
   onJob: (job: any) => void,
@@ -42,7 +49,7 @@ export async function jobFileUrl(path?: string) {
   return await getDownloadURL(ref(storage, path));
 }
 
-// New helper: Uploads file to Firebase Storage
+// Helper: Uploads file to Firebase Storage
 export async function uploadJobAttachment(file: File, uid: string) {
   const timestamp = Date.now();
   // Sanitize filename to prevent issues

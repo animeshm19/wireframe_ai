@@ -2,7 +2,7 @@ const express = require("express");
 const { Firestore } = require("@google-cloud/firestore");
 const { Storage } = require("@google-cloud/storage");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { generateRingSTL } = require("./geometry-engine"); // We will write this next
+const { generateRingSTL } = require("./geometry-engine"); 
 
 const app = express();
 app.use(express.json());
@@ -10,6 +10,8 @@ app.use(express.json());
 // Initialize Services
 const firestore = new Firestore();
 const storage = new Storage();
+
+// Initialize Gemini with the API key from environment variables
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SYSTEM_INSTRUCTION = `
@@ -33,25 +35,34 @@ app.post("/generate", async (req, res) => {
   const { jobId } = req.body;
   const secret = req.header("x-worker-secret");
 
+  // Basic Security Check
   if (secret !== process.env.CAD_WORKER_SECRET) {
+    console.error("Unauthorized access attempt");
     return res.status(401).send("Unauthorized");
   }
 
-  console.log(`Starting job: ${jobId}`);
+  console.log(`Starting job processing: ${jobId}`);
   
-  // 1. Fetch Job
-  const jobRef = firestore.collection("designJobs").doc(jobId);
-  const jobSnap = await jobRef.get();
-  if (!jobSnap.exists) return res.status(404).send("Job not found");
-  
-  const job = jobSnap.data();
-  const uid = job.ownerUid;
-  const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-
   try {
+    // 1. Fetch Job Data
+    const jobRef = firestore.collection("designJobs").doc(jobId);
+    const jobSnap = await jobRef.get();
+    
+    if (!jobSnap.exists) {
+      console.error(`Job ${jobId} not found`);
+      return res.status(404).send("Job not found");
+    }
+    
+    const job = jobSnap.data();
+    const uid = job.ownerUid;
+    // Use the bucket name from env var
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET; 
+
+    // Update status to Running
     await jobRef.update({ status: "running", progress: 10 });
 
-    // 2. AGENT STEP: Interpret Parameters
+    // 2. AI AGENT: Interpret Parameters
+    console.log("Calling Gemini AI...");
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", systemInstruction: SYSTEM_INSTRUCTION });
     const result = await model.generateContent(job.prompt);
     const responseText = result.response.text().replace(/```json|```/g, "").trim();
@@ -59,27 +70,30 @@ app.post("/generate", async (req, res) => {
     let params;
     try {
       params = JSON.parse(responseText);
+      console.log("AI Parameters:", params);
     } catch (e) {
-      console.error("AI JSON Parse Error", responseText);
-      params = { ringSize: 6, bandWidth: 2.5 }; // Fallback
+      console.error("AI JSON Parse Error. Raw text:", responseText);
+      // Fallback defaults to prevent crash
+      params = { ringSize: 6, bandWidth: 2.5 }; 
     }
 
     await jobRef.update({ 
       status: "running", 
       progress: 40,
-      spec: params // Save the interpretation so the UI can show it!
+      spec: params 
     });
 
-    // 3. ENGINEERING STEP: Generate Geometry
-    // We generate a high-res STL buffer based on the AI's parameters
+    // 3. ENGINEERING: Generate Geometry
+    console.log("Generating Geometry...");
+    // generateRingSTL comes from your geometry-engine.js file
     const stlBuffer = generateRingSTL(params);
     
     await jobRef.update({ status: "running", progress: 70 });
 
-    // 4. STORAGE STEP: Upload Files
+    // 4. STORAGE: Upload Files
+    console.log(`Uploading to bucket: ${bucketName}`);
     const bucket = storage.bucket(bucketName);
     
-    // Path: users/{uid}/jobs/{jobId}/
     const stlPath = `users/${uid}/jobs/${jobId}/model.stl`;
     const jsonPath = `users/${uid}/jobs/${jobId}/specs.json`;
 
@@ -89,6 +103,7 @@ app.post("/generate", async (req, res) => {
     ]);
 
     // 5. FINISH
+    console.log("Job Complete.");
     await jobRef.update({
       status: "done",
       progress: 100,
@@ -100,13 +115,23 @@ app.post("/generate", async (req, res) => {
 
   } catch (e) {
     console.error("Worker Error:", e);
-    await jobRef.update({
-      status: "error",
-      error: e.message,
-      updatedAt: Date.now()
-    });
+    // Try to update Firestore with the error
+    try {
+      await firestore.collection("designJobs").doc(jobId).update({
+        status: "error",
+        error: e.message,
+        updatedAt: Date.now()
+      });
+    } catch (dbError) {
+      console.error("Failed to write error to Firestore:", dbError);
+    }
+    
     res.status(500).json({ error: e.message });
   }
 });
 
+// --- THIS WAS MISSING ---
 const port = process.env.PORT || 8080;
+app.listen(port, () => {
+  console.log(`CAD Worker listening on port ${port}`);
+});

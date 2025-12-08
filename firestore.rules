@@ -1,22 +1,18 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function signedIn() { return request.auth != null; }
-    function isOwner() { return signedIn() && resource.data.ownerUid == request.auth.uid; }
-
+    
+    // --- DEBUG RULES START ---
+    // CAUTION: This allows ANYONE to read ANY job.
+    // Use this only to confirm your app works, then revert immediately.
+    
     match /designJobs/{jobId} {
-      // Frontend only needs to read the job doc
-      allow get: if isOwner();
-
-      // Block queries/lists for now
-      allow list: if false;
-
-      // Only server (Admin SDK) should write job docs
-      allow create, update, delete: if false;
+      allow read: if true;
+      allow write: if false; // Only server (Cloud Function) should write
     }
+    
+    // --- DEBUG RULES END ---
 
-    // Default deny for everything else unless you add rules
     match /{document=**} {
       allow read, write: if false;
     }
