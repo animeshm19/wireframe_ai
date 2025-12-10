@@ -98,7 +98,7 @@ export function Hero(_props: HeroProps) {
                   <span className="h-2.5 w-2.5 rounded-full bg-[#e12882] shadow-[0_0_14px_rgba(244,197,122,0.95)]"></span>
                   <span className="absolute inset-0 rounded-full border border-white/40 opacity-0 group-hover:opacity-100 group-hover:animate-ping" />
                 </span>
-                <span className="shiny-text">Open mesh chat</span>
+                <span className="shiny-text">Try Now!</span>
               </span>
 
               <span className="relative flex items-center gap-2 pr-2 pl-1 text-[11px] text-white/55 sm:text-xs">
