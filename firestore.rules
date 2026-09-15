@@ -1,18 +1,44 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // --- DEBUG RULES START ---
-    // CAUTION: This allows ANYONE to read ANY job.
-    // Use this only to confirm your app works, then revert immediately.
-    
-    match /designJobs/{jobId} {
-      allow read: if true;
-      allow write: if false; // Only server (Cloud Function) should write
-    }
-    
-    // --- DEBUG RULES END ---
 
+    // designJobs are created directly from the browser by a signed-in user
+    // (src/lib/design-jobs.ts -> createDesignJob) and processed server-side by
+    // the Admin SDK, which bypasses these rules entirely. Access from any
+    // client is therefore restricted to the job's owner and nobody else.
+    match /designJobs/{jobId} {
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Applies to get() and to each document matched by a list() query.
+      // A list() query is only permitted when it is constrained to the
+      // caller's own uid, e.g. where("ownerUid", "==", auth.currentUser.uid).
+      function isOwner() {
+        return isSignedIn() && request.auth.uid == resource.data.ownerUid;
+      }
+
+      function isCreatingOwnJob() {
+        return isSignedIn()
+          && request.resource.data.ownerUid is string
+          && request.auth.uid == request.resource.data.ownerUid;
+      }
+
+      allow read: if isOwner();
+
+      allow create: if isCreatingOwnJob();
+
+      // Ownership is immutable: an update may never reassign the job.
+      allow update: if isOwner()
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+
+      allow delete: if isOwner();
+    }
+
+    // Default deny. Anything not explicitly matched above is inaccessible to
+    // every client, authenticated or not.
     match /{document=**} {
       allow read, write: if false;
     }

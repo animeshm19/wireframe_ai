@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-wireframe-rules \"node --test firestore.rules.test.js\""
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/node": "^24.10.0",
     "@types/react": "^19.1.16",
@@ -41,6 +43,7 @@
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
+    "firebase-tools": "^15.30.1",
     "globals": "^16.4.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",

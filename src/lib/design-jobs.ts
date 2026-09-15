@@ -50,10 +50,19 @@ export async function createDesignJob(prompt: string, chatId?: string, attachmen
 
 // --- MODIFIED: Delete history directly in Firestore ---
 export async function deleteChatFromBackend(chatId: string) {
+  // Firestore evaluates a list query against the security rules up front, not
+  // against its results. With owner-scoped rules on designJobs the query must
+  // itself be constrained to the caller's own uid or it is rejected outright.
+  if (!auth.currentUser) throw new Error("User must be logged in");
+
   console.log("Deleting jobs for chat:", chatId);
-  
+
   const jobsRef = collection(db, "designJobs");
-  const q = query(jobsRef, where("chatId", "==", chatId));
+  const q = query(
+    jobsRef,
+    where("ownerUid", "==", auth.currentUser.uid),
+    where("chatId", "==", chatId)
+  );
   const snapshot = await getDocs(q);
 
   if (snapshot.empty) return;
