@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-wireframe-rules \"node --test firestore.rules.test.js\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-wireframe-rules \"node --test firestore.rules.test.js\"",
+    "test:cad": "tsc src/lib/cad-engine.ts --outDir .cadcheck --module commonjs --target es2020 --moduleResolution node --skipLibCheck --esModuleInterop && node -e \"require('fs').writeFileSync('.cadcheck/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node --test cad-engine.test.cjs"
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",
@@ -16,6 +17,7 @@
     "@jscad/io": "^2.4.12",
     "@jscad/modeling": "^2.12.6",
     "@radix-ui/react-slot": "^1.2.4",
+    "@stripe/stripe-js": "^8.6.0",
     "@tailwindcss/vite": "^4.1.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -24,6 +26,7 @@
     "liquid-glass-react": "^1.1.1",
     "lucide-react": "^0.553.0",
     "mathjs": "^15.1.0",
+    "nodemailer": "^7.0.11",
     "ogl": "^1.0.11",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
