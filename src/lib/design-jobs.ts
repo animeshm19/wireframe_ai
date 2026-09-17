@@ -10,7 +10,8 @@ import {
   writeBatch 
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { db, storage, auth } from "./firebase"; 
+import { db, storage, auth } from "./firebase";
+import { extractRingSpec } from "./ai-extract";
 
 export type DesignJob = {
   id?: string;
@@ -45,6 +46,12 @@ export async function createDesignJob(prompt: string, chatId?: string, attachmen
 
   const docRef = await addDoc(jobsRef, newJob);
   console.log("Job created with ID:", docRef.id);
+
+  // Interpret the prompt in the background. The card and Studio already render
+  // from the local parser, so the design appears immediately and sharpens when
+  // the model answers — rather than blocking the UI on a network round trip.
+  void refineJobSpec(docRef.id, prompt);
+
   return { jobId: docRef.id };
 }
 
@@ -126,4 +133,25 @@ export async function uploadJobAttachment(file: File, uid: string) {
     url,
     type: file.type || 'application/octet-stream'
   };
+}
+
+/**
+ * Upgrades a job's spec with a model-extracted one, if the extraction service
+ * is reachable. Failure is silent by design: the locally-parsed spec is already
+ * driving the UI, so a failed upgrade costs nothing.
+ */
+async function refineJobSpec(jobId: string, prompt: string) {
+  try {
+    const result = await extractRingSpec(prompt);
+    if (result.source !== "ai") return;
+    await updateDoc(doc(db, "designJobs", jobId), {
+      spec: result.spec,
+      specSource: "ai",
+      specModel: result.model ?? null,
+      interpretation: result.interpretation ?? null,
+      updatedAt: Date.now(),
+    });
+  } catch (err) {
+    console.warn("Could not refine job spec:", err);
+  }
 }
