@@ -102,7 +102,7 @@ export function StlPreview({ url, height = 260 }: { url: string | null; height?:
         undefined,
         (err) => {
           if (mounted) {
-            console.error("STL Load Error:", err);
+            console.error("STL Load Error:", { url, kind: typeof url, isBlob: String(url).startsWith("blob:"), err });
             setError("Could not render model.");
           }
         }
