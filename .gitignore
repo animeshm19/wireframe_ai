@@ -36,3 +36,22 @@ cad-worker/service-account.json
 
 # compiled output for the headless CAD engine tests
 .cadcheck/
+
+.brepcheck/
+
+# Dev harnesses. Isolation pages used to debug the Studio and the CAD kernel by
+# hand — they import app internals and would ship as routes if they were ever
+# built. Ignored rather than deleted: they are how the two-canvas bug and the
+# flat-shading bug were actually found, and the next one will be found the same
+# way.
+/studio-test.html
+/studio-wrapped-test.html
+/cad-contact-sheet.html
+/brep-boot-test.html
+src/studio-test.ts
+src/studio-wrapped-test.tsx
+src/cad-contact-sheet.ts
+src/brep-boot-test.ts
+
+# Build artifact, churns on every compile.
+tsconfig.tsbuildinfo

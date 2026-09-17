@@ -1,15 +1,30 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
-export function StlPreview({ url, height = 260 }: { url: string | null; height?: number }) {
+export type PreviewMesh = {
+  vertices: Float32Array; normals: Float32Array; triangles: Uint32Array;
+};
+
+/**
+ * Thumbnail preview of a generated ring.
+ *
+ * Takes tessellated geometry directly rather than a URL to an STL. The old path
+ * serialised the ring to STL in the worker, wrapped it in an object URL and
+ * fetched it back — three format conversions to draw a 200px thumbnail, and a
+ * lifetime problem on top: revoking the URL while the loader was still fetching
+ * produced "STL Load Error: Failed to fetch", which needed a 30-second delayed
+ * revoke to paper over. Passing the arrays removes the fetch, the URL and the
+ * bug together.
+ */
+export function StlPreview({ mesh: payload, height = 260 }: {
+  mesh: PreviewMesh | null; height?: number;
+}) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Basic Validation
-    if (!url) return;
+    if (!payload) return;
     const host = hostRef.current;
     if (!host) return;
 
@@ -60,53 +75,31 @@ export function StlPreview({ url, height = 260 }: { url: string | null; height?:
       controls.enableDamping = true;
       controls.dampingFactor = 0.07;
 
-      // 4. Load Model
-      const loader = new STLLoader();
-      (loader as any).setCrossOrigin?.("anonymous");
-      
-      loader.load(
-        url,
-        (geom) => {
-          // CRITICAL: If unmounted while loading, stop immediately
-          if (!mounted || !scene) return;
+      // 4. Build the model. No load step: the geometry is already here.
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.BufferAttribute(payload.vertices, 3));
+      geom.setAttribute("normal", new THREE.BufferAttribute(payload.normals, 3));
+      geom.setIndex(new THREE.BufferAttribute(payload.triangles, 1));
 
-          geom.computeVertexNormals();
-          const mat = new THREE.MeshStandardMaterial({
-            color: 0xe9e0ff,
-            metalness: 0.2,
-            roughness: 0.35,
-          });
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xe9e0ff, metalness: 0.2, roughness: 0.35,
+      });
+      mesh = new THREE.Mesh(geom, mat);
+      scene.add(mesh);
 
-          mesh = new THREE.Mesh(geom, mat);
-          scene.add(mesh);
+      const box = new THREE.Box3().setFromObject(mesh);
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+      mesh.position.sub(center);
 
-          // Center Camera
-          const box = new THREE.Box3().setFromObject(mesh);
-          const size = new THREE.Vector3();
-          const center = new THREE.Vector3();
-          box.getSize(size);
-          box.getCenter(center);
-          
-          mesh.position.sub(center); // Center mesh at 0,0,0
-
-          const maxDim = Math.max(size.x, size.y, size.z);
-          const dist = maxDim > 0 ? maxDim * 1.6 + 30 : 50;
-          
-          if (camera && controls) {
-              camera.position.set(0, maxDim * 0.6 + 20, dist);
-              camera.lookAt(0, 0, 0);
-              controls.target.set(0, 0, 0);
-              controls.update();
-          }
-        },
-        undefined,
-        (err) => {
-          if (mounted) {
-            console.error("STL Load Error:", { url, kind: typeof url, isBlob: String(url).startsWith("blob:"), err });
-            setError("Could not render model.");
-          }
-        }
-      );
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const dist = maxDim > 0 ? maxDim * 1.6 + 30 : 50;
+      camera.position.set(0, maxDim * 0.6 + 20, dist);
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      controls.update();
 
       // 5. Animation Loop
       const animate = () => {
@@ -168,7 +161,7 @@ export function StlPreview({ url, height = 260 }: { url: string | null; height?:
       setError("Viewer initialization failed.");
       return () => {};
     }
-  }, [url, height]);
+  }, [payload, height]);
 
   return (
     <div className="relative group w-full rounded-xl overflow-hidden bg-slate-900/50" style={{ height }}>
@@ -181,25 +174,16 @@ export function StlPreview({ url, height = 260 }: { url: string | null; height?:
         )}
 
         {/* Loading Spinner */}
-        {!error && !url && (
+        {!error && !payload && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground z-10">
                 <div className="w-6 h-6 border-2 border-white/20 border-t-white/80 rounded-full animate-spin mb-2" />
                 <span className="text-xs">Loading Viewer...</span>
             </div>
         )}
 
-        {/* Download Button */}
-        {url && (
-            <a 
-                href={url} 
-                download="model.stl"
-                target="_blank"
-                rel="noreferrer"
-                className="absolute bottom-3 right-3 z-30 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1.5 rounded backdrop-blur-md border border-white/10"
-            >
-                Download STL
-            </a>
-        )}
+        {/* Exports live in the Studio, where the merged solid is. This card
+            shows the unfused preview, which is right to look at and wrong to
+            hand to a caster, so it deliberately offers no download. */}
     </div>
   );
 }

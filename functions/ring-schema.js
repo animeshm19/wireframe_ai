@@ -20,7 +20,15 @@ const RING_SPEC_SCHEMA = {
     },
     gemSize: { type: Type.NUMBER, description: "Centre stone weight in carats, 0.05 to 15." },
     prongCount: { type: Type.INTEGER, description: "Number of prongs, 3 to 8. Default 6." },
-    setting: { type: Type.STRING, enum: ["prong", "bezel", "halo", "cathedral"] },
+    setting: { type: Type.STRING, enum: ["prong", "bezel", "halo", "cathedral", "three_stone"] },
+    shankStones: {
+      type: Type.STRING,
+      enum: ["none", "pave", "half_eternity", "eternity"],
+    },
+    finish: {
+      type: Type.STRING,
+      enum: ["polished", "satin", "matte", "hammered", "florentine"],
+    },
     metalType: {
       type: Type.STRING,
       enum: ["18k_gold", "14k_rose", "white_gold", "platinum", "silver"],
@@ -33,11 +41,11 @@ const RING_SPEC_SCHEMA = {
   },
   required: [
     "ringSize", "bandWidth", "bandProfile", "gemShape",
-    "gemSize", "prongCount", "setting", "metalType", "interpretation",
+    "gemSize", "prongCount", "setting", "metalType", "finish", "shankStones", "interpretation",
   ],
   propertyOrdering: [
     "ringSize", "bandWidth", "bandProfile", "gemShape",
-    "gemSize", "prongCount", "setting", "metalType", "interpretation",
+    "gemSize", "prongCount", "setting", "metalType", "finish", "shankStones", "interpretation",
   ],
 };
 
@@ -48,7 +56,20 @@ manufacturing parameters.
 Rules:
 - Only the listed enum values exist. Map anything else to the nearest option:
   "baguette" or "step cut" -> emerald; "navette" -> marquise; "teardrop" -> pear;
-  "rub-over" -> bezel; "claw" -> prong; "white gold" -> white_gold.
+  "rub-over" -> bezel; "claw" -> prong; "white gold" -> white_gold;
+  "brushed" or "silk" -> satin; "sandblasted" or "frosted" -> matte;
+  "planished" or "beaten" -> hammered; "cross-hatched" or "engraved texture" ->
+  florentine; "mirror" or "high shine" -> polished.
+- "trilogy", "past present future" and "three stone" all mean setting=three_stone.
+- shankStones are accent stones set into the BAND, separate from the centre
+  stone: "pave" for stones on the shoulders only, "half_eternity" for halfway
+  round, "eternity" for all the way round. "diamond band", "accented shoulders"
+  and "micro-pave" all mean pave. Default to none — most rings have a plain
+  shank, and stones in the band are a deliberate and much more expensive choice.
+- finish describes the SURFACE of the metal, not the stone and not the shape. If
+  the customer says nothing about texture, use polished: it is what the
+  overwhelming majority of rings are sold as, and a hammered band is a choice
+  nobody makes by accident.
 - If the customer does not state something, choose what a jeweller would default to
   for the style they described rather than repeating the same numbers every time.
 - Ring size defaults to 6 if unstated. Never invent a size the customer did not give

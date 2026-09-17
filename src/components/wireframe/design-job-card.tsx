@@ -3,7 +3,7 @@ import { Card, CardContent } from "../ui/card";
 import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
 import { Loader2, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
 import { StlPreview } from "./stl-preview";
-import { useCadWorker } from "../../hooks/useCadWorker";
+import { useBrepWorker } from "../../hooks/useBrepWorker";
 import { withDefaults, METAL_LABELS, parseSpecFromPrompt, RingSpec } from "../../lib/ring-spec";
 
 export function DesignJobCard({ jobId }: { jobId: string }) {
@@ -12,7 +12,10 @@ export function DesignJobCard({ jobId }: { jobId: string }) {
 
   // Geometry is produced in the browser. The Firestore job is only a source of
   // the extracted spec -- the preview no longer waits on a server pipeline.
-  const { generate, modelBlob, isGenerating, error: genError, progress, stage, issues } = useCadWorker();
+  const {
+    generate, mesh: ringMesh, isBuilding: isGenerating, error: genError,
+    progress, stage, issues,
+  } = useBrepWorker();
 
   useEffect(() => {
     if (!jobId) return;
@@ -35,25 +38,12 @@ export function DesignJobCard({ jobId }: { jobId: string }) {
 
   useEffect(() => { generate(spec); }, [specKey, generate]);
 
-  // Blob -> object URL for StlPreview. The previous URL is revoked when a new
-  // one replaces it, NOT in effect cleanup: under StrictMode's
-  // mount/unmount/mount cycle, cleanup-revoking frees a URL the preview is
-  // still loading, which surfaces as "STL Load Error: Failed to fetch".
-  const [modelUrl, setModelUrl] = useState<string | null>(null);
-  const prevUrlRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!modelBlob) return;
-    const url = URL.createObjectURL(modelBlob);
-    const stale = prevUrlRef.current;
-    prevUrlRef.current = url;
-    setModelUrl(url);
-    // Revoke the old URL on a delay: the preview may still be fetching it, and
-    // revoking mid-fetch surfaces as "STL Load Error: Failed to fetch".
-    if (stale) setTimeout(() => URL.revokeObjectURL(stale), 30000);
-  }, [modelBlob]);
-
+  // No object URL, no blob, no revoke timing to get wrong. The geometry comes
+  // through as typed arrays and goes straight into a BufferGeometry, which is
+  // what removed the "STL Load Error: Failed to fetch" class of bug rather than
+  // delaying it by thirty seconds.
   const failed = genError || job?.status === "error";
-  const ready = !!modelUrl && !isGenerating && !failed;
+  const ready = !!ringMesh && !isGenerating && !failed;
   const pct = failed ? 0 : ready ? 100 : progress;
 
   return (
@@ -83,7 +73,7 @@ export function DesignJobCard({ jobId }: { jobId: string }) {
 
         {ready && (
           <div className="mt-4 border border-white/10 rounded-lg overflow-hidden">
-            <StlPreview url={modelUrl} height={200} />
+            <StlPreview mesh={ringMesh?.metal ?? null} height={200} />
           </div>
         )}
 

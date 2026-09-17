@@ -17,6 +17,20 @@ export type RingSpec = {
   setting: SettingStyle;
   metalType: MetalType;
   finish: Finish;
+  /** Accent stones set into the shank itself, separate from the head. */
+  shankStones: ShankStones;
+};
+
+export type ShankStones = "none" | "pave" | "half_eternity" | "eternity";
+
+export const SHANK_STONES: ShankStones[] =
+  ["none", "pave", "half_eternity", "eternity"];
+
+export const SHANK_STONE_LABELS: Record<string, string> = {
+  none: "Plain shank",
+  pave: "Pavé shoulders",
+  half_eternity: "Half eternity",
+  eternity: "Full eternity",
 };
 
 export type MetalType = "18k_gold" | "14k_rose" | "white_gold" | "platinum" | "silver";
@@ -27,6 +41,7 @@ const _q = typeof location !== "undefined" ? new URLSearchParams(location.search
 const _override: Partial<RingSpec> = {};
 if (_q?.get("metal")) _override.metalType = _q.get("metal") as MetalType;
 if (_q?.get("finish")) _override.finish = _q.get("finish") as Finish;
+if (_q?.get("shank")) _override.shankStones = _q.get("shank") as ShankStones;
 
 const _BASE_SPEC: RingSpec = {
   ringSize: 6.0,
@@ -38,13 +53,23 @@ const _BASE_SPEC: RingSpec = {
   setting: "prong",
   metalType: "platinum",
   finish: "polished",
+  shankStones: "none",
 };
 
 export const DEFAULT_SPEC: RingSpec = { ..._BASE_SPEC, ..._override };
 
 export const GEM_CUTS: GemCut[] =
   ["round", "princess", "oval", "emerald", "cushion", "marquise", "pear"];
-export const SETTINGS: SettingStyle[] = ["prong", "bezel", "halo", "cathedral"];
+export const SETTINGS: SettingStyle[] =
+  ["prong", "bezel", "halo", "cathedral", "three_stone"];
+
+export const SETTING_LABELS: Record<string, string> = {
+  prong: "Prong",
+  bezel: "Bezel",
+  halo: "Halo",
+  cathedral: "Cathedral",
+  three_stone: "Three stone",
+};
 export const BAND_PROFILES: BandProfile[] = ["comfort", "flat", "round", "knife"];
 export const METALS: MetalType[] =
   ["platinum", "18k_gold", "white_gold", "14k_rose", "silver"];
@@ -161,6 +186,15 @@ export function parseSpecFromPrompt(prompt?: string | null): Partial<RingSpec> {
   else if (/knife[- ]?edge/.test(t)) out.bandProfile = "knife";
   else if (/\bflat\b/.test(t)) out.bandProfile = "flat";
   else if (/round\s*band|\bd[- ]?shape/.test(t)) out.bandProfile = "round";
+
+  // Settings.
+  if (/three[- ]?stone|trilogy|past\s*present\s*future/.test(t)) out.setting = "three_stone";
+
+  // Shank stones. Checked before finishes because "pavé band" names the band.
+  if (/full\s*eternity|eternity\s*band|all[- ]?round/.test(t)) out.shankStones = "eternity";
+  else if (/half\s*eternity/.test(t)) out.shankStones = "half_eternity";
+  else if (/pav[ée]|micro[- ]?pav|accent(ed)?\s*(band|shoulders?)|diamond\s*shoulders?/.test(t))
+    out.shankStones = "pave";
 
   // Finishes.
   if (/hammer/.test(t)) out.finish = "hammered";

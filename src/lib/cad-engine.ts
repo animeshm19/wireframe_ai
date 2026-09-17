@@ -7,9 +7,15 @@
  * Frame: the finger hole runs along Z, the band lies in the XY plane, and the
  * stone sits at +Y — so the ring stands upright as it would on a hand.
  */
-import {
+// Default import, then destructure. @jscad/modeling is CommonJS, and a named
+// ESM import of it works in Vite but throws in Node — which would put the
+// geometry engine permanently out of reach of a plain `node --test`. Going
+// through the default export works in all three of Vite, Node ESM and tsc's
+// CommonJS output, so the engine stays testable outside a browser.
+import jscad from "@jscad/modeling";
+const {
   primitives, booleans, transforms, extrusions, geometries, maths, utils, measurements,
-} from "@jscad/modeling";
+} = jscad;
 
 const { cylinder, cylinderElliptic, sphere, torus, cuboid } = primitives;
 const { union, subtract } = booleans;
@@ -22,7 +28,15 @@ const mat4 = maths.mat4;
 export type Pt = [number, number];
 export type GemCut =
   | "round" | "princess" | "oval" | "emerald" | "cushion" | "marquise" | "pear";
-export type SettingStyle = "prong" | "bezel" | "halo" | "cathedral";
+/**
+ * Setting styles.
+ *
+ * "three_stone" is built by the B-rep engine only. The mesh engine treats it as
+ * a plain prong setting — it is frozen as the differential reference and is not
+ * being extended — so the two deliberately disagree there, and the test knows.
+ */
+export type SettingStyle =
+  | "prong" | "bezel" | "halo" | "cathedral" | "three_stone";
 export type BandProfile = "comfort" | "flat" | "round" | "knife";
 
 // ---------------------------------------------------------------- outlines --
@@ -179,7 +193,7 @@ function loft(outline: Pt[], steps: { z: number; s: number }[], girdleR: number)
 const STAR_LEN = 0.55;   // star facet length, fraction of table edge → girdle
 const LOWER_LEN = 0.77;  // lower-half facet length, fraction girdle → culet
 
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
 
 /** Newell normal of a face. */
 function faceNormal(pts: V3[]): V3 {
@@ -210,7 +224,19 @@ function facetedSolid(points: V3[], faces: number[][], centre: V3) {
   return primitives.polyhedron({ points, faces: oriented, orientation: "outward" } as any);
 }
 
-export function buildBrilliant(cut: GemCut, girdleR: number) {
+export type FacetTopology = { points: V3[]; faces: number[][]; centre: V3 };
+
+/**
+ * The facet plan, as pure geometry: vertices and the faces that join them.
+ *
+ * Deliberately kernel-agnostic. The mesh engine turns this into a JSCAD
+ * polyhedron and the B-rep engine turns the same vertices into exact planar
+ * OCCT faces, so there is exactly one definition of what a brilliant IS. Two
+ * kernels describing the same stone from two copies of the maths would drift,
+ * and the first anyone would know about it is a STEP file that does not match
+ * the render the customer approved.
+ */
+export function brilliantTopology(cut: GemCut, girdleR: number): FacetTopology {
   const { pavH, girdleH, crownH } = gemDims(girdleR);
   const N = 16;                                   // azimuthal divisions
   const outline = gemOutline(cut, 256);           // fine, so the girdle radius is exact
@@ -229,12 +255,46 @@ export function buildBrilliant(cut: GemCut, girdleR: number) {
   const culet = push([0, 0, 0]);
   const Gb: number[] = [], Gt: number[] = [], Tb: number[] = [], St: number[] = [], Lo: number[] = [];
   for (let i = 0; i < N; i++) { Gb.push(push(at(i, 1, zGb))); Gt.push(push(at(i, 1, zGt))); }
+  for (let j = 0; j < N / 2; j++) Tb.push(push(at(2 * j, TABLE, zT)));
+
+  // Star points and lower-girdle junctions are SOLVED onto the facet planes,
+  // not interpolated toward them.
+  //
+  // A bezel kite is one flat plane. Its tilt is already fixed by the two points
+  // it must pass through — the table corner above and the girdle below — so the
+  // star point where two bezels meet is not free: its height follows from that
+  // plane once its radius is chosen. Placing it by eye at 45% of the crown
+  // height, as this did before, leaves every kite very slightly warped. A mesh
+  // kernel hides that by quietly triangulating; a B-rep kernel refuses to build
+  // the face at all, which is how the warp came to light. It was never
+  // cosmetic: a warped facet scatters light along its bend instead of
+  // reflecting it cleanly, so the stone loses exactly the crispness that makes
+  // a brilliant look cut rather than moulded.
+  //
+  // The same argument fixes the pavilion: the mains run from girdle to culet, so
+  // the junction where two lower-girdle facets meet sits on that plane too.
+  const cosD = Math.cos((2 * Math.PI) / N);   // half-step between bezel and star azimuth
+  const rSf = TABLE + STAR_LEN * (1 - TABLE);
+  const rPf = 1 - LOWER_LEN;
+
   for (let j = 0; j < N / 2; j++) {
-    Tb.push(push(at(2 * j, TABLE, zT)));                              // table corner
-    St.push(push(at(2 * j + 1, rS, zS)));                             // star point
-    // Lower-girdle junction: slides toward the culet in radius and height
-    // together, which is what keeps the pavilion mains planar.
-    Lo.push(push(at(2 * j + 1, 1 - LOWER_LEN, zGb * (1 - LOWER_LEN))));
+    const a1 = 2 * j + 1;
+    const rS = rSf * rAt(a1);
+    const rP = rPf * rAt(a1);
+
+    // Averaged over the two bezels that meet at this star point. For a round
+    // stone they are identical and this is exact; on a stretched girdle — oval,
+    // marquise — the two differ slightly, and the average is the closest single
+    // plane through both, which is as planar as a modified brilliant gets.
+    let zS = 0, zP = 0;
+    for (const k of [2 * j, (2 * j + 2) % N]) {
+      const rG = rAt(k), rT = TABLE * rAt(k);
+      const nr = crownH / (rG - rT);          // bezel plane tilt
+      zS += zGt - nr * (rS * cosD - rG);
+      zP += (zGb * rP * cosD) / rG;           // pavilion main plane
+    }
+    St.push(push([rS * Math.cos(ang(a1)), rS * Math.sin(ang(a1)), zS / 2]));
+    Lo.push(push([rP * Math.cos(ang(a1)), rP * Math.sin(ang(a1)), zP / 2]));
   }
 
   const F: number[][] = [];
@@ -254,7 +314,12 @@ export function buildBrilliant(cut: GemCut, girdleR: number) {
     F.push([Gt[i], Gb[i], Gb[i2], Gt[i2]]);
   }
 
-  return facetedSolid(P, F, [0, 0, zGb]);
+  return { points: P, faces: F, centre: [0, 0, zGb] };
+}
+
+export function buildBrilliant(cut: GemCut, girdleR: number) {
+  const { points, faces, centre } = brilliantTopology(cut, girdleR);
+  return facetedSolid(points, faces, centre);
 }
 
 /**

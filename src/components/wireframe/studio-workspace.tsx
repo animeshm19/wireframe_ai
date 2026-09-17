@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -13,17 +11,17 @@ import {
   finishMaps, applyTriplanar, addCylindricalUVs, FINISHES, FINISH_LABELS,
 } from "../../lib/finishes";
 import {
-  createSectionTool, createDimensions, buildEdges, applyDisplayMode, renderPNG,
+  createSectionTool, createDimensions, applyDisplayMode, renderPNG,
   DISPLAY_MODES, DISPLAY_LABELS, type DisplayMode, type SectionAxis,
 } from "../../lib/studio-tools";
 import { Loader2, X, RotateCcw, Download, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { Button } from "../ui/button";
-import { useCadWorker } from "../../hooks/useCadWorker";
+import { useBrepWorker, type RingMesh } from "../../hooks/useBrepWorker";
 import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
 import {
   DEFAULT_SPEC, RingSpec, parseSpecFromPrompt, withDefaults,
   GEM_CUTS, SETTINGS, BAND_PROFILES, METALS, METAL_LABELS,
-  METAL_APPEARANCE, METAL_DENSITY,
+  METAL_APPEARANCE, METAL_DENSITY, SHANK_STONES, SHANK_STONE_LABELS, SETTING_LABELS,
 } from "../../lib/ring-spec";
 
 export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: () => void }) {
@@ -31,7 +29,10 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const [spec, setSpec] = useState<RingSpec>(DEFAULT_SPEC);
   const [jobSpec, setJobSpec] = useState<RingSpec | null>(null);
 
-  const { generate, modelBlob, stoneBlob, isGenerating, error, progress, stage, metrics, issues } = useCadWorker();
+  const {
+    generate, exportFile, mesh: ringMesh, metrics, issues,
+    isBuilding: isGenerating, isResolving, error, progress, stage,
+  } = useBrepWorker();
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const meshRef = useRef<THREE.Mesh | null>(null);
@@ -126,88 +127,97 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
   // --- mesh swap ----------------------------------------------------------
   useEffect(() => {
-    if (!modelBlob || !sceneRef.current) return;
-    let cancelled = false;
+    if (!ringMesh || !sceneRef.current || !materialRef.current) return;
 
-    (async () => {
-      const loader = new STLLoader();
-      let metalGeom = loader.parse(await modelBlob.arrayBuffer());
-      let stoneGeom = stoneBlob ? loader.parse(await stoneBlob.arrayBuffer()) : null;
-      if (cancelled || !sceneRef.current || !materialRef.current) return;
+    // Geometry arrives from the kernel as typed arrays, not as an STL to parse.
+    //
+    // The old path serialised the ring to binary STL in the worker and parsed
+    // it back here, which cost a round of encode/decode per slider tick and
+    // threw away everything OCCT knew: STL has no vertex sharing, so normals
+    // had to be reconstructed by guessing a crease angle, and edges had to be
+    // inferred from the triangles. Now the tessellator's own per-face normals
+    // come straight through — smooth across a curved surface, hard at a real
+    // edge, because the kernel knows which is which.
+    const build = (m: { vertices: Float32Array; normals: Float32Array; triangles: Uint32Array }) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(m.vertices, 3));
+      g.setAttribute("normal", new THREE.BufferAttribute(m.normals, 3));
+      g.setIndex(new THREE.BufferAttribute(m.triangles, 1));
+      return g;
+    };
 
-      // Both bodies must share one origin. Centre BOTH on the metal's centre —
-      // centring each independently would float the stone off its setting.
-      metalGeom.computeBoundingBox();
-      const c = metalGeom.boundingBox!.getCenter(new THREE.Vector3());
-      metalGeom.translate(-c.x, -c.y, -c.z);
-      stoneGeom?.translate(-c.x, -c.y, -c.z);
+    const metalGeom = build(ringMesh.metal);
+    const stoneGeom = ringMesh.stones ? build(ringMesh.stones) : null;
 
-      // STL is a triangle soup with no shared vertices, so computeVertexNormals
-      // gives every triangle its own flat normal — which is why a 128-segment
-      // revolve was reading as 128 visible facets. toCreasedNormals welds and
-      // smooths below the crease angle and keeps the hard edges hard: exactly
-      // what a CAD renderer does, and the single biggest "is this real" tell on
-      // curved metal. The stone keeps a tight angle so all 57 facets stay crisp.
-      metalGeom = toCreasedNormals(metalGeom, THREE.MathUtils.degToRad(38));
-      addCylindricalUVs(metalGeom);
-      metalGeom.computeBoundingSphere();
-      if (stoneGeom) stoneGeom = toCreasedNormals(stoneGeom, THREE.MathUtils.degToRad(8));
+    // Both bodies must share one origin. Centre BOTH on the metal's centre —
+    // centring each independently would float the stone off its setting.
+    metalGeom.computeBoundingBox();
+    const c = metalGeom.boundingBox!.getCenter(new THREE.Vector3());
+    metalGeom.translate(-c.x, -c.y, -c.z);
+    stoneGeom?.translate(-c.x, -c.y, -c.z);
+    metalGeom.computeBoundingSphere();
 
-      for (const ref of [meshRef, stoneMeshRef]) {
-        if (ref.current) {
-          sceneRef.current.remove(ref.current);
-          ref.current.geometry.dispose();
-          ref.current = null;
-        }
+    addCylindricalUVs(metalGeom);
+
+    for (const ref of [meshRef, stoneMeshRef]) {
+      if (ref.current) {
+        sceneRef.current.remove(ref.current);
+        ref.current.geometry.dispose();
+        ref.current = null;
       }
-      for (const ref of [metalEdgesRef, stoneEdgesRef]) {
-        if (ref.current) {
-          ref.current.geometry.dispose();
-          (ref.current.material as THREE.Material).dispose();
-          ref.current = null;
-        }
+    }
+    for (const ref of [metalEdgesRef, stoneEdgesRef]) {
+      if (ref.current) {
+        ref.current.geometry.dispose();
+        (ref.current.material as THREE.Material).dispose();
+        ref.current = null;
       }
+    }
 
-      const metalMesh = new THREE.Mesh(metalGeom, materialRef.current);
-      metalMesh.castShadow = true;
-      metalMesh.receiveShadow = true;
-      sceneRef.current.add(metalMesh);
-      meshRef.current = metalMesh;
+    const metalMesh = new THREE.Mesh(metalGeom, materialRef.current);
+    metalMesh.castShadow = true;
+    metalMesh.receiveShadow = true;
+    sceneRef.current.add(metalMesh);
+    meshRef.current = metalMesh;
 
-      if (stoneGeom && stoneMaterialRef.current) {
-        const stoneMesh = new THREE.Mesh(stoneGeom, stoneMaterialRef.current);
-        stoneMesh.castShadow = true;
-        sceneRef.current.add(stoneMesh);
-        stoneMeshRef.current = stoneMesh;
-      }
+    if (stoneGeom && stoneMaterialRef.current) {
+      const stoneMesh = new THREE.Mesh(stoneGeom, stoneMaterialRef.current);
+      stoneMesh.castShadow = true;
+      sceneRef.current.add(stoneMesh);
+      stoneMeshRef.current = stoneMesh;
+    }
 
-      // Edges are children of their body so they inherit its transform, and
-      // are rebuilt with the geometry rather than kept in sync by hand.
-      const metalEdges = buildEdges(metalGeom);
-      metalMesh.add(metalEdges);
-      metalEdgesRef.current = metalEdges;
-      if (stoneMeshRef.current && stoneGeom) {
-        const se = buildEdges(stoneGeom, 0xbfe9ff);
-        stoneMeshRef.current.add(se);
-        stoneEdgesRef.current = se;
-      }
+    // The kernel's own edge curves, not edges guessed from triangles.
+    // EdgesGeometry compares triangle normals and keeps what exceeds an angle,
+    // so it both invents edges across a coarsely tessellated curve and misses
+    // real ones that happen to meet shallowly. These are the actual boundaries
+    // between surfaces, which is what a CAD wireframe means.
+    const ep = ringMesh.edges.slice();
+    for (let i = 0; i < ep.length; i += 3) {
+      ep[i] -= c.x; ep[i + 1] -= c.y; ep[i + 2] -= c.z;
+    }
+    const edgeGeom = new THREE.BufferGeometry();
+    edgeGeom.setAttribute("position", new THREE.BufferAttribute(ep, 3));
+    const metalEdges = new THREE.LineSegments(edgeGeom, new THREE.LineBasicMaterial({
+      color: 0x7fd4ff, transparent: true, opacity: 0.55,
+    }));
+    metalEdges.visible = false;
+    metalMesh.add(metalEdges);
+    metalEdgesRef.current = metalEdges;
 
-      const radius = metalGeom.boundingSphere?.radius ?? 12;
-      // Cap colours name the material at the cut: warm grey for metal, ice for
-      // the stone, so a cross-section reads at a glance.
-      sectionRef.current?.attach(
-        stoneGeom
-          ? [{ geometry: metalGeom, colour: 0xc9c2b4 },
-             { geometry: stoneGeom, colour: 0x9fd8ef }]
-          : [{ geometry: metalGeom, colour: 0xc9c2b4 }],
-        radius
-      );
-      setSectionOffset(0);
-      frameRef.current?.(radius);
-    })();
-
-    return () => { cancelled = true; };
-  }, [modelBlob, stoneBlob]);
+    const radius = metalGeom.boundingSphere?.radius ?? 12;
+    // Cap colours name the material at the cut: warm grey for metal, ice for
+    // the stone, so a cross-section reads at a glance.
+    sectionRef.current?.attach(
+      stoneGeom
+        ? [{ geometry: metalGeom, colour: 0xc9c2b4 },
+           { geometry: stoneGeom, colour: 0x9fd8ef }]
+        : [{ geometry: metalGeom, colour: 0xc9c2b4 }],
+      radius
+    );
+    setSectionOffset(0);
+    frameRef.current?.(radius);
+  }, [ringMesh]);
 
   // Display mode, section and dimensions are viewport state, not design state:
   // they change how the piece is drawn, never what it is.
@@ -217,14 +227,14 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       { mesh: stoneMeshRef.current, edges: stoneEdgesRef.current },
     ].filter((b) => b.mesh) as { mesh: THREE.Mesh; edges: THREE.LineSegments | null }[];
     if (bodies.length) applyDisplayMode(display, bodies);
-  }, [display, modelBlob, rendererReady]);
+  }, [display, ringMesh, rendererReady]);
 
   useEffect(() => {
     const bodies = [meshRef.current, stoneMeshRef.current].filter(Boolean) as THREE.Mesh[];
     sectionRef.current?.setAxis(sectionAxis);
     sectionRef.current?.setOffset(sectionOffset);
     sectionRef.current?.setEnabled(sectionOn, bodies);
-  }, [sectionOn, sectionAxis, sectionOffset, modelBlob, rendererReady]);
+  }, [sectionOn, sectionAxis, sectionOffset, ringMesh, rendererReady]);
 
   useEffect(() => {
     if (!dimsRef.current) return;
@@ -233,7 +243,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       const r = meshRef.current?.geometry?.boundingSphere?.radius ?? 12;
       dimsRef.current.update(metrics as any, r);
     }
-  }, [dimsOn, metrics, modelBlob, rendererReady]);
+  }, [dimsOn, metrics, ringMesh, rendererReady]);
 
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.autoRotate = turntable;
@@ -448,13 +458,24 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const set = <K extends keyof RingSpec>(k: K, v: RingSpec[K]) =>
     setSpec((s) => ({ ...s, [k]: v }));
 
-  const download = () => {
-    if (!modelBlob) return;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(modelBlob);
-    a.download = `wireframe-${spec.gemShape}-${spec.setting}-us${spec.ringSize}.stl`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  const [exporting, setExporting] = useState<"step" | "stl" | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const download = async (format: "step" | "stl") => {
+    setExporting(format);
+    setExportError(null);
+    try {
+      const blob = await exportFile(format);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `wireframe-${spec.gemShape}-${spec.setting}-us${spec.ringSize}.${format}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch (e: any) {
+      setExportError(e?.message || "Export failed");
+    } finally {
+      setExporting(null);
+    }
   };
 
   return (
@@ -543,10 +564,12 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
         <Choice label="Stone cut" value={spec.gemShape} options={GEM_CUTS}
           onChange={(v) => set("gemShape", v as any)} />
-        <Choice label="Setting" value={spec.setting} options={SETTINGS}
+        <Choice label="Setting" value={spec.setting} options={SETTINGS} labels={SETTING_LABELS}
           onChange={(v) => set("setting", v as any)} />
         <Choice label="Band profile" value={spec.bandProfile} options={BAND_PROFILES}
           onChange={(v) => set("bandProfile", v as any)} />
+        <Choice label="Shank" value={spec.shankStones} options={SHANK_STONES}
+          labels={SHANK_STONE_LABELS} onChange={(v) => set("shankStones", v as any)} />
         <Choice label="Metal" value={spec.metalType} options={METALS}
           labels={METAL_LABELS} onChange={(v) => set("metalType", v as any)} />
         <Choice label="Finish" value={spec.finish} options={FINISHES}
@@ -604,10 +627,29 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
           )}
         </div>
 
-        <Button onClick={download} disabled={!modelBlob}
-          className="w-full bg-white/10 hover:bg-white/20 text-white text-xs h-9">
-          <Download className="h-3.5 w-3.5 mr-2" /> Download STL
-        </Button>
+        <div className="space-y-1.5">
+          <Button onClick={() => download("step")} disabled={!!exporting || isResolving || !metrics}
+            className="w-full bg-[var(--gold-500)]/15 border border-[var(--gold-500)]/40
+                       hover:bg-[var(--gold-500)]/25 text-[var(--gold-500)] text-xs h-9">
+            {exporting === "step"
+              ? <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> Writing STEP…</>
+              : <><Download className="h-3.5 w-3.5 mr-2" /> Download STEP</>}
+          </Button>
+          <Button onClick={() => download("stl")} disabled={!!exporting || isResolving || !metrics}
+            className="w-full bg-white/10 hover:bg-white/20 text-white text-xs h-9">
+            {exporting === "stl"
+              ? <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> Writing STL…</>
+              : <><Download className="h-3.5 w-3.5 mr-2" /> Download STL</>}
+          </Button>
+          <p className="text-[9px] text-white/30 leading-snug">
+            {isResolving
+              ? "Merging solids — export unlocks when the piece is one body."
+              : "STEP carries editable surfaces for a CAD package. STL is metal only, tessellated for printing."}
+          </p>
+          {exportError && (
+            <p className="text-[10px] text-red-300/90">{exportError}</p>
+          )}
+        </div>
       </aside>
 
       {isGenerating && (
