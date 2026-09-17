@@ -7,10 +7,15 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { buildEnvironmentTexture, createBackdrop } from "../../lib/studio-env";
 import {
   finishMaps, applyTriplanar, addCylindricalUVs, FINISHES, FINISH_LABELS,
 } from "../../lib/finishes";
+import {
+  createSectionTool, createDimensions, buildEdges, applyDisplayMode, renderPNG,
+  DISPLAY_MODES, DISPLAY_LABELS, type DisplayMode, type SectionAxis,
+} from "../../lib/studio-tools";
 import { Loader2, X, RotateCcw, Download, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { Button } from "../ui/button";
 import { useCadWorker } from "../../hooks/useCadWorker";
@@ -34,6 +39,29 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const stoneMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const materialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const frameRef = useRef<((r: number) => void) | null>(null);
+  // The material is created inside the mount effect, which runs AFTER the
+  // appearance effect below. Without this flag that effect saw a null material
+  // on its only run and returned, so whatever metal and finish the design
+  // arrived with were never applied — the piece rendered as polished platinum
+  // no matter what it was meant to be, and only started obeying once someone
+  // touched a dropdown.
+  const [rendererReady, setRendererReady] = useState(false);
+
+  const [display, setDisplay] = useState<DisplayMode>("shaded");
+  const [sectionOn, setSectionOn] = useState(false);
+  const [sectionAxis, setSectionAxis] = useState<SectionAxis>("x");
+  const [sectionOffset, setSectionOffset] = useState(0);
+  const [dimsOn, setDimsOn] = useState(false);
+  const [turntable, setTurntable] = useState(false);
+  const [pinned, setPinned] = useState<RingSpec | null>(null);
+  const [showPinned, setShowPinned] = useState(false);
+
+  const sectionRef = useRef<ReturnType<typeof createSectionTool> | null>(null);
+  const dimsRef = useRef<ReturnType<typeof createDimensions> | null>(null);
+  const metalEdgesRef = useRef<THREE.LineSegments | null>(null);
+  const stoneEdgesRef = useRef<THREE.LineSegments | null>(null);
+  const controlsRef = useRef<any>(null);
+  const shotRef = useRef<(() => void) | null>(null);
 
   // --- job -> spec ---------------------------------------------------------
   useEffect(() => {
@@ -47,10 +75,32 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     return () => unsubscribe();
   }, [jobId]);
 
+  // Section slider bounds follow the piece, so the cut always sweeps the whole
+  // of it whatever size the ring is.
+  const cutRange = useMemo(
+    () => Math.max(6, (metrics?.outerDiameter ?? 20) / 2 + 2),
+    [metrics?.outerDiameter]
+  );
+
+  // A/B compare. Everything downstream — geometry, materials, measurements —
+  // reads `live`, so flipping to the pinned version exercises the whole pipeline
+  // rather than swapping a cached mesh. Slower by a frame or two, and honest:
+  // what you are comparing against is genuinely that design, rebuilt.
+  const live = showPinned && pinned ? pinned : spec;
+
+  // Which parameters actually differ, so the compare says what moved rather
+  // than leaving the designer to spot it.
+  const changed = useMemo(() => {
+    if (!pinned) return [] as string[];
+    return (Object.keys(spec) as (keyof RingSpec)[])
+      .filter((k) => spec[k] !== pinned[k])
+      .map((k) => String(k));
+  }, [spec, pinned]);
+
   // --- spec -> geometry (debounced so dragging a slider stays smooth) ------
-  const specKey = JSON.stringify(spec);
+  const specKey = JSON.stringify(live);
   useEffect(() => {
-    const t = setTimeout(() => generate(spec), 120);
+    const t = setTimeout(() => generate(live), 120);
     return () => clearTimeout(t);
   }, [specKey, generate]);
 
@@ -58,8 +108,8 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   useEffect(() => {
     const m = materialRef.current;
     if (!m) return;
-    const look = METAL_APPEARANCE[spec.metalType] || METAL_APPEARANCE.platinum;
-    const maps = finishMaps(spec.finish);
+    const look = METAL_APPEARANCE[live.metalType] || METAL_APPEARANCE.platinum;
+    const maps = finishMaps(live.finish);
     m.color.set(look.color);
     // The finish sets the roughness floor; the alloy nudges it.
     m.roughness = Math.min(1, maps.roughness + (look.roughness - 0.16) * 0.5);
@@ -72,7 +122,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     // hammer dent is the size of a real hammer dent regardless of ring size.
     applyTriplanar(m, 1 / maps.tileMm);
     m.needsUpdate = true;
-  }, [spec.metalType, spec.finish]);
+  }, [live.metalType, live.finish, rendererReady]);
 
   // --- mesh swap ----------------------------------------------------------
   useEffect(() => {
@@ -110,6 +160,13 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
           ref.current = null;
         }
       }
+      for (const ref of [metalEdgesRef, stoneEdgesRef]) {
+        if (ref.current) {
+          ref.current.geometry.dispose();
+          (ref.current.material as THREE.Material).dispose();
+          ref.current = null;
+        }
+      }
 
       const metalMesh = new THREE.Mesh(metalGeom, materialRef.current);
       metalMesh.castShadow = true;
@@ -124,11 +181,63 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
         stoneMeshRef.current = stoneMesh;
       }
 
-      frameRef.current?.(metalGeom.boundingSphere?.radius ?? 12);
+      // Edges are children of their body so they inherit its transform, and
+      // are rebuilt with the geometry rather than kept in sync by hand.
+      const metalEdges = buildEdges(metalGeom);
+      metalMesh.add(metalEdges);
+      metalEdgesRef.current = metalEdges;
+      if (stoneMeshRef.current && stoneGeom) {
+        const se = buildEdges(stoneGeom, 0xbfe9ff);
+        stoneMeshRef.current.add(se);
+        stoneEdgesRef.current = se;
+      }
+
+      const radius = metalGeom.boundingSphere?.radius ?? 12;
+      // Cap colours name the material at the cut: warm grey for metal, ice for
+      // the stone, so a cross-section reads at a glance.
+      sectionRef.current?.attach(
+        stoneGeom
+          ? [{ geometry: metalGeom, colour: 0xc9c2b4 },
+             { geometry: stoneGeom, colour: 0x9fd8ef }]
+          : [{ geometry: metalGeom, colour: 0xc9c2b4 }],
+        radius
+      );
+      setSectionOffset(0);
+      frameRef.current?.(radius);
     })();
 
     return () => { cancelled = true; };
   }, [modelBlob, stoneBlob]);
+
+  // Display mode, section and dimensions are viewport state, not design state:
+  // they change how the piece is drawn, never what it is.
+  useEffect(() => {
+    const bodies = [
+      { mesh: meshRef.current, edges: metalEdgesRef.current },
+      { mesh: stoneMeshRef.current, edges: stoneEdgesRef.current },
+    ].filter((b) => b.mesh) as { mesh: THREE.Mesh; edges: THREE.LineSegments | null }[];
+    if (bodies.length) applyDisplayMode(display, bodies);
+  }, [display, modelBlob, rendererReady]);
+
+  useEffect(() => {
+    const bodies = [meshRef.current, stoneMeshRef.current].filter(Boolean) as THREE.Mesh[];
+    sectionRef.current?.setAxis(sectionAxis);
+    sectionRef.current?.setOffset(sectionOffset);
+    sectionRef.current?.setEnabled(sectionOn, bodies);
+  }, [sectionOn, sectionAxis, sectionOffset, modelBlob, rendererReady]);
+
+  useEffect(() => {
+    if (!dimsRef.current) return;
+    dimsRef.current.setVisible(dimsOn);
+    if (dimsOn && metrics) {
+      const r = meshRef.current?.geometry?.boundingSphere?.radius ?? 12;
+      dimsRef.current.update(metrics as any, r);
+    }
+  }, [dimsOn, metrics, modelBlob, rendererReady]);
+
+  useEffect(() => {
+    if (controlsRef.current) controlsRef.current.autoRotate = turntable;
+  }, [turntable, rendererReady]);
 
   // --- scene --------------------------------------------------------------
   useEffect(() => {
@@ -136,7 +245,11 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     if (!mount) return;
 
     const w = mount.clientWidth, h = mount.clientHeight;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // preserveDrawingBuffer so a presentation render can be read back out of the
+    // canvas; without it toDataURL returns an empty image on most drivers.
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true, preserveDrawingBuffer: true, stencil: true,
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(w, h);
     renderer.shadowMap.enabled = true;
@@ -240,17 +353,58 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     };
 
     // Sparkle is a camera artefact. Without bloom, gems look inert.
-    const composer = new EffectComposer(renderer);
+    // The composer's own target must carry a stencil buffer, or the section
+    // cut's cap has nothing to test against and the cross-section renders
+    // hollow — the one thing a section view must not do.
+    const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(
+      w, h, { stencilBuffer: true, samples: 4, type: THREE.HalfFloatType }
+    ));
     composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     composer.setSize(w, h);
     composer.addPass(new RenderPass(scene, camera));
+
+    // Ground-truth ambient occlusion. Jewellery is mostly tight concave joints —
+    // where a prong meets the head, where the head meets the shank, the seat the
+    // stone sits in — and those are exactly the places an environment map
+    // over-lights, because it has no idea the geometry is occluding itself.
+    // Without this, every junction glows and the piece looks assembled from
+    // floating parts. Radius is in millimetres, so it is tuned to the real
+    // scale of those joints rather than to the viewport.
+    const gtao = new GTAOPass(scene, camera, w, h);
+    gtao.output = GTAOPass.OUTPUT.Default;
+    gtao.updateGtaoMaterial({
+      radius: 0.9, distanceExponent: 1.4, thickness: 1.2,
+      scale: 1.1, samples: 16, screenSpaceRadius: false,
+    });
+    composer.addPass(gtao);
     const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.20, 0.40, 0.90);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
 
+    controlsRef.current = controls;
+    controls.autoRotateSpeed = 2.4;
+
+    const section = createSectionTool(renderer);
+    scene.add(section.group);
+    sectionRef.current = section;
+
+    const dims = createDimensions();
+    scene.add(dims.group);
+    dimsRef.current = dims;
+
+    shotRef.current = () => {
+      const url = renderPNG(renderer, composer, camera,
+        (pw, ph) => { bloom.setSize(pw, ph); gtao.setSize(pw, ph); });
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ring-render.png";
+      a.click();
+    };
+
     let raf = 0;
     const animate = () => { raf = requestAnimationFrame(animate); controls.update(); composer.render(); };
     animate();
+    setRendererReady(true);
 
     const onResize = () => {
       const nw = mount.clientWidth || 1, nh = mount.clientHeight || 1;
@@ -259,6 +413,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       renderer.setSize(nw, nh);
       composer.setSize(nw, nh);
       bloom.setSize(nw, nh);
+      gtao.setSize(nw, nh);
       const r = meshRef.current?.geometry?.boundingSphere?.radius;
       if (r) frameRef.current?.(r);
     };
@@ -271,6 +426,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       ro.disconnect();
       cancelAnimationFrame(raf);
       controls.dispose();
+      dims.dispose();
       composer.dispose();
       backdrop.geometry.dispose();
       (backdrop.material as any).map?.dispose?.();
@@ -304,6 +460,76 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   return (
     <div className="flex h-full w-full bg-black relative">
       <div ref={mountRef} className="flex-1 h-full cursor-move" />
+
+      {/* Designer toolbar. Floating over the viewport rather than buried in the
+          parameter panel: these change how you LOOK at the piece, and you reach
+          for them while your eye is on the model, not on a form. */}
+      <div className="absolute top-4 left-4 w-[186px] space-y-2 text-white select-none">
+        <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
+          <div className="text-[9px] uppercase tracking-widest text-white/35 px-0.5">Display</div>
+          <div className="grid grid-cols-2 gap-1">
+            {DISPLAY_MODES.map((m) => (
+              <button key={m} onClick={() => setDisplay(m)}
+                className={"text-[10px] px-1.5 py-1 rounded border transition-colors " +
+                  (display === m
+                    ? "bg-[var(--gold-500)]/15 border-[var(--gold-500)]/50 text-[var(--gold-500)]"
+                    : "bg-white/5 border-white/10 text-white/55 hover:text-white/90")}>
+                {DISPLAY_LABELS[m]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
+          <Toggle label="Section cut" on={sectionOn} onChange={setSectionOn} />
+          {sectionOn && (
+            <>
+              <div className="grid grid-cols-3 gap-1">
+                {(["x", "y", "z"] as SectionAxis[]).map((a) => (
+                  <button key={a} onClick={() => setSectionAxis(a)}
+                    className={"text-[10px] py-1 rounded border uppercase transition-colors " +
+                      (sectionAxis === a
+                        ? "bg-white/15 border-white/30 text-white"
+                        : "bg-white/5 border-white/10 text-white/50 hover:text-white/80")}>
+                    {a}
+                  </button>
+                ))}
+              </div>
+              <input type="range" min={-cutRange} max={cutRange} step={0.1}
+                value={sectionOffset}
+                onChange={(e) => setSectionOffset(parseFloat(e.target.value))}
+                className="w-full accent-[var(--gold-500)]" />
+            </>
+          )}
+          <Toggle label="Dimensions" on={dimsOn} onChange={setDimsOn} />
+          <Toggle label="Turntable" on={turntable} onChange={setTurntable} />
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
+          <Toggle
+            label={pinned ? "Re-pin this version" : "Pin for compare"}
+            on={false}
+            onChange={() => { setPinned(spec); setShowPinned(false); }} />
+          {pinned && (
+            <>
+              <Toggle
+                label={showPinned ? "Showing: pinned" : "Showing: current"}
+                on={showPinned}
+                onChange={setShowPinned} />
+              {changed.length > 0 && (
+                <div className="text-[9px] text-white/40 leading-snug px-0.5 pt-0.5">
+                  {changed.join(", ")} changed
+                </div>
+              )}
+            </>
+          )}
+          <button onClick={() => shotRef.current?.()}
+            className="w-full text-[11px] px-2 py-1.5 rounded border border-white/10
+                       bg-white/5 text-white/60 hover:text-white/90 transition-colors">
+            Save render (PNG)
+          </button>
+        </div>
+      </div>
 
       {/* Parameter panel */}
       <aside className="w-[260px] shrink-0 h-full overflow-y-auto border-l border-white/10 bg-[#0c0710]/95 backdrop-blur p-4 space-y-4">
@@ -428,15 +654,44 @@ function Choice({ label, value, options, labels, onChange }: {
   );
 }
 
+/**
+ * Slider with a typed entry box.
+ *
+ * A designer works to a number — 2.35mm, not "about there" — and dragging a
+ * range input cannot reliably hit a step boundary. The box is the authoritative
+ * input; the slider is for exploring. Typing is only committed on blur or
+ * Enter, so a half-typed "2." never rebuilds the geometry, and out-of-range
+ * values are clamped rather than rejected, because a designer who types 9 into
+ * a 8mm-max band wants the widest band, not an error.
+ */
 function Slider({ label, value, min, max, step, unit = "", onChange }: {
   label: string; value: number; min: number; max: number; step: number;
   unit?: string; onChange: (v: number) => void;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const n = parseFloat(draft);
+    setDraft(null);
+    if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
+  };
   return (
     <label className="block">
       <span className="flex items-baseline justify-between text-[10px] uppercase tracking-wider text-white/40 mb-1">
         {label}
-        <span className="text-white/70 font-mono normal-case">{value}{unit}</span>
+        <span className="flex items-baseline gap-0.5">
+          <input
+            value={draft ?? String(value)}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+            inputMode="decimal"
+            className="w-12 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-right
+                       text-white/80 font-mono text-[11px] normal-case focus:outline-none
+                       focus:border-[var(--gold-500)]"
+          />
+          <span className="text-white/40 font-mono normal-case text-[10px]">{unit}</span>
+        </span>
       </span>
       <input
         type="range" min={min} max={max} step={step} value={value}
@@ -444,6 +699,19 @@ function Slider({ label, value, min, max, step, unit = "", onChange }: {
         className="w-full accent-[var(--gold-500)]"
       />
     </label>
+  );
+}
+
+function Toggle({ label, on, onChange }: {
+  label: string; on: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      className={"w-full text-left text-[11px] px-2 py-1.5 rounded border transition-colors " +
+        (on ? "bg-[var(--gold-500)]/15 border-[var(--gold-500)]/50 text-[var(--gold-500)]"
+            : "bg-white/5 border-white/10 text-white/60 hover:text-white/90")}
+    >{label}</button>
   );
 }
 

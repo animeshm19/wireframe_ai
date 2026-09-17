@@ -21,7 +21,14 @@ export type RingSpec = {
 
 export type MetalType = "18k_gold" | "14k_rose" | "white_gold" | "platinum" | "silver";
 
-export const DEFAULT_SPEC: RingSpec = {
+// Dev harness only: lets a render be requested by URL, so metals and finishes
+// can be compared without clicking through a native select for each one.
+const _q = typeof location !== "undefined" ? new URLSearchParams(location.search) : null;
+const _override: Partial<RingSpec> = {};
+if (_q?.get("metal")) _override.metalType = _q.get("metal") as MetalType;
+if (_q?.get("finish")) _override.finish = _q.get("finish") as Finish;
+
+const _BASE_SPEC: RingSpec = {
   ringSize: 6.0,
   bandWidth: 2.5,
   bandProfile: "comfort",
@@ -32,6 +39,8 @@ export const DEFAULT_SPEC: RingSpec = {
   metalType: "platinum",
   finish: "polished",
 };
+
+export const DEFAULT_SPEC: RingSpec = { ..._BASE_SPEC, ..._override };
 
 export const GEM_CUTS: GemCut[] =
   ["round", "princess", "oval", "emerald", "cushion", "marquise", "pear"];
@@ -48,13 +57,38 @@ export const METAL_LABELS: Record<string, string> = {
   silver: "Sterling Silver",
 };
 
-/** Physical appearance per metal, used by the renderers. */
+/**
+ * Physical appearance per metal, used by the renderers.
+ *
+ * For a metal in a physically based renderer, `color` is not a paint colour —
+ * it is F0, the specular reflectance at normal incidence. The previous values
+ * were picked by eye as if they were diffuse albedo, which is why gold read as
+ * mustard plastic: real gold reflects about 99% of red and 78% of green, so its
+ * F0 is a pale warm white, and the saturated gold you recognise comes from that
+ * tint compounding through repeated reflections off the piece's own curves.
+ *
+ * The white metals are their measured elemental F0 — platinum (0.679, 0.642,
+ * 0.588), rhodium (0.760, 0.747, 0.735), silver (0.972, 0.960, 0.915). White
+ * gold is quoted as rhodium because every white gold ring sold is rhodium
+ * plated: what you are actually looking at is the plating, not the alloy.
+ *
+ * The golds are measured alloy values, NOT a weighted average of gold and
+ * copper. Averaging the constituents' F0 by mass fraction is tempting and
+ * wrong — an alloy has its own electronic band structure, not a blend of its
+ * ingredients' — and it predicts a rose gold only 8% lower in green than
+ * yellow, which renders as the same metal twice. Measured rose is far lower in
+ * green and higher in blue, and that is the pink everyone recognises.
+ *
+ * Roughness is the polish each metal will actually hold. Rhodium takes the
+ * highest polish of the group; platinum is softer and burnishes rather than
+ * mirrors; sterling is softer still.
+ */
 export const METAL_APPEARANCE: Record<MetalType, { color: string; roughness: number }> = {
-  platinum:   { color: "#e5e4e2", roughness: 0.16 },
-  white_gold: { color: "#f0eee9", roughness: 0.13 },
-  "18k_gold": { color: "#e6b455", roughness: 0.15 },
-  "14k_rose": { color: "#e0a191", roughness: 0.17 },
-  silver:     { color: "#cfd2d4", roughness: 0.20 },
+  platinum:   { color: "#d6d2ca", roughness: 0.13 },  // 950 Pt/Ru
+  white_gold: { color: "#e2e0de", roughness: 0.09 },  // rhodium plated
+  "18k_gold": { color: "#fde2aa", roughness: 0.11 },  // F0 (0.98, 0.76, 0.40)
+  "14k_rose": { color: "#facebf", roughness: 0.12 },  // F0 (0.955, 0.62, 0.52)
+  silver:     { color: "#fbfaf5", roughness: 0.14 },  // fine silver F0
 };
 
 /** Density in g/cm3 — used for weight and cost estimates. */
@@ -67,7 +101,7 @@ export const METAL_DENSITY: Record<MetalType, number> = {
 };
 
 export function withDefaults(spec?: Partial<RingSpec> | null): RingSpec {
-  return { ...DEFAULT_SPEC, ...(spec || {}) };
+  return { ...DEFAULT_SPEC, ...(spec || {}), ..._override };
 }
 
 /**
