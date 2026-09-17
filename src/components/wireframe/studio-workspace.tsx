@@ -2,7 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { buildEnvironmentTexture, createBackdrop } from "../../lib/studio-env";
+import {
+  finishMaps, applyTriplanar, addCylindricalUVs, FINISHES, FINISH_LABELS,
+} from "../../lib/finishes";
 import { Loader2, X, RotateCcw, Download, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { Button } from "../ui/button";
 import { useCadWorker } from "../../hooks/useCadWorker";
@@ -24,7 +32,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const meshRef = useRef<THREE.Mesh | null>(null);
   const stoneMeshRef = useRef<THREE.Mesh | null>(null);
   const stoneMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
-  const materialRef = useRef<THREE.MeshStandardMaterial | null>(null);
+  const materialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const frameRef = useRef<((r: number) => void) | null>(null);
 
   // --- job -> spec ---------------------------------------------------------
@@ -48,12 +56,23 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
   // --- metal appearance ---------------------------------------------------
   useEffect(() => {
+    const m = materialRef.current;
+    if (!m) return;
     const look = METAL_APPEARANCE[spec.metalType] || METAL_APPEARANCE.platinum;
-    if (materialRef.current) {
-      materialRef.current.color.set(look.color);
-      materialRef.current.roughness = look.roughness;
-    }
-  }, [spec.metalType]);
+    const maps = finishMaps(spec.finish);
+    m.color.set(look.color);
+    // The finish sets the roughness floor; the alloy nudges it.
+    m.roughness = Math.min(1, maps.roughness + (look.roughness - 0.16) * 0.5);
+    m.normalMap = maps.normalMap;
+    m.normalScale.set(maps.normalScale, maps.normalScale);
+    m.roughnessMap = maps.roughnessMap;
+    m.anisotropy = maps.anisotropy;
+    m.anisotropyRotation = maps.anisotropyRotation;
+    // Without UVs the texture is placed in millimetres: one tile per tileMm, so a
+    // hammer dent is the size of a real hammer dent regardless of ring size.
+    applyTriplanar(m, 1 / maps.tileMm);
+    m.needsUpdate = true;
+  }, [spec.metalType, spec.finish]);
 
   // --- mesh swap ----------------------------------------------------------
   useEffect(() => {
@@ -62,8 +81,8 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
     (async () => {
       const loader = new STLLoader();
-      const metalGeom = loader.parse(await modelBlob.arrayBuffer());
-      const stoneGeom = stoneBlob ? loader.parse(await stoneBlob.arrayBuffer()) : null;
+      let metalGeom = loader.parse(await modelBlob.arrayBuffer());
+      let stoneGeom = stoneBlob ? loader.parse(await stoneBlob.arrayBuffer()) : null;
       if (cancelled || !sceneRef.current || !materialRef.current) return;
 
       // Both bodies must share one origin. Centre BOTH on the metal's centre —
@@ -73,9 +92,16 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       metalGeom.translate(-c.x, -c.y, -c.z);
       stoneGeom?.translate(-c.x, -c.y, -c.z);
 
-      metalGeom.computeVertexNormals();
+      // STL is a triangle soup with no shared vertices, so computeVertexNormals
+      // gives every triangle its own flat normal — which is why a 128-segment
+      // revolve was reading as 128 visible facets. toCreasedNormals welds and
+      // smooths below the crease angle and keeps the hard edges hard: exactly
+      // what a CAD renderer does, and the single biggest "is this real" tell on
+      // curved metal. The stone keeps a tight angle so all 57 facets stay crisp.
+      metalGeom = toCreasedNormals(metalGeom, THREE.MathUtils.degToRad(38));
+      addCylindricalUVs(metalGeom);
       metalGeom.computeBoundingSphere();
-      stoneGeom?.computeVertexNormals();
+      if (stoneGeom) stoneGeom = toCreasedNormals(stoneGeom, THREE.MathUtils.degToRad(8));
 
       for (const ref of [meshRef, stoneMeshRef]) {
         if (ref.current) {
@@ -116,14 +142,16 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 0.85;
     renderer.domElement.style.display = "block";
     mount.replaceChildren(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#0c0a10");
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    
+    const { texture: envTexture, pmrem } = buildEnvironmentTexture(renderer);
+    scene.environment = envTexture;
+    const backdrop = createBackdrop(600);
+    scene.add(backdrop);
     sceneRef.current = scene;
 
     // Diamond: refractive rather than reflective. IOR 2.42 is diamond's real
@@ -131,22 +159,31 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     stoneMaterialRef.current = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
       metalness: 0,
-      roughness: 0.02,
-      transmission: 1,
-      thickness: 1.8,
-      ior: 2.42,
-      dispersion: 2.2,
-      clearcoat: 1,
-      clearcoatRoughness: 0.02,
-      envMapIntensity: 2.2,
+      roughness: 0,
+      // transmission MUST be 1 here. MeshPhysicalMaterial at metalness 0 keeps a
+      // diffuse albedo, and transmission is what cancels it — anything less and
+      // the stone renders as white plastic lit by the rig, which is exactly what
+      // a frosted-button gem looks like. No clearcoat either: a clearcoat layer
+      // over a transmissive body adds a second broad specular that reads as a
+      // milky film. What sells the stone is facet contrast — each of the 57
+      // facets mirrors a different part of the rig, some the softbox, some the
+      // black card — so the rig needs darks in it as much as lights.
+      transmission: 1.0,
+      thickness: 2.6,
+      attenuationDistance: 40,
+      ior: 2.417,             // diamond, measured
+      dispersion: 3.2,        // fire: diamond disperses unusually strongly
+      specularIntensity: 1,
+      envMapIntensity: 2.4,
       side: THREE.DoubleSide,
     });
 
-    materialRef.current = new THREE.MeshStandardMaterial({
+    materialRef.current = new THREE.MeshPhysicalMaterial({
       color: METAL_APPEARANCE.platinum.color,
       metalness: 1,
       roughness: METAL_APPEARANCE.platinum.roughness,
       side: THREE.DoubleSide,
+      envMapIntensity: 1.15,
     });
 
     const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 2000);
@@ -192,7 +229,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
       const dist = (radius / Math.sin(Math.min(vHalf, hHalf))) * 1.15;
       // Three-quarter view: reads as a product shot rather than a flat elevation.
-      camera.position.set(dist * 0.42, radius * 0.75, dist * 0.86);
+      camera.position.set(dist * 0.620, dist * 0.375, dist * 0.689);
       camera.near = dist / 100; camera.far = dist * 12;
       camera.updateProjectionMatrix();
       controls.target.set(0, 0, 0);
@@ -202,8 +239,17 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       c.updateProjectionMatrix();
     };
 
+    // Sparkle is a camera artefact. Without bloom, gems look inert.
+    const composer = new EffectComposer(renderer);
+    composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    composer.setSize(w, h);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.20, 0.40, 0.90);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+
     let raf = 0;
-    const animate = () => { raf = requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); };
+    const animate = () => { raf = requestAnimationFrame(animate); controls.update(); composer.render(); };
     animate();
 
     const onResize = () => {
@@ -211,6 +257,8 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
       renderer.setSize(nw, nh);
+      composer.setSize(nw, nh);
+      bloom.setSize(nw, nh);
       const r = meshRef.current?.geometry?.boundingSphere?.radius;
       if (r) frameRef.current?.(r);
     };
@@ -223,6 +271,10 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       ro.disconnect();
       cancelAnimationFrame(raf);
       controls.dispose();
+      composer.dispose();
+      backdrop.geometry.dispose();
+      (backdrop.material as any).map?.dispose?.();
+      (backdrop.material as THREE.Material).dispose();
       pmrem.dispose();
       renderer.dispose();
       renderer.domElement.remove();
@@ -271,6 +323,8 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
           onChange={(v) => set("bandProfile", v as any)} />
         <Choice label="Metal" value={spec.metalType} options={METALS}
           labels={METAL_LABELS} onChange={(v) => set("metalType", v as any)} />
+        <Choice label="Finish" value={spec.finish} options={FINISHES}
+          labels={FINISH_LABELS} onChange={(v) => set("finish", v as any)} />
 
         <Slider label="Ring size (US)" value={spec.ringSize} min={3} max={16} step={0.5}
           onChange={(v) => set("ringSize", v)} />

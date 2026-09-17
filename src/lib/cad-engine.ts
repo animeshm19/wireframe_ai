@@ -156,15 +156,134 @@ function loft(outline: Pt[], steps: { z: number; s: number }[], girdleR: number)
 }
 
 /** A faceted stone of any cut, culet at z = 0, table up. */
-export function buildGem(cut: GemCut, girdleR: number) {
+// ------------------------------------------------------------- faceting --
+
+/**
+ * A true 57-facet round brilliant.
+ *
+ * A lofted cone is smooth, and smooth is exactly what a diamond is not. All the
+ * life in a brilliant comes from discrete planar facets bouncing light at each
+ * other: every facet is a separate mirror, so a stone shows dozens of distinct
+ * bright and dark patches that shift as it turns. That scintillation is what
+ * the eye reads as "diamond". Model it as a cone and you get a glass pyramid.
+ *
+ * Facet plan (GIA round brilliant, 57 facets + 16 girdle facets):
+ *   crown    1 table + 8 star + 8 bezel (kite) + 16 upper girdle  = 33
+ *   pavilion 16 lower girdle + 8 pavilion mains                   = 24
+ *
+ * The same facet topology builds the whole brilliant family — oval, pear,
+ * marquise, cushion are modified brilliants: identical facet arrangement
+ * stretched onto a different girdle outline. That is how they are actually cut,
+ * so driving the azimuthal radius from `radiusAtAngle` is not an approximation.
+ */
+const STAR_LEN = 0.55;   // star facet length, fraction of table edge → girdle
+const LOWER_LEN = 0.77;  // lower-half facet length, fraction girdle → culet
+
+type V3 = [number, number, number];
+
+/** Newell normal of a face. */
+function faceNormal(pts: V3[]): V3 {
+  let nx = 0, ny = 0, nz = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    nx += (a[1] - b[1]) * (a[2] + b[2]);
+    ny += (a[2] - b[2]) * (a[0] + b[0]);
+    nz += (a[0] - b[0]) * (a[1] + b[1]);
+  }
+  return [nx, ny, nz];
+}
+
+/**
+ * Builds a polyhedron, orienting every face outward by testing its normal
+ * against the direction from the solid's centre. Cheaper than reasoning about
+ * winding order for seventy-odd faces, and it cannot silently get one wrong.
+ */
+function facetedSolid(points: V3[], faces: number[][], centre: V3) {
+  const oriented = faces.map((f) => {
+    const pts = f.map((i) => points[i]);
+    const n = faceNormal(pts);
+    const c: V3 = [0, 0, 0];
+    for (const p of pts) { c[0] += p[0] / pts.length; c[1] += p[1] / pts.length; c[2] += p[2] / pts.length; }
+    const d = (c[0] - centre[0]) * n[0] + (c[1] - centre[1]) * n[1] + (c[2] - centre[2]) * n[2];
+    return d < 0 ? [...f].reverse() : f;
+  });
+  return primitives.polyhedron({ points, faces: oriented, orientation: "outward" } as any);
+}
+
+export function buildBrilliant(cut: GemCut, girdleR: number) {
+  const { pavH, girdleH, crownH } = gemDims(girdleR);
+  const N = 16;                                   // azimuthal divisions
+  const outline = gemOutline(cut, 256);           // fine, so the girdle radius is exact
+  const ang = (i: number) => ((i % N) / N) * Math.PI * 2;
+  const rAt = (i: number) => radiusAtAngle(outline, ang(i)) * girdleR;
+  const at = (i: number, k: number, z: number): V3 =>
+    [rAt(i) * k * Math.cos(ang(i)), rAt(i) * k * Math.sin(ang(i)), z];
+
+  const zGb = pavH, zGt = pavH + girdleH, zT = pavH + girdleH + crownH;
+  const zS = zGt + crownH * (1 - STAR_LEN);
+  const rS = TABLE + STAR_LEN * (1 - TABLE);
+
+  const P: V3[] = [];
+  const push = (v: V3) => P.push(v) - 1;
+
+  const culet = push([0, 0, 0]);
+  const Gb: number[] = [], Gt: number[] = [], Tb: number[] = [], St: number[] = [], Lo: number[] = [];
+  for (let i = 0; i < N; i++) { Gb.push(push(at(i, 1, zGb))); Gt.push(push(at(i, 1, zGt))); }
+  for (let j = 0; j < N / 2; j++) {
+    Tb.push(push(at(2 * j, TABLE, zT)));                              // table corner
+    St.push(push(at(2 * j + 1, rS, zS)));                             // star point
+    // Lower-girdle junction: slides toward the culet in radius and height
+    // together, which is what keeps the pavilion mains planar.
+    Lo.push(push(at(2 * j + 1, 1 - LOWER_LEN, zGb * (1 - LOWER_LEN))));
+  }
+
+  const F: number[][] = [];
+  F.push(Tb.slice());                                                 // table
+  for (let j = 0; j < 8; j++) {
+    const jn = (j + 1) % 8, jp = (j + 7) % 8;
+    F.push([Tb[j], St[j], Tb[jn]]);                                   // star
+    F.push([Tb[j], St[jp], Gt[2 * j], St[j]]);                        // bezel kite
+    F.push([St[j], Gt[2 * j], Gt[2 * j + 1]]);                        // upper girdle
+    F.push([St[j], Gt[2 * j + 1], Gt[(2 * j + 2) % N]]);
+    F.push([Gb[2 * j], Lo[j], Gb[2 * j + 1]]);                        // lower girdle
+    F.push([Gb[2 * j + 1], Lo[j], Gb[(2 * j + 2) % N]]);
+    F.push([Gb[2 * j], Lo[j], culet, Lo[jp]]);                        // pavilion main
+  }
+  for (let i = 0; i < N; i++) {                                       // girdle band
+    const i2 = (i + 1) % N;
+    F.push([Gt[i], Gb[i], Gb[i2], Gt[i2]]);
+  }
+
+  return facetedSolid(P, F, [0, 0, zGb]);
+}
+
+/**
+ * Step cuts (emerald, princess) are built the other way round: concentric
+ * planar steps, not radiating facets. The loft already produces flat quads
+ * between slices, so a step cut is just a loft with the real number of steps —
+ * three on the crown, four on the pavilion — instead of one long taper.
+ */
+function buildStepCut(cut: GemCut, girdleR: number) {
   const o = gemOutline(cut);
   const { pavH, girdleH, crownH } = gemDims(girdleR);
-  return loft(o, [
-    { z: 0, s: 0.004 },                        // culet
-    { z: pavH, s: 1 },                         // girdle, lower
-    { z: pavH + girdleH, s: 1 },               // girdle, upper
-    { z: pavH + girdleH + crownH, s: TABLE },  // table
-  ], girdleR);
+  const zG = pavH, zGt = pavH + girdleH;
+  const steps: { z: number; s: number }[] = [];
+  const PAV = [0.10, 0.34, 0.63, 0.85];             // pavilion step scales, culet up
+  steps.push({ z: 0, s: 0.10 });
+  PAV.forEach((s, k) => steps.push({ z: (zG * (k + 1)) / (PAV.length + 1), s }));
+  steps.push({ z: zG, s: 1 });
+  steps.push({ z: zGt, s: 1 });
+  const CR = [0.86, 0.71];                          // crown steps, girdle up
+  CR.forEach((s, k) => steps.push({ z: zGt + (crownH * (k + 1)) / (CR.length + 1), s }));
+  steps.push({ z: zGt + crownH, s: TABLE });
+  return loft(o, steps, girdleR);
+}
+
+export function buildGem(cut: GemCut, girdleR: number) {
+  // Step cuts and brilliant cuts are different machines, not different settings.
+  return cut === "emerald" || cut === "princess"
+    ? buildStepCut(cut, girdleR)
+    : buildBrilliant(cut, girdleR);
 }
 
 // -------------------------------------------------------------------- band --

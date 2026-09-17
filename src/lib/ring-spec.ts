@@ -1,4 +1,7 @@
 import type { GemCut, SettingStyle, BandProfile } from "./cad-engine";
+import type { Finish } from "./finishes";
+export { FINISHES, FINISH_LABELS } from "./finishes";
+export type { Finish } from "./finishes";
 
 /**
  * The canonical ring specification, shared by the AI extraction schema, the
@@ -13,6 +16,7 @@ export type RingSpec = {
   prongCount: number;
   setting: SettingStyle;
   metalType: MetalType;
+  finish: Finish;
 };
 
 export type MetalType = "18k_gold" | "14k_rose" | "white_gold" | "platinum" | "silver";
@@ -26,6 +30,7 @@ export const DEFAULT_SPEC: RingSpec = {
   prongCount: 6,
   setting: "prong",
   metalType: "platinum",
+  finish: "polished",
 };
 
 export const GEM_CUTS: GemCut[] =
@@ -122,6 +127,13 @@ export function parseSpecFromPrompt(prompt?: string | null): Partial<RingSpec> {
   else if (/knife[- ]?edge/.test(t)) out.bandProfile = "knife";
   else if (/\bflat\b/.test(t)) out.bandProfile = "flat";
   else if (/round\s*band|\bd[- ]?shape/.test(t)) out.bandProfile = "round";
+
+  // Finishes.
+  if (/hammer/.test(t)) out.finish = "hammered";
+  else if (/florentine|cross[- ]?hatch|engraved\s*texture/.test(t)) out.finish = "florentine";
+  else if (/satin|brushed|matte\s*brush/.test(t)) out.finish = "satin";
+  else if (/matte|sandblast|frosted|stone\s*finish/.test(t)) out.finish = "matte";
+  else if (/polish|mirror|high\s*shine|shiny/.test(t)) out.finish = "polished";
 
   const prong = t.match(/(\d)\s*[- ]?(?:prong|claw)/);
   if (prong) {
