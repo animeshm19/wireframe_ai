@@ -30,7 +30,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const [jobSpec, setJobSpec] = useState<RingSpec | null>(null);
 
   const {
-    generate, exportFile, mesh: ringMesh, metrics, issues,
+    generate, exportFile, mesh: ringMesh, resolvedMetal, metrics, issues,
     isBuilding: isGenerating, isResolving, error, progress, stage,
   } = useBrepWorker();
 
@@ -63,6 +63,11 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const stoneEdgesRef = useRef<THREE.LineSegments | null>(null);
   const controlsRef = useRef<any>(null);
   const shotRef = useRef<(() => void) | null>(null);
+  // The offset the preview was centred by. The merged mesh must be moved by the
+  // SAME amount, not re-centred on its own bounds: the two differ by the metal
+  // the seats removed, and re-centring would make the piece jump when the merge
+  // lands.
+  const centreRef = useRef<THREE.Vector3 | null>(null);
 
   // --- job -> spec ---------------------------------------------------------
   useEffect(() => {
@@ -155,6 +160,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     const c = metalGeom.boundingBox!.getCenter(new THREE.Vector3());
     metalGeom.translate(-c.x, -c.y, -c.z);
     stoneGeom?.translate(-c.x, -c.y, -c.z);
+    centreRef.current = c.clone();
     metalGeom.computeBoundingSphere();
 
     addCylindricalUVs(metalGeom);
@@ -218,6 +224,34 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     setSectionOffset(0);
     frameRef.current?.(radius);
   }, [ringMesh]);
+
+  // The merge finished: replace the preview's metal with the real thing.
+  useEffect(() => {
+    const c = centreRef.current;
+    const mesh = meshRef.current;
+    if (!resolvedMetal || !mesh || !c || !sceneRef.current) return;
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(resolvedMetal.vertices, 3));
+    g.setAttribute("normal", new THREE.BufferAttribute(resolvedMetal.normals, 3));
+    g.setIndex(new THREE.BufferAttribute(resolvedMetal.triangles, 1));
+    g.translate(-c.x, -c.y, -c.z);
+    g.computeBoundingSphere();
+    addCylindricalUVs(g);
+
+    mesh.geometry.dispose();
+    mesh.geometry = g;
+
+    // The section tool holds the old geometry for its stencil pass; rebuild it
+    // against the new one or the cut caps the shape that is no longer there.
+    const stone = stoneMeshRef.current?.geometry;
+    sectionRef.current?.attach(
+      stone
+        ? [{ geometry: g, colour: 0xc9c2b4 }, { geometry: stone, colour: 0x9fd8ef }]
+        : [{ geometry: g, colour: 0xc9c2b4 }],
+      g.boundingSphere?.radius ?? 12
+    );
+  }, [resolvedMetal]);
 
   // Display mode, section and dimensions are viewport state, not design state:
   // they change how the piece is drawn, never what it is.
@@ -346,16 +380,34 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     frameRef.current = (radius: number) => {
       floor.position.y = -radius - 0.4;
       grid.position.y = -radius - 0.4;
-      // Fit on BOTH axes: in a narrow viewport the horizontal field of view is
-      // the binding constraint, not the vertical one.
+      // Fit the piece into the space the tool palette ISN'T covering.
+      //
+      // Two separate corrections, and both are needed. Fitting to the full
+      // canvas and then shifting makes the ring too large for what is left;
+      // shrinking it without shifting leaves it centred under the palette. So
+      // the horizontal fit uses the usable width, and the camera then slides
+      // over by half the palette. On a wide viewport the palette is a small
+      // fraction of the width and this barely does anything, which is right.
+      const paletteW = 202;                       // 186px panel + its margin
+      const usableW = Math.max(120, mount.clientWidth - paletteW);
       const vHalf = (camera.fov * Math.PI) / 360;
-      const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+      const hHalf = Math.atan(Math.tan(vHalf) * (usableW / Math.max(1, mount.clientHeight)));
       const dist = (radius / Math.sin(Math.min(vHalf, hHalf))) * 1.15;
+
       // Three-quarter view: reads as a product shot rather than a flat elevation.
       camera.position.set(dist * 0.620, dist * 0.375, dist * 0.689);
       camera.near = dist / 100; camera.far = dist * 12;
       camera.updateProjectionMatrix();
-      controls.target.set(0, 0, 0);
+
+      const visibleW = 2 * dist * Math.tan(Math.atan(Math.tan(vHalf) * camera.aspect));
+      const shift = (paletteW / 2 / Math.max(1, mount.clientWidth)) * visibleW;
+      const right = new THREE.Vector3()
+        .crossVectors(camera.up, camera.position.clone().normalize())
+        .normalize()
+        .multiplyScalar(-shift);
+
+      controls.target.copy(right);
+      camera.position.add(right);
       controls.update();
       c.left = -radius * 2.4; c.right = radius * 2.4;
       c.top = radius * 2.4; c.bottom = -radius * 2.4;
@@ -588,6 +640,12 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
         <div className="pt-2 border-t border-white/10 space-y-1.5">
           <h3 className="text-xs uppercase tracking-widest text-white/50 font-semibold mb-2">Measurements</h3>
+          {isResolving && (
+            <div className="flex items-center gap-1.5 text-[10px] text-white/45 pb-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Merging solids — measurements follow
+            </div>
+          )}
           <Metric label="Inner Ø" value={metrics ? `${metrics.innerDiameter} mm` : "—"} />
           <Metric label="Outer Ø" value={metrics ? `${metrics.outerDiameter} mm` : "—"} />
           <Metric label="Band" value={metrics ? `${metrics.bandWidth} × ${metrics.bandThickness} mm` : "—"} />
@@ -602,6 +660,9 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
           </p>
         </div>
 
+        {/* Manufacturability is only meaningful once the piece is one solid, and
+            that is what the merge decides. Showing last design's verdict beside
+            this design's geometry would be worse than showing none. */}
         <div className="pt-2 border-t border-white/10">
           <h3 className="text-xs uppercase tracking-widest text-white/50 font-semibold mb-2">
             Manufacturability

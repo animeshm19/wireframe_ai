@@ -678,6 +678,68 @@ export function checkManufacturability(
     });
   }
 
+  // --- shank stones ------------------------------------------------------
+  //
+  // Setting stones into the band is where a design most often stops being
+  // manufacturable, because the seat has to be cut INTO the wall the ring
+  // depends on for strength. Three separate things can go wrong and only the
+  // first is obvious.
+  const shank = (p as any).shankStones as string | undefined;
+  if (shank && shank !== "none") {
+    const stoneD = Math.min(2.2, Math.max(1.0, metrics.bandWidth * 0.48));
+    // The culet sits about 0.6 diameters below the surface; the seat is that
+    // plus clearance. Matches paveSeat in the B-rep engine — if these two ever
+    // disagree, the check is either passing seats that break through or
+    // refusing ones that do not.
+    const seatDepth = stoneD * 0.65;
+    const remaining = metrics.bandThickness - seatDepth;
+
+    if (remaining < lim.minWall) {
+      issues.push({
+        severity: "error",
+        code: "seat_breaks_through",
+        message:
+          `A ${stoneD.toFixed(2)}mm stone needs a ${seatDepth.toFixed(2)}mm seat, ` +
+          `leaving ${Math.max(0, remaining).toFixed(2)}mm of a ${metrics.bandThickness}mm wall. ` +
+          `${lim.label} needs ${lim.minWall}mm behind the seat or the stone shows through the inside of the ring.`,
+      });
+    }
+
+    // Stones sit 1.2 diameters apart, so the metal between two seats is a fifth
+    // of a diameter at the surface. That is what a bead is raised from; below
+    // about 0.18mm there is nothing to raise one out of.
+    const wallBetween = stoneD * 0.2;
+    if (wallBetween < 0.18) {
+      issues.push({
+        severity: "warning",
+        code: "pave_walls_tight",
+        message:
+          `Only ${wallBetween.toFixed(2)}mm of metal between stones — a setter ` +
+          `needs about 0.18mm to raise a bead. Consider a wider band or fewer stones.`,
+      });
+    }
+
+    if (shank === "eternity") {
+      issues.push({
+        severity: "warning",
+        code: "eternity_not_sizable",
+        message:
+          `A full eternity band cannot be resized — there is no plain metal to cut ` +
+          `and rejoin. Confirm the finger size before it is cast.`,
+      });
+      if (metrics.bandThickness < lim.minBandThickness + 0.3) {
+        issues.push({
+          severity: "error",
+          code: "eternity_too_light",
+          message:
+            `An eternity band is seated all the way round, so ${metrics.bandThickness}mm ` +
+            `is not enough section left to carry the finger. Go to ` +
+            `${(lim.minBandThickness + 0.3).toFixed(1)}mm or more.`,
+        });
+      }
+    }
+  }
+
   if (metrics.stoneHeight > metrics.innerDiameter * 0.55) {
     issues.push({
       severity: "warning",

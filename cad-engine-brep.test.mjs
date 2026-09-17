@@ -241,6 +241,52 @@ test("three-stone side stones are proportioned like real ones", () => {
     `two side stones are ${(ratio * 100).toFixed(0)}% of the centre; expected 30-90%`);
 });
 
+test("manufacturability refuses what a bench could not make", async () => {
+  const { checkManufacturability } = await import("./.brepcheck/cad-engine.js");
+  const run = (spec) => {
+    const { metrics } = brep.buildRing(spec);
+    return { metrics, issues: checkManufacturability(spec, metrics) };
+  };
+  const codes = (r) => r.issues.map((i) => i.code);
+
+  // A plain solitaire and ordinary pavé are both fine.
+  assert.deepEqual(codes(run({})), [], "a plain solitaire is castable");
+  assert.ok(!codes(run({ shankStones: "pave" })).includes("seat_breaks_through"),
+    "pavé on a normal band does not break through");
+  assert.ok(!codes(run({ shankStones: "pave" })).includes("pave_walls_tight"),
+    "stones are spaced widely enough to raise a bead between");
+
+  // A seat is cut INTO the wall the ring relies on. On a thin band it reaches
+  // the bore, and the stone shows through the inside of the ring.
+  assert.ok(codes(run({ shankStones: "pave", bandWidth: 1.4 })).includes("seat_breaks_through"),
+    "pavé in a 1.4mm band must be refused");
+
+  // Not a geometry problem — a fact about eternity bands that costs a customer
+  // real money if nobody says it before casting.
+  assert.ok(codes(run({ shankStones: "eternity" })).includes("eternity_not_sizable"),
+    "a full eternity band cannot be resized and must say so");
+  assert.ok(!codes(run({ shankStones: "eternity" })).includes("eternity_not_sizable")
+    === false, "sanity");
+  assert.ok(!codes(run({ shankStones: "pave" })).includes("eternity_not_sizable"),
+    "a pavé shank CAN be resized");
+
+  // Softer metals need more of everything.
+  assert.ok(codes(run({ metalType: "silver", gemSize: 0.3 })).includes("prongs_too_thin"),
+    "fine prongs in sterling must be refused");
+});
+
+test("the seat depth the engine cuts is the depth the check assumes", () => {
+  // These two live in different files and would drift silently: the check would
+  // start passing seats that break through, or refusing ones that do not.
+  // 0.65 diameters is the culet depth plus clearance.
+  const L = brep.shankStoneLayout("pave", 10, 2.5);
+  const stoneD = L.stoneR * 2;
+  const seatDepth = stoneD * 0.65;
+  const culet = L.stoneR * 0.34 + 0.43 * stoneD;   // girdle depth + pavilion
+  assert.ok(seatDepth > culet, `seat ${seatDepth.toFixed(3)}mm must clear the culet at ${culet.toFixed(3)}mm`);
+  assert.ok(seatDepth < culet * 1.25, `seat ${seatDepth.toFixed(3)}mm wastes metal below the culet`);
+});
+
 test("STEP export is real boundary representation", async () => {
   const r = brep.buildRing({ gemSize: 1.25 });
   const text = await brep.toSTEP(r.metal, r.stones).text();

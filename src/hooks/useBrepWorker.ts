@@ -23,6 +23,7 @@ export function useBrepWorker() {
   const pendingStep = useRef<((b: Blob) => void) | null>(null);
 
   const [mesh, setMesh] = useState<RingMesh | null>(null);
+  const [resolvedMetal, setResolvedMetal] = useState<Mesh | null>(null);
   const [metrics, setMetrics] = useState<any>(null);
   const [issues, setIssues] = useState<any[]>([]);
   const [isBuilding, setIsBuilding] = useState(false);
@@ -61,6 +62,8 @@ export function useBrepWorker() {
     setProgress(0);
     setStage("Queued");
     previewRef.current?.postMessage({ type: "PREVIEW", params });
+    // The merged geometry belongs to the design that just changed; drop it.
+    setResolvedMetal(null);
 
     // Any merge still running is for a design that no longer exists. Kill it.
     resolveRef.current?.terminate();
@@ -79,6 +82,7 @@ export function useBrepWorker() {
         if (d.type === "RESOLVED") {
           setMetrics(d.metrics);
           setIssues(d.issues || []);
+          if (d.mesh) setResolvedMetal(d.mesh);
           setIsResolving(false);
           return;
         }
@@ -108,7 +112,7 @@ export function useBrepWorker() {
 
   return {
     generate, exportFile,
-    mesh, metrics, issues,
+    mesh, resolvedMetal, metrics, issues,
     isBuilding, isResolving, progress, stage, error,
   };
 }

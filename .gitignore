@@ -55,3 +55,8 @@ src/brep-boot-test.ts
 
 # Build artifact, churns on every compile.
 tsconfig.tsbuildinfo
+
+# Bridge-only Vite config (see the file's own comment).
+vite.bridge.config.ts
+/studio-only.html
+src/studio-only.tsx

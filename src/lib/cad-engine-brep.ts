@@ -245,7 +245,7 @@ export function shankStoneLayout(
     kind === "half_eternity" ? Math.PI :
     1.85;                                  // pavé: the shoulders only
 
-  const pitch = stoneD * 1.12;
+  const pitch = stoneD * 1.2;
   const count = Math.max(0, Math.floor((span * seatCentre) / pitch));
   const step = count > 1 ? span / (kind === "eternity" ? count : count - 1) : 0;
 
@@ -276,7 +276,12 @@ export function paveSeat(
   const c = Math.cos(angle), s = Math.sin(angle);
   const dir: V3 = [-c, -s, 0];                   // inward, toward the finger
   const mouth: V3 = [c * (outerR + 0.05), s * (outerR + 0.05), 0];
-  const depth = stoneR * 2.0;
+  // Depth is the stone, not a round number. The girdle sits 0.34 radii below
+  // the surface and the pavilion runs 0.43 diameters below that, so the culet
+  // lands about 0.6 diameters deep; a little clearance under it and the seat is
+  // done. Cutting a full diameter — which this did — takes twice the metal it
+  // needs and leaves a 2.5mm band too thin to carry the finger.
+  const depth = stoneR * 1.3;
   const tip: V3 = [c * (outerR + 0.05 - depth), s * (outerR + 0.05 - depth), 0];
   void dir; void seatCentre;
   return loft([
@@ -472,13 +477,23 @@ export function buildHead(
     // The seat used to be a narrow cylinder floating in the middle of the
     // collar, touching neither it nor the band: the "ring" fused into three
     // separate solids and could not have been cast. It looked right from
-    // outside, which is exactly why nothing caught it. This cone starts below
-    // the head so it bites into the shank, and ends wide enough to meet the
-    // collar's inner wall.
+    // outside, which is exactly why nothing caught it.
+    //
+    // Hollow, not solid. A solid cone joins the collar to the shank perfectly
+    // well and turns the ring into a metal funnel with the diamond buried
+    // inside it — no light reaches the pavilion, and from most angles there is
+    // no stone to see at all. A real gallery is a wall with a hole in it, for
+    // exactly that reason.
+    // 0.8mm floor: the strictest wall any of the common alloys asks for apart
+    // from sterling, which the manufacturability check catches separately.
+    const wallT = Math.max(0.8, girdleR * 0.14);
     const gallery = strut(
       [0, 0, -0.6], [0, 0, pavH * 0.95],
       girdleR * 0.42, girdleR * 1.05
-    );
+    ).cut(strut(
+      [0, 0, -0.65], [0, 0, pavH * 0.95 + 0.05],
+      Math.max(0.15, girdleR * 0.42 - wallT), girdleR * 1.05 - wallT
+    )) as Shape3D;
     return { metal: [collar, gallery], stones: [centre] };
   }
 
@@ -571,6 +586,12 @@ export function buildHead(
  *
  * Four prongs each rather than six: at this size six claws cover more of the
  * stone than they hold, and no bench jeweller would cut them.
+ *
+ * Splay is 0.45 rad, not the 0.52 that the arc length alone suggests. The two
+ * stones sit at different radii — the centre is lifted onto its head while the
+ * sides sit down on the shoulder — so the straight-line gap between their
+ * girdles is wider than the arc between their centres. At 0.52 they stood a
+ * millimetre apart, which reads as three separate rings rather than one.
  */
 function buildSideStones(
   girdleR: number, outerR: number, splay: number
@@ -704,7 +725,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   const metalParts = [band, ...head.metal.map(stand)];
 
   if (style === "three_stone") {
-    const sides = buildSideStones(girdleR, outerR, 0.52);
+    const sides = buildSideStones(girdleR, outerR, 0.45);
     metalParts.push(...sides.metal);
     accents.push(...sides.stones);
   }

@@ -106,8 +106,20 @@ self.onmessage = async (e: MessageEvent) => {
         });
       }
       held = { metal, stones };
+
+      // Tessellate the MERGED solid and send it too.
+      //
+      // The preview is the unfused parts with no pavé seats cut — right to look
+      // at, and wrong the moment anyone looks inside. Section a pavé shank in
+      // preview geometry and the stones appear buried in unbroken metal, which
+      // is precisely the question a section view is being asked. So once the
+      // merge is done the viewport swaps to the real thing: seats cut, parts
+      // joined, exactly what the STEP will contain.
+      const resolved = previewMesh([metal]);
       report(100, "Ready");
-      self.postMessage({ type: "RESOLVED", metrics, issues });
+      self.postMessage({ type: "RESOLVED", metrics, issues, mesh: resolved }, [
+        resolved.vertices.buffer, resolved.normals.buffer, resolved.triangles.buffer,
+      ] as any);
       return;
     }
 

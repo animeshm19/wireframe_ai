@@ -42,6 +42,11 @@ const _override: Partial<RingSpec> = {};
 if (_q?.get("metal")) _override.metalType = _q.get("metal") as MetalType;
 if (_q?.get("finish")) _override.finish = _q.get("finish") as Finish;
 if (_q?.get("shank")) _override.shankStones = _q.get("shank") as ShankStones;
+if (_q?.get("setting")) _override.setting = _q.get("setting") as SettingStyle;
+if (_q?.get("cut")) _override.gemShape = _q.get("cut") as GemCut;
+if (_q?.get("profile")) _override.bandProfile = _q.get("profile") as BandProfile;
+if (_q?.get("carat")) _override.gemSize = Number(_q.get("carat"));
+if (_q?.get("width")) _override.bandWidth = Number(_q.get("width"));
 
 const _BASE_SPEC: RingSpec = {
   ringSize: 6.0,
