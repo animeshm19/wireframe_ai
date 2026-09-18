@@ -7,7 +7,7 @@ import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
 import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
 import { Footer } from "./components/Footer";
-import { PrecisionCursor } from "@/components/ui/precision-cursor";
+import { SmoothCursor } from "@/components/ui/smooth-cursor";
 import { DockBar } from "./components/DockBar";
 import { ContactSection } from "./components/ContactSection";
 import { Pricing } from "./components/Pricing";
@@ -139,8 +139,8 @@ export default function App() {
       {!isAppRoute && <div className="vignette-layer" aria-hidden="true" />}
       {!isAppRoute && <div className="grain-layer" aria-hidden="true" />}
       
-      {/* Reticle. Mounts only on a fine pointer, wide screen, motion allowed. */}
-      {!isAppRoute && <PrecisionCursor />}
+      {/* Enhanced Cursor */}
+      {!isAppRoute && <SmoothCursor />}
     </div>
   );
 }

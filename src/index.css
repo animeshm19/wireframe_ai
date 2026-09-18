@@ -55,10 +55,13 @@
   --gold-400: var(--metal-400);
   --pink-500: var(--accent-500);
 
-  /* Type */
-  --font-display: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
-  --font-sans: "Inter Tight", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Type. The stock stacks — no webfont is loaded, so there is no network
+   * request, no FOUT, and the page renders in the system UI face the way it
+   * always did. Everything expensive about the type here comes from size,
+   * weight contrast and tracking rather than from a typeface. */
+  --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Fluid type scale. Every size interpolates between a phone and a desktop,
    * so nothing has to be re-specified per breakpoint and nothing overflows
@@ -162,11 +165,11 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* System sans gets tight tracking and a short leading at display sizes —
+   * that pairing is what stops a UI face reading as a UI face. */
   h1, h2, h3 {
-    font-family: var(--font-display);
-    font-weight: 400;
-    line-height: 0.98;
-    letter-spacing: -0.02em;
+    line-height: 1.02;
+    letter-spacing: -0.035em;
     text-wrap: balance;
   }
 
@@ -429,13 +432,8 @@
 /* Coarse pointers get the system cursor back and no hover-only affordances.
  * The custom cursor is meaningless without a mouse and the hover states are
  * unreachable, so they must never be the only way to read something. */
-/* The native cursor is only hidden where the reticle actually mounts. It needs
- * a fine pointer, a screen wide enough for it, and motion allowed — if any of
- * those is false the component returns null, and hiding the system cursor
- * anyway would leave the page with no pointer at all. */
-@media (pointer: coarse), (prefers-reduced-motion: reduce), (max-width: 767px) {
-  .cursor-none,
-  .cursor-none * { cursor: auto; }
+@media (pointer: coarse) {
+  .cursor-none { cursor: auto; }
 }
 
 /* One global switch. Everything animated on this site is either a transition,
