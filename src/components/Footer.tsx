@@ -1,180 +1,163 @@
-import React from "react";
-import { Button } from "./ui/button";
+/**
+ * The footer.
+ *
+ * Three of its links went nowhere. /features, /pricing and /terms are not
+ * routes — the router has no match for any of them, so all three fell through
+ * to the catch-all and landed on the "coming soon" page. Features and pricing
+ * are sections on this page and are now anchors to them; there is no terms
+ * page to link to, so it is not linked to.
+ *
+ * The two social links pointed at x.com and linkedin.com — the sites, not any
+ * account. A link to a social network's front door is worse than no link, so
+ * they are out until there are real handles to put there.
+ */
+
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 
 const logoUrl = "/icons/Wireframe.png";
+
+type Item = { label: string } & ({ to: string } | { anchor: string } | { href: string });
+
+const COLUMNS: Array<{ heading: string; items: Item[] }> = [
+  {
+    heading: "Product",
+    items: [
+      { label: "Capabilities", anchor: "features" },
+      { label: "On the bench", anchor: "capabilities" },
+      { label: "Plans", anchor: "pricing" },
+      { label: "Mesh", to: "/mesh" },
+      { label: "Changelog", to: "/changelog" },
+      { label: "Docs", to: "/docs" },
+    ],
+  },
+  {
+    heading: "Company",
+    items: [
+      { label: "About", to: "/about" },
+      { label: "Blog", to: "/blog" },
+      { label: "Careers", to: "/careers" },
+      { label: "Partners", to: "/partners" },
+    ],
+  },
+  {
+    heading: "Support",
+    items: [
+      { label: "Help", to: "/support" },
+      { label: "Privacy", to: "/privacy" },
+      { label: "Book a walkthrough", anchor: "contact" },
+      { label: "hello@wireframe.studio", href: "mailto:hello@wireframe.studio" },
+    ],
+  },
+];
+
+const goTo = (id: string) =>
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
 export function Footer() {
   const year = new Date().getFullYear();
 
-  const handleScrollToContact = () => {
-    const el = document.querySelector("#contact");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
   return (
-    <footer className="bg-gradient-to-b from-[#050003] via-[#13010c] to-[#050003] text-sm text-white/60">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 lg:py-12">
-        {/* Top section */}
-        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
-          {/* Brand + short value prop */}
-          <div className="max-w-md space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur">
-                <img
-                  src={logoUrl}
-                  alt="wireframe"
-                  className="h-full w-full object-contain"
-                />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white/90 tracking-tight">
-                  wireframe
-                </p>
-                <p className="text-xs uppercase tracking-[0.2em] text-white/40">
-                  Jewelry design · CAD workflows
-                </p>
-              </div>
-            </div>
+    <footer className="relative overflow-hidden border-t border-white/8 bg-ink-950">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(70% 60% at 50% 120%, rgba(198,155,178,0.09), transparent 62%)",
+        }}
+      />
 
-            <p className="text-sm text-white/70">
-              Design, iterate, and ship jewelry collections faster with a mesh-first,
-              parametric workflow that feels as polished as the pieces you create.
+      <div className="shell relative z-10 py-16 sm:py-20">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] lg:gap-20">
+          <div>
+            <Link to="/" className="inline-flex items-center gap-2.5">
+              <img src={logoUrl} alt="" className="h-7 w-auto" />
+              <span className="text-[0.95rem] font-medium tracking-tight text-white/90">
+                wireframe
+              </span>
+            </Link>
+
+            <p className="mt-5 max-w-sm text-[0.9rem] leading-relaxed text-white/50">
+              Describe a piece in plain language and get a parametric B-rep
+              solid — measured, checked against real casting limits, and
+              exported as STEP or STL.
             </p>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-(--gold-500)/30 bg-(--gold-500)/5 px-3 py-1 text-xs text-(--gold-500)">
-              <span className="h-1.5 w-1.5 rounded-full bg-(--gold-500)" />
-              <span>Currently onboarding select studios</span>
+            <div className="mt-6 inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
+              <span className="mono-label !text-[0.5rem] !text-white/55">
+                Onboarding select studios
+              </span>
             </div>
           </div>
 
-          {/* Link columns */}
-          <div className="grid flex-1 gap-8 sm:grid-cols-3">
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
-                Product
-              </h3>
-              <nav className="flex flex-col gap-2 text-sm">
-                <Link to="/features" className="hover:text-(--gold-500)">
-                  Features
-                </Link>
-                <Link to="/mesh" className="hover:text-(--gold-500)">
-                  Mesh engine
-                </Link>
-                <Link to="/pricing" className="hover:text-(--gold-500)">
-                  Pricing
-                </Link>
-                <Link to="/changelog" className="hover:text-(--gold-500)">
-                  Changelog
-                </Link>
+          <div className="grid gap-8 sm:grid-cols-3">
+            {COLUMNS.map((col) => (
+              <nav key={col.heading} aria-label={col.heading}>
+                <h3 className="mono-label !text-[0.5rem]">{col.heading}</h3>
+                <ul className="mt-4 space-y-2.5">
+                  {col.items.map((item) => (
+                    <li key={item.label}>
+                      {"to" in item ? (
+                        <Link
+                          to={item.to}
+                          className="text-[0.88rem] text-white/55 transition-colors duration-300 hover:text-white"
+                        >
+                          {item.label}
+                        </Link>
+                      ) : "anchor" in item ? (
+                        <button
+                          onClick={() => goTo(item.anchor)}
+                          className="text-left text-[0.88rem] text-white/55 transition-colors duration-300 hover:text-white"
+                        >
+                          {item.label}
+                        </button>
+                      ) : (
+                        <a
+                          href={item.href}
+                          className="text-[0.88rem] text-white/55 transition-colors duration-300 hover:text-white"
+                        >
+                          {item.label}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </nav>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
-                Company
-              </h3>
-              <nav className="flex flex-col gap-2 text-sm">
-                <Link to="/about" className="hover:text-(--gold-500)">
-                  About
-                </Link>
-                <Link to="/partners" className="hover:text-(--gold-500)">
-                  Studio partners
-                </Link>
-                <Link to="/careers" className="hover:text-[var(--gold-500)]">
-                  Careers
-                </Link>
-              </nav>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
-                Resources
-              </h3>
-              <nav className="flex flex-col gap-2 text-sm">
-                <Link to="/docs" className="hover:text-(--gold-500)">
-                  Docs
-                </Link>
-                <Link to="/support" className="hover:text-(--gold-500)">
-                  Support
-                </Link>
-                <Link to="/privacy" className="hover:text-[var(--gold-500)]">
-                  Privacy policy
-                </Link>
-                <Link to="/terms" className="hover:text-[var(--gold-500)]">
-                  Terms
-                </Link>
-              </nav>
-            </div>
-          </div>
-
-          {/* CTA + contact */}
-          <div className="w-full max-w-xs space-y-4">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
-              Book a demo
-            </h3>
-            <p className="text-sm text-white/70">
-              Share your workflow and we will walk you through how wireframe can
-              plug into your existing tools.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                onClick={handleScrollToContact}
-                className="rounded-full border border-(--gold-500) bg-(--gold-500)/15 px-5 text-xs font-medium uppercase tracking-[0.18em] text-(--gold-500) hover:bg-(--gold-500)/25"
-                size="sm"
-              >
-                Book a demo
-              </Button>
-              <a
-                href="mailto:hello@wireframe.studio"
-                className="text-xs text-white/70 hover:text-(--gold-500)"
-              >
-                hello@wireframe.studio
-              </a>
-            </div>
-            <p className="text-xs text-white/40">
-              Based in Canada · working with teams worldwide.
-            </p>
+            ))}
           </div>
         </div>
 
-        {/* Bottom bar */}
-        <div className="mt-10 border-t border-white/5 pt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-white/50">
-            © {year} wireframe. All rights reserved.
+        {/* The wordmark, set large enough to be a graphic rather than a label.
+            It is the one place on the page the name gets to be the picture. */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          aria-hidden="true"
+          className="pointer-events-none mt-16 select-none text-center"
+        >
+          <span className="text-metal block bg-clip-text text-[clamp(3.2rem,1.2rem+11vw,10rem)] font-semibold leading-[0.8] tracking-[-0.06em]">
+            wireframe
+          </span>
+        </motion.div>
+
+        <div className="mt-12 flex flex-col gap-4 border-t border-white/6 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="mono-label !text-[0.48rem] !text-white/35">
+            © {year} wireframe · Built in Canada
           </p>
-          <div className="flex flex-wrap items-center gap-4 text-xs">
-            <a
-              href="https://x.com"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-(--gold-500)"
-            >
-              X / Twitter
-            </a>
-            <a
-              href="https://www.linkedin.com"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-(--gold-500)"
-            >
-              LinkedIn
-            </a>
-            <a
-              href="#contact"
-              className="hover:text-(--gold-500)"
-              onClick={(e) => {
-                e.preventDefault();
-                handleScrollToContact();
-              }}
-            >
-              Contact
-            </a>
-          </div>
+          <p className="mono-label !text-[0.48rem] !text-white/35">
+            B-rep kernel · OCCT · STEP AP214 &amp; binary STL
+          </p>
         </div>
       </div>
     </footer>
   );
 }
+
+export default Footer;

@@ -1,316 +1,373 @@
-import React from "react";
-import { motion } from "framer-motion";
-import { Button } from "./ui/button";
+/**
+ * Plans.
+ *
+ * The feature lists were describing a different product. Corrected against
+ * what is actually in the repository:
+ *
+ *   - "Base mesh templates for rings and pendants" — there are no pendants.
+ *     Nothing in the engine, the spec or the parser knows what one is.
+ *   - "Real-time material and stone cost preview" — there is no cost anywhere
+ *     in the codebase. There is measured weight, which is the more defensible
+ *     claim anyway, and it is what the line says now.
+ *   - "mesh engines", twice — it is a B-rep kernel. The whole argument of the
+ *     page above is that it is not a mesh.
+ *   - "Single sign-on and advanced access controls" — auth is email and
+ *     Google. It is listed as planned rather than quietly dropped, because a
+ *     buyer asking about SSO deserves a straight answer either way.
+ *
+ * Anything not yet built carries a "planned" mark. A plan page that admits
+ * what is coming is worth more than one that does not, and it cannot age into
+ * a lie.
+ */
 
-function CheckIcon({
-  className = "",
-  ...props
-}: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      className={`h-3 w-3 flex-none ${className}`}
-      {...props}
-    >
-      <path
-        d="M15.833 5.5L8.25 13.083 4.167 9"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+
+type Feature = { text: string; planned?: boolean };
+
+type Tier = {
+  id: string;
+  name: string;
+  hallmark: string;
+  blurb: string;
+  monthly: number | null;
+  yearly: number | null;
+  cta: { label: string; to?: string; anchor?: string };
+  features: Feature[];
+  featured?: boolean;
+};
+
+const TIERS: Tier[] = [
+  {
+    id: "starter",
+    name: "Starter",
+    hallmark: "ST",
+    blurb: "One designer, the whole engine.",
+    monthly: 25,
+    yearly: 20,
+    cta: { label: "Start designing", to: "/chat" },
+    features: [
+      { text: "Describe a piece in plain language, unlimited prompts" },
+      { text: "Every setting, cut and shank the engine builds" },
+      { text: "Exact STEP and binary STL export" },
+      { text: "Measured metal weight per alloy, carat per stone" },
+      { text: "Email support" },
+    ],
+  },
+  {
+    id: "studio",
+    name: "Studio",
+    hallmark: "SD",
+    blurb: "For a bench that ships.",
+    monthly: 99,
+    yearly: 79,
+    featured: true,
+    cta: { label: "Start designing", to: "/chat" },
+    features: [
+      { text: "Everything in Starter" },
+      { text: "The Studio: section view, dimensions, turntable, finishes" },
+      { text: "Lasso editing — rework one stretch of shank on its own" },
+      { text: "Per-alloy manufacturability checks before export" },
+      { text: "Priority support and a setup session" },
+    ],
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    hallmark: "EN",
+    blurb: "Several benches, one library.",
+    monthly: null,
+    yearly: null,
+    cta: { label: "Talk to us", anchor: "contact" },
+    features: [
+      { text: "Everything in Studio" },
+      { text: "Onboarding and a named point of contact" },
+      { text: "Shared component and design libraries", planned: true },
+      { text: "Single sign-on and access controls", planned: true },
+      { text: "Private model hosting", planned: true },
+    ],
+  },
+];
 
 export function Pricing() {
-  const [billing, setBilling] = React.useState<"monthly" | "yearly">("monthly");
-  const isYearly = billing === "yearly";
-
-  const prices = {
-    starter: {
-      monthly: 25,
-      yearly: 20,
-    },
-    studio: {
-      monthly: 99,
-      yearly: 79,
-    },
-    enterprise: {
-      monthly: 0,
-      yearly: 0,
-    },
-  };
+  const [yearly, setYearly] = useState(false);
 
   return (
     <section
       id="pricing"
-      className="relative overflow-hidden border-y border-white/10 bg-gradient-to-b from-[#13010c] via-[#13010c] to-[#050003] py-20 sm:py-24"
+      className="relative scroll-mt-24 overflow-hidden border-t border-white/5 bg-ink-900 py-24 sm:py-32"
     >
-      {/* soft mesh + glow background */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="mesh-bg absolute inset-0 opacity-40" />
-        <div className="absolute inset-x-0 -top-40 h-80 bg-[radial-gradient(circle_at_top,_rgba(19,1,12,0.18),_transparent_60%)] blur-3xl" />
-      </div>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(60% 40% at 50% 0%, rgba(198,155,178,0.07), transparent 65%)",
+        }}
+      />
 
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex flex-col items-center text-center">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white/60">
-            <span className="h-1.5 w-1.5 rounded-full bg-(--gold-500)" />
-            <span>Pricing</span>
-            <span className="text-white/35">built for jewelry teams</span>
+      <div className="shell relative z-10">
+        <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end lg:gap-14">
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="flex items-center gap-3"
+            >
+              <span className="mono-label !text-metal-400">03</span>
+              <span className="h-px w-8 bg-white/15" />
+              <span className="mono-label">Plans</span>
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 0.75, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-5 max-w-[15ch] text-[clamp(1.9rem,1.2rem+2.4vw,3.1rem)] font-semibold leading-[1.04] tracking-[-0.035em] text-white"
+            >
+              Priced per bench, not per render.
+            </motion.h2>
           </div>
 
-          <h2 className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Choose a plan that fits your studio’s rhythm.
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm text-white/60">
-            Start with a single designer or roll out wireframe across your
-            entire team. Switch plans or billing cycles any time.
-          </p>
-
-          {/* Billing toggle */}
-          <div className="mt-6 flex items-center gap-4">
-            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-xs text-white/60">
-              <button
-                type="button"
-                onClick={() => setBilling("monthly")}
-                className={`relative rounded-full px-3 py-1.5 transition ${
-                  !isYearly
-                    ? "bg-(--gold-500) text-black"
-                    : "hover:text-white/90"
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                onClick={() => setBilling("yearly")}
-                className={`relative rounded-full px-3 py-1.5 transition ${
-                  isYearly
-                    ? "bg-(--gold-500) text-black"
-                    : "hover:text-white/90"
-                }`}
-              >
-                Yearly
-              </button>
+          {/* Term switch */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="flex items-center gap-3 lg:pb-2"
+          >
+            <div
+              role="radiogroup"
+              aria-label="Billing term"
+              className="relative inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1"
+            >
+              {(["monthly", "yearly"] as const).map((term) => {
+                const on = (term === "yearly") === yearly;
+                return (
+                  <button
+                    key={term}
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setYearly(term === "yearly")}
+                    className="relative rounded-full px-4 py-1.5 text-[0.78rem] capitalize transition-colors duration-300"
+                  >
+                    {on && (
+                      <motion.span
+                        layoutId="term-pill"
+                        transition={{ type: "spring", stiffness: 380, damping: 34 }}
+                        className="absolute inset-0 rounded-full bg-white"
+                      />
+                    )}
+                    <span className={"relative " + (on ? "text-ink-900" : "text-white/60")}>
+                      {term}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <span className="text-xs text-(--gold-400)">
-              {isYearly ? "You are saving up to 25%." : "Save up to 25% with yearly"}
+            <span className="mono-label !text-[0.52rem] !text-metal-400">
+              Two months on us, yearly
             </span>
-          </div>
-        </div>
-
-        {/* Cards */}
-        <div className="mt-12 grid gap-6 lg:grid-cols-3 lg:items-stretch">
-          {/* Starter */}
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-            whileHover={{ y: -4, scale: 1.01 }}
-            className="group relative flex flex-col rounded-3xl border border-white/10 bg-white/[0.02] p-6 sm:p-7 backdrop-blur"
-          >
-            <div className="mb-4 text-xs font-medium uppercase tracking-[0.2em] text-white/50">
-              Starter
-            </div>
-            <p className="text-sm text-white/65">
-              For solo designers or small teams getting their first collections
-              into a parametric workflow.
-            </p>
-
-            <div className="mt-5 flex items-baseline gap-1">
-              <span className="text-3xl font-semibold text-white">
-                ${isYearly ? prices.starter.yearly : prices.starter.monthly}
-              </span>
-              <span className="text-xs text-white/50">
-                /designer {isYearly ? "/month (billed yearly)" : "/month"}
-              </span>
-            </div>
-
-            <ul className="mt-5 flex-1 space-y-2.5 text-sm text-white/70">
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Up to 3 active collections</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Base mesh templates for rings and pendants</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Export to your existing CAD workflow</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Email support within 48 hours</span>
-              </li>
-            </ul>
-
-            <div className="mt-6">
-              <Button
-                className="w-full rounded-full border border-white/15 bg-white/5 text-xs font-medium uppercase tracking-[0.18em] text-white hover:bg-white/10"
-                size="sm"
-              >
-                Start with Starter
-              </Button>
-            </div>
-          </motion.div>
-
-          {/* Studio (featured) */}
-          <motion.div
-            initial={{ opacity: 0, y: 22 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.4, ease: "easeOut", delay: 0.05 }}
-            whileHover={{ y: -6, scale: 1.02 }}
-            className="group relative flex flex-col rounded-3xl border border-(--gold-500)/60 bg-[radial-gradient(circle_at_top,_rgba(131,110,118,0.28),_rgba(5,5,11,0.96))] p-6 sm:p-7 shadow-[0_0_60px_rgba(131,110,118,0.32)] backdrop-blur"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-(--gold-400)">
-                Studio
-              </div>
-              <span className="rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-(--gold-400)">
-                Most popular
-              </span>
-            </div>
-            <p className="text-sm text-white/80">
-              For growing studios that want deep control over variants, pricing,
-              and production ready exports.
-            </p>
-
-            <div className="mt-5 flex items-baseline gap-1">
-              <span className="text-3xl font-semibold text-white">
-                ${isYearly ? prices.studio.yearly : prices.studio.monthly}
-              </span>
-              <span className="text-xs text-white/70">
-                /designer {isYearly ? "/month (billed yearly)" : "/month"}
-              </span>
-            </div>
-
-            <ul className="mt-5 flex-1 space-y-2.5 text-sm text-white/80">
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-400)" />
-                <span>Unlimited collections and design variants</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-400)" />
-                <span>Advanced parametric controls and constraints</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-400)" />
-                <span>Real-time material and stone cost preview</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-400)" />
-                <span>Priority support and setup session</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-400)" />
-                <span>Early access to new mesh engines</span>
-              </li>
-            </ul>
-
-            <div className="mt-6 space-y-3">
-              <Button
-                className="w-full rounded-full border border-(--gold-500) bg-(--gold-500) text-xs font-medium uppercase tracking-[0.18em] text-black hover:bg-(--gold-400)"
-                size="sm"
-              >
-                Book a studio demo
-              </Button>
-              <p className="text-center text-[11px] text-white/75">
-                Need to add more than 10 designers?{" "}
-                <a
-                  href="#contact"
-                  className="underline-offset-2 hover:underline"
-                >
-                  Talk to us
-                </a>
-                .
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Enterprise */}
-          <motion.div
-            initial={{ opacity: 0, y: 26 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.45, ease: "easeOut", delay: 0.1 }}
-            whileHover={{ y: -4, scale: 1.01 }}
-            className="group relative flex flex-col rounded-3xl border border-white/10 bg-white/[0.01] p-6 sm:p-7 backdrop-blur"
-          >
-            <div className="mb-4 text-xs font-medium uppercase tracking-[0.2em] text-white/50">
-              Enterprise
-            </div>
-            <p className="text-sm text-white/65">
-              For large houses and manufacturers that need custom workflows,
-              security reviews, and on-premise options.
-            </p>
-
-            <div className="mt-5 flex items-baseline gap-1">
-              <span className="text-3xl font-semibold text-white">Custom</span>
-            </div>
-
-            <ul className="mt-5 flex-1 space-y-2.5 text-sm text-white/75">
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Custom SLAs and onboarding for your team</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Single sign-on and advanced access controls</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Private mesh engines and internal libraries</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 text-(--gold-500)" />
-                <span>Dedicated success manager</span>
-              </li>
-            </ul>
-
-            <div className="mt-6">
-              <Button
-                className="w-full rounded-full border border-white/15 bg-white/5 text-xs font-medium uppercase tracking-[0.18em] text-white hover:bg-white/10"
-                size="sm"
-              >
-                Talk to sales
-              </Button>
-            </div>
           </motion.div>
         </div>
 
-        {/* Included in all plans */}
-        <div className="mt-10 rounded-3xl border border-white/5 bg-white/[0.02] px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex flex-wrap items-center gap-3 text-xs text-white/65">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
-              Included in every plan
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1">
-              <CheckIcon className="text-(--gold-500)" />
-              Unlimited exports
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1">
-              <CheckIcon className="text-(--gold-500)" />
-              Secure cloud workspace
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1">
-              <CheckIcon className="text-(--gold-500)" />
-              Team roles and permissions
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1">
-              <CheckIcon className="text-(--gold-500)" />
-              Onboarding resources
-            </span>
-          </div>
+        <div className="mt-14 grid gap-5 lg:grid-cols-3 lg:items-stretch">
+          {TIERS.map((t, i) => (
+            <Plate key={t.id} tier={t} yearly={yearly} i={i} />
+          ))}
         </div>
+
+        <p className="mono-label mx-auto mt-10 max-w-2xl text-center !text-[0.52rem] !normal-case !tracking-[0.1em] !text-white/35">
+          Prices in USD, per seat. Items marked planned are not built yet and
+          are not what you are paying for today.
+        </p>
       </div>
     </section>
   );
 }
+
+/* ------------------------------------------------------------------ plate -- */
+
+function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) {
+  const reduced = useReducedMotion();
+  const price = yearly ? tier.yearly : tier.monthly;
+
+  return (
+    <motion.div
+      initial={reduced ? { opacity: 0 } : { opacity: 0, y: 28 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.8, delay: reduced ? 0 : 0.08 * i, ease: [0.16, 1, 0.3, 1] }}
+      className={
+        "card-edge card-sheen relative flex flex-col overflow-hidden rounded-2xl border p-6 sm:p-7 " +
+        (tier.featured
+          ? // Raised with a real shadow rather than a glow: a glow says "lit
+            // from within", a shadow says "sitting on top of the others",
+            // which is the thing actually being communicated.
+            "border-metal-400/30 bg-gradient-to-b from-white/[0.075] to-white/[0.02] shadow-[0_30px_80px_-28px_rgba(0,0,0,0.95)] lg:-my-3 lg:py-9"
+          : "border-white/8 bg-gradient-to-b from-white/[0.035] to-white/[0.01]")
+      }
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent"
+      />
+
+      {/* An assay mark, the way a piece carries one. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full border border-white/10"
+      >
+        <span className="mono-label !text-[0.5rem] !tracking-[0.08em] !text-white/30">
+          {tier.hallmark}
+        </span>
+      </span>
+
+      <div className="relative z-10 flex flex-1 flex-col">
+        <div className="mono-label !text-[0.55rem] !text-metal-400">{tier.name}</div>
+        <p className="mt-1.5 text-[0.9rem] text-white/55">{tier.blurb}</p>
+
+        {/* "Let's talk" is a step down from the numerals: a word set at the
+            same size as a two-digit price reads larger than one. */}
+        <div className="mt-6 flex items-end gap-2">
+          {price === null ? (
+            <span className="text-[2.1rem] font-semibold leading-[1.15] tracking-tight text-white">
+              Let's talk
+            </span>
+          ) : (
+            <>
+              <span className="text-[1.3rem] font-medium leading-none text-white/50">$</span>
+              <Rolling value={price} />
+              <span className="mono-label pb-1 !text-[0.5rem]">
+                / seat / mo
+              </span>
+            </>
+          )}
+        </div>
+
+        {price !== null && (
+          <div className="mono-label mt-2 !text-[0.5rem] !text-white/35">
+            {yearly
+              ? `billed yearly · $${price * 12} per seat`
+              : `billed monthly · $${(tier.yearly ?? 0) * 12} yearly`}
+          </div>
+        )}
+
+        <hr className="hairline my-6" />
+
+        <ul className="flex-1 space-y-3">
+          {tier.features.map((f) => (
+            <li key={f.text} className="flex items-start gap-2.5">
+              <span
+                aria-hidden="true"
+                className={
+                  "mt-[7px] h-1 w-1 shrink-0 rounded-full " +
+                  (f.planned ? "bg-white/20" : "bg-metal-300")
+                }
+              />
+              <span
+                className={
+                  "text-[0.85rem] leading-relaxed " +
+                  (f.planned ? "text-white/32" : "text-white/70")
+                }
+              >
+                {f.text}
+                {f.planned && (
+                  <span className="mono-label ml-2 rounded border border-white/10 px-1 py-px !text-[0.42rem] !text-white/35">
+                    planned
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-7">
+          {tier.cta.to ? (
+            <Link
+              to={tier.cta.to}
+              className={
+                "group flex w-full items-center justify-center gap-2 overflow-hidden rounded-full px-5 py-3 text-sm font-medium transition-colors duration-300 " +
+                (tier.featured
+                  ? "bg-white text-ink-900"
+                  : "border border-white/15 text-white/85 hover:border-white/30 hover:text-white")
+              }
+            >
+              {tier.cta.label}
+              <span className="transition-transform duration-500 group-hover:translate-x-1">→</span>
+            </Link>
+          ) : (
+            <button
+              onClick={() =>
+                document
+                  .getElementById(tier.cta.anchor!)
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+              className="group flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 text-sm font-medium text-white/85 transition-colors duration-300 hover:border-white/30 hover:text-white"
+            >
+              {tier.cta.label}
+              <span className="transition-transform duration-500 group-hover:translate-x-1">→</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/**
+ * A price whose digits roll.
+ *
+ * Each column is a strip of 0–9 moved to the right digit, so changing the term
+ * spins the numerals rather than swapping one price for another. It is the
+ * one flourish on this section, and it is here because the term switch is the
+ * only thing on the page a visitor is invited to change while deciding.
+ */
+function Rolling({ value }: { value: number }) {
+  const reduced = useReducedMotion();
+  const digits = String(value).split("");
+
+  if (reduced) {
+    return (
+      <span className="tabular text-[2.6rem] font-semibold leading-none tracking-tight text-white">
+        {value}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="tabular flex text-[2.6rem] font-semibold leading-[0.9] tracking-tight text-white"
+      aria-label={String(value)}
+    >
+      {digits.map((d, i) => (
+        // 1ch is exactly one digit's advance under tabular-nums, so the
+        // columns line up without guessing at a width.
+        <span key={i} aria-hidden="true" className="relative h-[1em] w-[1ch] overflow-hidden">
+          <motion.span
+            className="absolute inset-x-0 top-0 flex flex-col items-center"
+            /* In em, not per cent. A percentage on a transform resolves
+             * against the element's own height, and this strip is ten digits
+             * tall — so -100% moved it ten digits up instead of one, which is
+             * why the price came out as a stray numeral or as nothing at all. */
+            animate={{ y: `${-Number(d)}em` }}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+          >
+            {Array.from({ length: 10 }).map((_, n) => (
+              <span key={n} className="flex h-[1em] items-center justify-center leading-none">
+                {n}
+              </span>
+            ))}
+          </motion.span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export default Pricing;
