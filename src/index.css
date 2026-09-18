@@ -329,6 +329,33 @@
     .hero-rake { color: #ffffff; background-image: none; }
   }
 
+  /* The hero stage feathers into the page.
+   *
+   * The canvas paints its own graded backdrop — it has to, because that is what
+   * the diamond refracts — so it is opaque wherever it draws and would
+   * otherwise stop at a hard rectangle in the middle of the layout.
+   *
+   * Only the edges that actually meet the page need fading, and which ones
+   * those are differs by breakpoint. On a phone the stage spans the full width,
+   * so its left and right edges are the screen's edges and invisible; the seams
+   * are top and bottom. On a wide screen it runs to the top, bottom and right
+   * of the viewport, so the only seam is its left edge. A directional fade on
+   * exactly those edges goes fully transparent where it has to, which a radial
+   * one does not — the corners of a rectangle are further from the centre than
+   * the edge midpoints, so any radial that clears a corner has already cut into
+   * the middle of the picture. */
+  .hero-stage {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 84%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 84%, transparent 100%);
+  }
+
+  @media (min-width: 1024px) {
+    .hero-stage {
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 34%);
+      mask-image: linear-gradient(to right, transparent 0%, #000 34%);
+    }
+  }
+
   /* The mono spec label. Used for every number, index, unit and status on the
    * page — it is the detail that makes the whole thing read as an instrument
    * rather than as a brochure. */

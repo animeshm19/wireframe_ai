@@ -25,7 +25,7 @@ import {
 } from "framer-motion";
 import { HeroVisual } from "./HeroVisual";
 
-const PROMPT = "platinum solitaire, 1.5 ct oval, cathedral shank, size 6.5";
+const PROMPT = "platinum solitaire, 1.5 ct round brilliant, size 6.5";
 
 /* Set as lines rather than as a flat list of words. Left to itself the
  * headline broke into four short ragged lines at desktop width, which is the
@@ -146,16 +146,12 @@ export function Hero() {
 
         {/* The ring. Full-bleed behind the copy on phones, the right half of
             the stage on a wide screen. */}
+        {/* The stage paints its own backdrop, so .hero-stage feathers its
+            edges into the page — see index.css. */}
         <HeroVisual
           progress={progressRef}
           pointer={pointerRef}
-          /* Two layouts, because the compromise between them is worse than
-             either. On a wide screen the ring gets its own column beside the
-             copy. On a phone there is no second column, so instead of putting
-             a wireframe behind a paragraph — which is what made the body text
-             unreadable — the stage takes the bottom half of the screen and
-             the copy takes the top. Neither ever overlaps the other. */
-          className="absolute inset-x-0 bottom-[104px] h-[46%] w-full lg:inset-y-0 lg:bottom-0 lg:left-auto lg:right-0 lg:h-full lg:w-[54%]"
+          className="hero-stage absolute inset-x-0 bottom-[104px] h-[46%] w-full lg:inset-y-0 lg:bottom-0 lg:left-auto lg:right-0 lg:h-full lg:w-[54%]"
         />
 
         {/* Copy. */}

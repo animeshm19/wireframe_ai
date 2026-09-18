@@ -27,7 +27,12 @@
  */
 
 import { useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import * as THREE from "three";
+import { createJewelleryEnvironment } from "../lib/studio-env";
+import { finishMaps, applyTriplanar } from "../lib/finishes";
+import { METAL_APPEARANCE } from "../lib/ring-spec";
+import { createBrilliantGeometry } from "../lib/brilliant-geometry";
 
 type Props = {
   /** 0 → 1. Drives the material state and the camera dolly. */
@@ -35,9 +40,10 @@ type Props = {
   /** -1 → 1 each axis. Pointer parallax, also a ref so it never re-renders. */
   pointer: React.MutableRefObject<{ x: number; y: number }>;
   className?: string;
+  style?: CSSProperties;
 };
 
-export function HeroVisual({ progress, pointer, className }: Props) {
+export function HeroVisual({ progress, pointer, className, style }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,62 +74,105 @@ export function HeroVisual({ progress, pointer, className }: Props) {
     // sharpness is worth, and phones lie about their device pixel ratio.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.25;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
 
-    /* The environment is the whole difference between metal and grey plastic.
-     * A metalness-1 surface has no diffuse colour of its own — it is nothing
-     * but a reflection of whatever is around it, so a lamp pointed at it does
-     * almost nothing and with no environment at all it renders black.
+    /* The lighting rig is the Studio's, imported rather than reimplemented.
      *
-     * three's stock RoomEnvironment is a grey office and leaves platinum
-     * looking like slate. This is a jeweller's bench instead: a large soft
-     * overhead box for the long highlight down the top of the band, two
-     * upright strips at the sides for the edge catches that describe its
-     * curvature, and one warm bounce below so the underside is not a void.
-     * Those four rectangles are what the metal is actually showing you. */
-    const envScene = new THREE.Scene();
-    envScene.background = new THREE.Color(0x3a2730);
+     * Polished metal is a mirror, so what you see on it IS the rig — which
+     * means the rig has to be modelled, not approximated with a few lamps.
+     * studio-env builds a jeweller's diffusion tent: a graded enclosure, a
+     * broad overhead softbox, deliberately unequal side strips, a low bounce
+     * card, a front fill so the inside of the band is not a black hole, and
+     * three small hard sources, which are what make a faceted stone throw fire
+     * instead of looking like frosted glass.
+     *
+     * Using the same rig here is also the point: the ring on the landing page
+     * and the ring in the Studio are lit by the same lights, so the page is
+     * not promising a render the product does not produce. */
+    const envScene = createJewelleryEnvironment();
 
-    const lightBox = (
-      w: number, h: number, colour: number, intensity: number,
-      pos: [number, number, number], look: [number, number, number]
-    ) => {
-      const m = new THREE.Mesh(
-        new THREE.PlaneGeometry(w, h),
-        new THREE.MeshBasicMaterial({ color: colour })
-      );
-      (m.material as THREE.MeshBasicMaterial).color.multiplyScalar(intensity);
-      m.position.set(...pos);
-      m.lookAt(...look);
-      envScene.add(m);
-      return m;
-    };
-
-    const envParts = [
-      lightBox(16, 16, 0xffffff, 5.2, [0, 9, 0], [0, 0, 0]),      // overhead softbox
-      lightBox(5, 13, 0xffe9f2, 3.4, [-8, 1, 2], [0, 1, 0]),      // left strip
-      lightBox(5, 13, 0xffffff, 3.0, [8, 1, -1], [0, 1, 0]),      // right strip
-      lightBox(12, 7, 0xc69bb2, 1.6, [0, -6, 3], [0, 0, 0]),      // warm bounce
-      lightBox(10, 8, 0xe12882, 0.5, [0, 2, -10], [0, 1, 0]),     // rim, brand pink
-    ];
+    /* One panel added to the Studio's rig, for this shot only.
+     *
+     * The Studio shoots the piece from above at a three-quarter angle. The hero
+     * shows it close to face-on, and a face-on polished band mirrors whatever
+     * is BEHIND the camera — which in a diffusion tent is the one place there
+     * is nothing. That is the whole reason the band was reading as gunmetal: it
+     * was faithfully reflecting an empty wall. A photographer solves this with a
+     * large fill card beside the lens, so that is what this is. The tent itself
+     * is untouched, so the Studio is unaffected.
+     */
+    /* Sized to the front wall of the tent, not to a card. A mirror reflects a
+     * solid angle, not a light: a small bright panel puts a small bright streak
+     * on the band and leaves the rest of it reflecting black. Covering the
+     * whole wall at a moderate level is what a real tent does, and it is what
+     * turns the band from gunmetal into platinum. */
+    const frontFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(58, 42),
+      new THREE.MeshBasicMaterial({ color: 0xfff6fa, side: THREE.DoubleSide })
+    );
+    (frontFill.material as THREE.MeshBasicMaterial).color.multiplyScalar(1.5);
+    frontFill.position.set(-3, 3, 26);
+    envScene.add(frontFill);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
-    pmrem.compileEquirectangularShader();
-    const envRT = pmrem.fromScene(envScene, 0.02);
-    scene.environment = envRT.texture;
+    const envTexture = pmrem.fromScene(envScene, 0.02).texture;
+    envScene.traverse((o: any) => {
+      o.geometry?.dispose?.();
+      o.material?.map?.dispose?.();
+      o.material?.dispose?.();
+    });
+    scene.environment = envTexture;
+
+    /* The backdrop.
+     *
+     * Not decoration — it is what the stone refracts. transmission renders the
+     * scene behind the gem into a buffer and looks through it, so with nothing
+     * back there the diamond transmits empty space and comes out a dark hole
+     * whatever the rig is doing. The Studio has a graded sweep behind the piece
+     * for exactly this reason; this is the same sphere, tinted to the page's
+     * ink rather than the Studio's neutral grey so the canvas sits in the
+     * layout instead of on top of it.
+     *
+     * A flat background also makes any render look like a screenshot of a
+     * viewport. A graded one makes it look photographed. */
+    const backdropCanvas = document.createElement("canvas");
+    backdropCanvas.width = 4;
+    backdropCanvas.height = 512;
+    {
+      const g = backdropCanvas.getContext("2d")!;
+      const grad = g.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0, "#2a1220");
+      grad.addColorStop(0.42, "#1b0c15");
+      grad.addColorStop(0.72, "#12050e");
+      grad.addColorStop(1, "#090106");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 4, 512);
+    }
+    const backdropTex = new THREE.CanvasTexture(backdropCanvas);
+    backdropTex.colorSpace = THREE.SRGBColorSpace;
+    const backdrop = new THREE.Mesh(
+      new THREE.SphereGeometry(120, 32, 24),
+      new THREE.MeshBasicMaterial({
+        map: backdropTex,
+        side: THREE.BackSide,
+        depthWrite: false,
+      })
+    );
+    backdrop.renderOrder = -1;
+    scene.add(backdrop);
 
     // ----------------------------------------------------------- materials --
 
-    const PALETTE = {
-      metal: 0xd9cbd2,   // the brand mauve, lifted to a polished highlight
-      accent: 0xc69bb2,  // --metal-400
-      deep: 0x836e76,    // --metal-500
-    };
+    /* Scene units are not millimetres here — the ring is drawn at a size that
+     * frames well, not at 16.9mm. This is the conversion, so the finish maps
+     * can still be placed in real millimetres. */
+    const R = 2.45;                    // shank radius, scene units
+    const MM_PER_UNIT = 8.45 / R;      // a size 6.5 band is 8.45mm inner radius
 
     const pointsMat = new THREE.PointsMaterial({
-      color: PALETTE.accent,
+      color: 0xc69bb2,
       size: narrow() ? 0.055 : 0.042,
       transparent: true,
       opacity: 0,
@@ -133,44 +182,68 @@ export function HeroVisual({ progress, pointer, className }: Props) {
     });
 
     const wireMat = new THREE.MeshBasicMaterial({
-      color: PALETTE.accent,
+      color: 0xc69bb2,
       wireframe: true,
       transparent: true,
       opacity: 0,
       depthWrite: false,
     });
 
-    const metalMat = new THREE.MeshStandardMaterial({
-      color: PALETTE.metal,
-      metalness: 1.0,
-      roughness: 0.19,
-      envMapIntensity: 2.0,
+    /* Platinum, at its measured values.
+     *
+     * For a metal in a physically based renderer `color` is not a paint colour,
+     * it is F0 — the specular reflectance at normal incidence. ring-spec already
+     * carries the measured figure for 950 Pt/Ru along with the polish it will
+     * actually hold, so the band on this page is the same platinum the Studio
+     * renders rather than a colour picked to look nice against the background. */
+    const look = METAL_APPEARANCE.platinum;
+    const polish = finishMaps("polished");
+
+    const metalMat = new THREE.MeshPhysicalMaterial({
+      color: look.color,
+      metalness: 1,
+      roughness: Math.min(1, polish.roughness + (look.roughness - 0.16) * 0.5),
+      normalMap: polish.normalMap,
+      roughnessMap: polish.roughnessMap,
+      /* The Studio runs this metal at 1.15, inside a viewport the rig fills.
+       * Here the ring sits on a dark page with a lot of empty frame around it,
+       * and a polished surface is a mirror — so at 1.15 it reflects mostly the
+       * dark floor of the tent and reads as gunmetal. The rig is unchanged;
+       * only how hard this material listens to it. */
+      envMapIntensity: 2.6,
+      side: THREE.DoubleSide,
       transparent: true,
       opacity: 0,
     });
+    metalMat.normalScale.set(polish.normalScale, polish.normalScale);
+    /* The finish has no UVs to sit on, so it is projected from all three object
+     * axes and blended by the surface normal. The scale is in millimetres, which
+     * is why the conversion above exists: a polishing line is the width of a
+     * real polishing line whatever size the ring is drawn at. */
+    applyTriplanar(metalMat, MM_PER_UNIT / polish.tileMm);
 
-    const prongMat = new THREE.MeshStandardMaterial({
-      color: PALETTE.deep,
-      metalness: 1.0,
-      roughness: 0.2,
-      envMapIntensity: 2.1,
-      transparent: true,
-      opacity: 0,
-    });
+    // The head is the same metal as the shank, because on a real solitaire it is.
+    const prongMat = metalMat;
 
-    // Transmission is the expensive one — it re-renders the scene into a
-    // buffer behind the surface every frame. Worth it on a desktop GPU for a
-    // hero diamond; not worth it on a phone, which gets a bright dielectric
-    // that reads almost the same at that size.
+    /* Diamond, refractive rather than reflective.
+     *
+     * transmission must stay at 1: MeshPhysicalMaterial at metalness 0 keeps a
+     * diffuse albedo and transmission is what cancels it, so anything less
+     * renders a white plastic button. No clearcoat either — a clearcoat over a
+     * transmissive body adds a second broad specular that reads as a milky film.
+     *
+     * Phones get a reflective stand-in. The transmission pass re-renders the
+     * scene behind the stone every frame, which is the single most expensive
+     * thing on this page, and at phone size the difference is not visible. */
     const gemMat = coarse
       ? new THREE.MeshPhysicalMaterial({
           color: 0xffffff,
           metalness: 0,
           roughness: 0.02,
-          clearcoat: 1,
           reflectivity: 1,
+          specularIntensity: 1,
           envMapIntensity: 3.0,
-          flatShading: true,
+          side: THREE.DoubleSide,
           transparent: true,
           opacity: 0,
         })
@@ -179,13 +252,15 @@ export function HeroVisual({ progress, pointer, className }: Props) {
           metalness: 0,
           roughness: 0,
           transmission: 1,
-          thickness: 1.1,
-          ior: 2.42,          // diamond
-          dispersion: 2.2,    // the fire; r180+ ships this on the physical material
-          clearcoat: 1,
-          envMapIntensity: 3.4,
+          // thickness is a world-space path length, and this scene's units
+          // are not the Studio's millimetres. Set from the stone's own depth.
+          thickness: 1.4,
+          attenuationDistance: 40,
+          ior: 2.417,        // diamond, measured
+          dispersion: 3.2,   // fire; diamond disperses unusually strongly
           specularIntensity: 1,
-          flatShading: true,  // facets need flat normals or they read as a blob
+          envMapIntensity: 3.2,
+          side: THREE.DoubleSide,
           transparent: true,
           opacity: 0,
         });
@@ -195,37 +270,26 @@ export function HeroVisual({ progress, pointer, className }: Props) {
     const ring = new THREE.Group();
     scene.add(ring);
 
-    const R = 2.45;          // shank radius
     const shankGeom = new THREE.TorusGeometry(R, 0.26, 40, 160);
 
-    /* A round brilliant, revolved from its real profile rather than faked with
-     * an octahedron. Sixteen radial segments with flat shading gives facets
-     * that actually catch the environment; the proportions are the standard
-     * ones — table a little over half the girdle, crown shallow, pavilion deep. */
-    const girdleR = 1.02;
-    const profile = [
-      new THREE.Vector2(0.0, -1.0),            // culet
-      new THREE.Vector2(girdleR * 0.62, -0.28),
-      new THREE.Vector2(girdleR, 0.0),         // girdle
-      new THREE.Vector2(girdleR * 0.97, 0.06),
-      new THREE.Vector2(girdleR * 0.56, 0.34), // table edge
-      new THREE.Vector2(0.0, 0.34),            // table
-    ];
-    const gemGeom = new THREE.LatheGeometry(profile, 16);
-    gemGeom.computeVertexNormals();
+    /* A real round brilliant: 57 facets in the arrangement a cutter uses, at
+     * GIA reference proportions. A brilliant's whole life comes from discrete
+     * planar facets bouncing light at each other, so a smooth revolved cone —
+     * which is what was here — has nothing to bounce and reads as a glass
+     * pebble however good the material on it is.
+     *
+     * The girdle radius is set so the stone measures about 7.4mm across, which
+     * is what 1.5 carats looks like. */
+    const GIRDLE = 7.4 / 2 / MM_PER_UNIT;
+    const gemGeom = createBrilliantGeometry({ girdleRadius: GIRDLE });
 
-    /* The culet has to clear the outside of the band, or the stone reads as
-     * embedded in it rather than held above it. Band outer edge is R + tube;
-     * the stone's lowest point is GEM_Y - 1.0, so this puts roughly 0.2 of
-     * clear air under the culet, which is where a head actually holds it. */
-    const GEM_Y = R + 1.45;
+    // The culet has to clear the outside of the band or the stone reads as
+    // embedded in it. Pavilion depth is 0.86 of the girdle radius.
+    const GEM_Y = R + 0.26 + GIRDLE * 0.86 + 0.1;
 
-    /* The torus is left in the XY plane, which stands the band upright with
-     * the finger axis pointing at the camera — so the stone at +Y sits on top
-     * of the band where a solitaire's stone actually sits. The previous
-     * version rotated this by a quarter turn, which laid the band flat and
-     * left the stone hovering in the middle of the hole with nothing under
-     * it. That is why the old hero read as a spiral disc rather than a ring. */
+    /* The torus stays in the XY plane, which stands the band upright with the
+     * finger axis toward the camera, so the stone at +Y sits on top of the
+     * band where a solitaire's stone sits. */
     const shankPoints = new THREE.Points(shankGeom, pointsMat);
     const shankWire = new THREE.Mesh(shankGeom, wireMat);
     const shankSolid = new THREE.Mesh(shankGeom, metalMat);
@@ -239,25 +303,23 @@ export function HeroVisual({ progress, pointer, className }: Props) {
       ring.add(m);
     }
 
-    // Four prongs, angled in toward the girdle the way a real head sits.
-    const prongGeom = new THREE.CapsuleGeometry(0.085, 1.35, 6, 12);
+    // Four prongs, hugging the girdle and reaching down to the shank.
+    const prongGeom = new THREE.CapsuleGeometry(0.092, GEM_Y - R - 0.15, 6, 12);
     const prongSolids: THREE.Mesh[] = [];
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      const px = Math.cos(a) * 0.82;
-      const pz = Math.sin(a) * 0.82;
+      const px = Math.cos(a) * GIRDLE * 0.9;
+      const pz = Math.sin(a) * GIRDLE * 0.9;
 
       const p1 = new THREE.Points(prongGeom, pointsMat);
       const p2 = new THREE.Mesh(prongGeom, wireMat);
       const p3 = new THREE.Mesh(prongGeom, prongMat);
       for (const m of [p1, p2, p3]) {
-        m.position.set(px, GEM_Y - 0.62, pz);
-        /* A capsule's long axis is already Y, so the prong only needs a small
-         * lean inward toward the girdle. Pointing it with lookAt instead laid
-         * each one across the face of the stone, which is what the earlier
-         * pass was drawing. */
-        m.rotation.z = -Math.cos(a) * 0.2;
-        m.rotation.x = Math.sin(a) * 0.2;
+        m.position.set(px, (GEM_Y + R + 0.26) / 2, pz);
+        // A capsule's long axis is already Y; the prong only needs a lean
+        // inward toward the girdle it grips.
+        m.rotation.z = -Math.cos(a) * 0.16;
+        m.rotation.x = Math.sin(a) * 0.16;
         ring.add(m);
       }
       prongSolids.push(p3);
@@ -291,17 +353,12 @@ export function HeroVisual({ progress, pointer, className }: Props) {
 
     // -------------------------------------------------------------- lights --
 
-    const key = new THREE.DirectionalLight(0xfff4f8, 2.4);
-    key.position.set(5, 8, 6);
+    /* One key, and only one. The environment does the rest — adding point
+     * lights on top of a modelled rig doubles every highlight and is what
+     * makes a render look lit rather than photographed. */
+    const key = new THREE.DirectionalLight(0xffffff, 1.6);
+    key.position.set(6, 9, 7);
     scene.add(key);
-
-    const rim = new THREE.PointLight(PALETTE.accent, 40, 40);
-    rim.position.set(-6, 1.5, -7);
-    scene.add(rim);
-
-    const fill = new THREE.PointLight(0xe12882, 14, 30);
-    fill.position.set(5, -3, 3);
-    scene.add(fill);
 
     // ---------------------------------------------------------------- loop --
 
@@ -353,7 +410,6 @@ export function HeroVisual({ progress, pointer, className }: Props) {
       pointsMat.opacity = cur.pts;
       wireMat.opacity = cur.wire * 0.85;
       metalMat.opacity = cur.solid;
-      prongMat.opacity = cur.solid;
       gemMat.opacity = cur.solid;
       (shadow.material as THREE.MeshBasicMaterial).opacity = cur.shadow;
 
@@ -377,16 +433,16 @@ export function HeroVisual({ progress, pointer, className }: Props) {
          * turn and vanishes. It sways inside a range that always keeps a
          * three-quarter view instead — you see the face and the side of the
          * band at once, which is how a ring is photographed. */
-        ring.rotation.y = Math.sin(t * 0.126) * 0.42 + cur.px * 0.38;
-        ring.rotation.x = -0.14 + Math.sin(t * 0.09) * 0.05 - cur.py * 0.16 + p * 0.1;
+        ring.rotation.y = 0.34 + Math.sin(t * 0.126) * 0.3 + cur.px * 0.34;
+        ring.rotation.x = 0.2 + Math.sin(t * 0.09) * 0.05 - cur.py * 0.16 + p * 0.08;
 
         // The points breathe while the prompt is being read, then settle.
         const breath = 1 + Math.sin(t * 2.1) * 0.06 * cur.pts;
         shankPoints.scale.setScalar(breath);
         gemPoints.scale.setScalar(breath);
       } else {
-        ring.rotation.y = 0.42;
-        ring.rotation.x = -0.14;
+        ring.rotation.y = 0.34;
+        ring.rotation.x = 0.2;
       }
 
       // The camera closes in a little as the piece resolves.
@@ -460,13 +516,11 @@ export function HeroVisual({ progress, pointer, className }: Props) {
       pointsMat.dispose();
       wireMat.dispose();
       metalMat.dispose();
-      prongMat.dispose();
       gemMat.dispose();
-      for (const m of envParts) {
-        m.geometry.dispose();
-        (m.material as THREE.Material).dispose();
-      }
-      envRT.dispose();
+      backdrop.geometry.dispose();
+      (backdrop.material as THREE.Material).dispose();
+      backdropTex.dispose();
+      envTexture.dispose();
       pmrem.dispose();
 
       renderer.dispose();
@@ -480,7 +534,7 @@ export function HeroVisual({ progress, pointer, className }: Props) {
     };
   }, [progress, pointer]);
 
-  return <div ref={mountRef} className={className} aria-hidden="true" />;
+  return <div ref={mountRef} className={className} style={style} aria-hidden="true" />;
 }
 
 export default HeroVisual;
