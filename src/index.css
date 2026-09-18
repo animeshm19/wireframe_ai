@@ -297,6 +297,38 @@
 
   .gold-text { color: var(--metal-400); }
 
+  /* The light rake.
+   *
+   * The hero headline is filled with two stacked backgrounds clipped to the
+   * glyphs: a dim white base for legibility, and a bright hotspot parked at
+   * --mx / --my, which Hero.tsx writes from the pointer. The effect is light
+   * moving across the letters as you move — the same thing a polished surface
+   * does when you tilt it, which is the one gesture this whole product is
+   * about. With no pointer the variables never change and it is simply a
+   * headline with a soft highlight in the middle. */
+  .hero-rake {
+    --mx: 50%;
+    --my: 42%;
+    background-image:
+      radial-gradient(
+        290px circle at var(--mx) var(--my),
+        #ffffff 0%,
+        var(--metal-200) 34%,
+        rgba(255, 255, 255, 0.55) 52%,
+        transparent 72%
+      ),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.48) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* If the glyph clip is unavailable the text would be transparent, i.e.
+   * invisible. Give it back a solid colour rather than a blank hero. */
+  @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
+    .hero-rake { color: #ffffff; background-image: none; }
+  }
+
   /* The mono spec label. Used for every number, index, unit and status on the
    * page — it is the detail that makes the whole thing read as an instrument
    * rather than as a brochure. */
