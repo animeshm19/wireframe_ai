@@ -21,6 +21,10 @@ const RING_SPEC_SCHEMA = {
     gemSize: { type: Type.NUMBER, description: "Centre stone weight in carats, 0.05 to 15." },
     prongCount: { type: Type.INTEGER, description: "Number of prongs, 3 to 8. Default 6." },
     setting: { type: Type.STRING, enum: ["prong", "bezel", "halo", "cathedral", "three_stone"] },
+    shankStyle: {
+      type: Type.STRING,
+      enum: ["plain", "tapered", "split", "twisted"],
+    },
     shankStones: {
       type: Type.STRING,
       enum: ["none", "pave", "half_eternity", "eternity"],
@@ -41,11 +45,11 @@ const RING_SPEC_SCHEMA = {
   },
   required: [
     "ringSize", "bandWidth", "bandProfile", "gemShape",
-    "gemSize", "prongCount", "setting", "metalType", "finish", "shankStones", "interpretation",
+    "gemSize", "prongCount", "setting", "metalType", "finish", "shankStones", "shankStyle", "interpretation",
   ],
   propertyOrdering: [
     "ringSize", "bandWidth", "bandProfile", "gemShape",
-    "gemSize", "prongCount", "setting", "metalType", "finish", "shankStones", "interpretation",
+    "gemSize", "prongCount", "setting", "metalType", "finish", "shankStones", "shankStyle", "interpretation",
   ],
 };
 
@@ -61,6 +65,9 @@ Rules:
   "planished" or "beaten" -> hammered; "cross-hatched" or "engraved texture" ->
   florentine; "mirror" or "high shine" -> polished.
 - "trilogy", "past present future" and "three stone" all mean setting=three_stone.
+- shankStyle is the SHAPE of the band: "tapered" narrows toward the back of the
+  finger, "split" divides into two rails across the shoulders, "twisted" is a
+  rope or braid. Default plain.
 - shankStones are accent stones set into the BAND, separate from the centre
   stone: "pave" for stones on the shoulders only, "half_eternity" for halfway
   round, "eternity" for all the way round. "diamond band", "accented shoulders"

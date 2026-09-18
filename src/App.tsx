@@ -3,7 +3,7 @@ import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion"; 
 import { auth } from "./lib/firebase";
-import { useAuth } from "./auth/auth-context"; // <-- NEW IMPORT for ChatGate
+import { useAuth } from "./auth/auth-context"; 
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
 import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
@@ -15,9 +15,9 @@ import { ContactSection } from "./components/ContactSection";
 import { Pricing } from "./components/Pricing";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { CareersPage } from "./pages/CareersPage";
-import { ChatPage } from "./pages/ChatPage"; // The actual chat page (currently hidden)
-import GenericComingSoonPage from "./components/GenericComingSoonPage"; // <-- RENAMED (Unauthenticated/404 view)
-import { ChatComingSoonPage } from "./pages/ChatComingSoonPage"; // <-- NEW IMPORT (Authenticated view)
+import { ChatPage } from "./pages/ChatPage"; 
+import GenericComingSoonPage from "./components/GenericComingSoonPage"; 
+import { ChatComingSoonPage } from "./pages/ChatComingSoonPage"; 
 import { AboutPage } from "./pages/AboutPage";
 import { MeshPage } from "./pages/MeshPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
@@ -65,13 +65,29 @@ function ChatGate() {
     return <div className="h-full flex-1 w-full"></div>; 
   }
 
-  // LOGIC: If the user is signed up (user exists), show the "in queue" page.
-  if (user) {
+  // ============================================================
+  // CONTROL SWITCH: HIDE OR SHOW CHAT
+  // ============================================================
+
+  // --- OPTION A: HIDE CHAT (Early Access / Queue Mode) ---
+  // UNCOMMENT the block below to HIDE the chat and show the "Coming Soon" queue.
+  // ------------------------------------------------------------
+  /* if (user) {
     return <ChatComingSoonPage />;
   }
+  */
+ 
+  // --- OPTION B: SHOW CHAT (Live Mode) ---
+  // COMMENT OUT the block below if you want to HIDE the chat.
+  // Currently active: User gets the actual Chat App.
+  // ------------------------------------------------------------
+  if (user) {
+    return <ChatPage />;
+  }
+  
+  // ============================================================
 
   // If the user is not signed up (unauthenticated), show the page that prompts sign-up.
-  // Note: This replaces the original <ChatPage /> for both authenticated and unauthenticated users.
   return <GenericComingSoonPage />;
 }
 

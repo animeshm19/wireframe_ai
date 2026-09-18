@@ -124,6 +124,38 @@ export function gemOutline(cut: GemCut, n = 64): Pt[] {
 }
 
 /** Largest distance from the centre to the outline — used to place prongs and halos. */
+/**
+ * Girdle radius for a carat weight, per cut.
+ *
+ * 3.25mm is the girdle radius of a one-carat ROUND brilliant, and using it for
+ * every shape is what the app did until this was measured. It is not close: the
+ * cuts differ in how much stone sits under the same girdle, so a "1.00ct"
+ * marquise came out at 0.75ct and a "1.00ct" emerald at 1.24ct. On the one
+ * number a jeweller quotes and prices on, that is a quarter of the stone.
+ *
+ * Every cut's volume is exactly cubic in the girdle radius — the outline is
+ * scaled and the crown, girdle and pavilion depths are all fixed proportions of
+ * it — so one constant per cut corrects it exactly rather than approximately.
+ * Each is 1/cbrt(carat measured at the uncorrected radius), taken from the
+ * built solids; `carat weight is honest for every cut` re-derives them from the
+ * geometry, so a change to any cut's proportions fails the test rather than
+ * quietly re-introducing the error.
+ */
+export const CUT_CARAT_FACTOR: Record<GemCut, number> = {
+  round: 0.998424,
+  princess: 1.063062,
+  oval: 0.986892,
+  emerald: 0.930158,
+  cushion: 0.943620,
+  marquise: 1.099051,
+  pear: 0.998145,
+};
+
+/** Girdle radius in mm for a carat weight and cut. */
+export function girdleRadiusFor(cut: GemCut, carat: number): number {
+  return 3.25 * Math.cbrt(carat) * (CUT_CARAT_FACTOR[cut] ?? 1);
+}
+
 export function outlineRadius(o: Pt[]): number {
   return Math.max(...o.map(([x, y]) => Math.hypot(x, y)));
 }
@@ -555,7 +587,7 @@ export function buildRing(
   const innerR = (11.63 + ringSize * 0.8128) / 2;
   const thickness = clamp(bandWidth * 0.62, 1.2, 2.6);
   const outerR = innerR + thickness;
-  const girdleR = 3.25 * Math.cbrt(gemSize);
+  const girdleR = girdleRadiusFor(cut, gemSize);
 
   report(25, "Shaping band");
   const band = buildBand(innerR, bandWidth, thickness, profile);
@@ -649,6 +681,34 @@ export function checkManufacturability(
       severity: "error",
       code: "band_too_thin",
       message: `Band is ${metrics.bandThickness}mm thick; ${lim.label} needs at least ${lim.minBandThickness}mm to survive wear.`,
+    });
+  }
+
+  // A region edit thins ONE stretch of the shank, and the metrics above are the
+  // nominal section — so the global check cannot see it. A ring that is 1.8mm
+  // everywhere except the 40 degrees where it is 0.9mm still breaks at 0.9mm.
+  const regions: any[] = Array.isArray((p as any).regions) ? (p as any).regions : [];
+  const deg = (a: number) => Math.round(((a * 180) / Math.PI + 360) % 360) % 360;
+  let thinnest = metrics.bandThickness, thinnestAt = -1;
+  let narrowest = metrics.bandWidth, narrowestAt = -1;
+  for (const r of regions) {
+    const t = metrics.bandThickness * (r.thicknessScale ?? 1);
+    if (t < thinnest) { thinnest = t; thinnestAt = deg(r.start); }
+    const w = (metrics.bandWidth) * (r.widthScale ?? 1);
+    if (w < narrowest) { narrowest = w; narrowestAt = deg(r.start); }
+  }
+  if (thinnestAt >= 0 && thinnest < lim.minBandThickness) {
+    issues.push({
+      severity: "error",
+      code: "region_too_thin",
+      message: `The edited section at ${thinnestAt}\u00b0 is ${thinnest.toFixed(2)}mm thick; ${lim.label} needs at least ${lim.minBandThickness}mm. The rest of the band is fine \u2014 it will break here.`,
+    });
+  }
+  if (narrowestAt >= 0 && narrowest < 1.2) {
+    issues.push({
+      severity: "warning",
+      code: "region_too_narrow",
+      message: `The edited section at ${narrowestAt}\u00b0 narrows to ${narrowest.toFixed(2)}mm. Below about 1.2mm a shank flexes out of round in wear.`,
     });
   }
 

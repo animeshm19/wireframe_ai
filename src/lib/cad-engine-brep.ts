@@ -18,15 +18,33 @@ import {
   setOC, draw, drawCircle, drawEllipse, makeLine, makeFace, makeSolid,
   assembleWire, makeCylinder, makeSphere, makeCircle, measureVolume, exportSTEP, loft,
   makeCompound,
+  Plane, Sketch,
   type Shape3D, type AnyShape, type Wire,
 } from "replicad";
 import {
-  brilliantTopology, gemDims, gemOutline, radiusAtAngle, outlineRadius,
+  brilliantTopology, gemDims, gemOutline, radiusAtAngle, outlineRadius, girdleRadiusFor,
   type GemCut, type SettingStyle, type BandProfile, type V3, type Pt,
 } from "./cad-engine.js";
 
 // ------------------------------------------------------------------ kernel --
 
+/**
+ * MEMORY: this kernel leaks, and it cannot be fixed from here.
+ *
+ * WebAssembly has no garbage collector reaching into OCCT, so every shape,
+ * edge, wire and sketch stays allocated until something deletes it. A ring is
+ * hundreds of those — a faceted brilliant alone is 73 faces built from lines —
+ * and deleting the handful this module returns recovers almost none of it:
+ * measured at 1.9MB per preview and 15MB per merge either way. Tracking every
+ * intermediate was tried and moved the number by 1%.
+ *
+ * So the worker that runs this is recycled instead. See useBrepWorker: it
+ * counts builds and replaces the preview worker during an idle moment, which
+ * frees the entire WASM heap at once and costs one kernel boot nobody sees.
+ * Tests never caught this because every test is a fresh process; a customer
+ * would have caught it as a tab dying after a few hundred slider movements,
+ * reporting only "null function or function signature mismatch".
+ */
 let booting: Promise<void> | null = null;
 
 /**
@@ -39,13 +57,25 @@ let booting: Promise<void> | null = null;
  * untestable.
  */
 export function initKernel(
-  loadWasm: () => Promise<ArrayBuffer | Uint8Array>,
+  /**
+   * Either the wasm bytes, or a URL for the kernel to fetch itself. A URL is
+   * preferable in a browser — the module streams and compiles it while it
+   * downloads — and the bytes are what Node has.
+   */
+  source: () => Promise<ArrayBuffer | Uint8Array> | string,
 ): Promise<void> {
   if (!booting) {
     booting = (async () => {
       const mod: any = await import("replicad-opencascadejs");
       const factory = mod.default ?? mod;
-      const OC = await factory({ wasmBinary: await loadWasm() });
+      const got = await source();
+      const OC = typeof got === "string"
+        ? await factory({ locateFile: () => got })
+        : await factory({ wasmBinary: got });
+      // Held so the heap can be measured. Every caller must come through here:
+      // a second boot path that calls setOC itself leaves this null, and the
+      // leak harness then reports a flat zero and passes for the wrong reason.
+      oc = OC;
       setOC(OC);
     })();
   }
@@ -54,6 +84,26 @@ export function initKernel(
 
 export function kernelReady(): boolean {
   return booting !== null;
+}
+
+let oc: any = null;
+
+/**
+ * The kernel's own heap, in MB.
+ *
+ * The only number that means anything when chasing this leak. OCCT allocates
+ * inside the WASM module's linear memory, which `performance.memory` does not
+ * count — a tab can be a gigabyte into the leak while its JS heap sits flat at
+ * forty megabytes, which is exactly what makes the crash look like it came from
+ * nowhere.
+ */
+export function kernelHeapMB(): number {
+  // This build exposes `wasmMemory` and not the usual emscripten HEAP* views,
+  // so read the WebAssembly.Memory directly. Returns -1 rather than 0 when it
+  // cannot be read: a leak harness that reports a flat zero because it is
+  // measuring nothing would pass every time, which is worse than no harness.
+  const buf = (oc as any)?.wasmMemory?.buffer;
+  return buf ? buf.byteLength / 1048576 : -1;
 }
 
 // -------------------------------------------------------------------- band --
@@ -69,32 +119,44 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * revolve is one surface of revolution, so the shank a caster receives is the
  * shape that was designed rather than a polygon count.
  */
-export function buildBand(
-  innerR: number, width: number, thickness: number, profile: BandProfile
-): Shape3D {
-  const halfW = width / 2;
-  const outerR = innerR + thickness;
+export type BandSection = {
+  innerR: number;
+  width: number;
+  thickness: number;
+  profile: BandProfile;
+  /** Axial shift of the whole section. Two rails at ±shift make a split shank. */
+  shift: number;
+  /** Rotation of the section about the ring's tangent, in radians. */
+  twist: number;
+};
 
-  let section;
-  switch (profile) {
+/**
+ * The band's cross-section, in (radius, axial) coordinates.
+ *
+ * One definition, used by both the revolve and the loft. When these were two
+ * copies the uniform and varying bands were subtly different shapes, and the
+ * only way anyone would have found out is by measuring a cast ring.
+ */
+function sectionDrawing(s: BandSection) {
+  const halfW = s.width / 2;
+  const outerR = s.innerR + s.thickness;
+
+  switch (s.profile) {
     case "flat":
-      section = draw([innerR, -halfW])
-        .lineTo([outerR, -halfW]).lineTo([outerR, halfW]).lineTo([innerR, halfW])
+      return draw([s.innerR, -halfW])
+        .lineTo([outerR, -halfW]).lineTo([outerR, halfW]).lineTo([s.innerR, halfW])
         .close();
-      break;
 
     case "knife":
       // A true ridge: two straight flanks meeting at a sharp outer edge.
-      section = draw([innerR, -halfW])
-        .lineTo([outerR, 0]).lineTo([innerR, halfW])
+      return draw([s.innerR, -halfW])
+        .lineTo([outerR, 0]).lineTo([s.innerR, halfW])
         .close();
-      break;
 
     case "round":
       // Rounded inside and out — an exact ellipse, not a 28-gon.
-      section = drawEllipse(thickness / 2, halfW)
-        .translate((innerR + outerR) / 2, 0);
-      break;
+      return drawEllipse(s.thickness / 2, halfW)
+        .translate((s.innerR + outerR) / 2, 0);
 
     case "comfort":
     default:
@@ -107,16 +169,246 @@ export function buildBand(
       // spend on both, so it gets the shape wrong the moment width and
       // thickness diverge, which on a wide band came out 22% off in metal
       // volume and would have quoted the customer the wrong weight in platinum.
-      section = draw([innerR, -halfW])
+      return draw([s.innerR, -halfW])
         // sweep=true is load-bearing: without it the arc takes the other half
         // of the ellipse and domes INWARD, into the finger bore. It still
         // builds, still exports, and is 24% light — a silently wrong ring.
-        .halfEllipseTo([innerR, halfW], thickness, true)
+        .halfEllipseTo([s.innerR, halfW], s.thickness, true)
         .close();
-      break;
+  }
+}
+
+/** A uniform band, as an exact surface of revolution. */
+export function buildBand(
+  innerR: number, width: number, thickness: number, profile: BandProfile
+): Shape3D {
+  return sectionDrawing({ innerR, width, thickness, profile, shift: 0, twist: 0 })
+    .sketchOnPlane("XZ")
+    .revolve([0, 0, 1]) as Shape3D;
+}
+
+/**
+ * A band whose cross-section is free to change as it goes round the finger.
+ *
+ * Lofted through a ring of stations rather than revolved, because a revolve can
+ * only ever sweep ONE section — and a shank that is the same all the way round
+ * is the one thing a jeweller almost never makes. Tapered shoulders, split
+ * shanks, twisted bands, a stretch widened to carry pavé, and every local edit
+ * the lasso tool will apply are all the same thing underneath: a section that
+ * depends on where you are around the ring.
+ *
+ * The uniform case still uses buildBand above. The revolve is EXACT — 0.00%
+ * against closed form — where 120 lofted stations land at 0.05%, and there is
+ * no reason to pay even that for a band that does not vary.
+ *
+ * The last station repeats the first so the loft closes into a ring rather than
+ * a tube with two ends. Any twist therefore has to come back to where it
+ * started: a whole number of turns, or the surface will not meet itself.
+ */
+export function buildVariableBand(
+  sectionAt: (theta: number) => BandSection,
+  stations = 120
+): Shape3D {
+  const wires: Wire[] = [];
+
+  for (let i = 0; i <= stations; i++) {
+    const closing = i === stations;
+    const theta = (i / stations) * Math.PI * 2;
+    const s = sectionAt(closing ? 0 : theta);
+
+    let d = sectionDrawing(s);
+    if (s.shift) d = d.translate(0, s.shift);
+    if (s.twist) {
+      // Twist about the section's own centre, not the finger axis, or the band
+      // corkscrews away from the hand instead of rotating in place.
+      d = d.rotate((s.twist * 180) / Math.PI, [s.innerR + s.thickness / 2, 0]);
+    }
+
+    // The section plane contains the radius and the finger axis; its normal is
+    // the direction of travel round the ring.
+    const c = Math.cos(theta), sn = Math.sin(theta);
+    const plane = new Plane([0, 0, 0], [c, sn, 0], [-sn, c, 0]);
+    wires.push((d.sketchOnPlane(plane) as Sketch).wire);
   }
 
-  return section.sketchOnPlane("XZ").revolve([0, 0, 1]) as Shape3D;
+  return loft(wires);
+}
+
+// -------------------------------------------------------------- shank style --
+
+export type ShankStyle = "plain" | "tapered" | "split" | "twisted";
+
+/**
+ * How much the shank has "opened up" at this angle around the finger.
+ *
+ * 0 at the bottom of the ring, 1 at the head. Raised to a power so the change
+ * happens across the shoulders rather than creeping all the way round: a split
+ * that begins at the bottom of the finger is not a split shank, it is two rings.
+ */
+function shoulderBlend(theta: number, sharpness = 2.2): number {
+  const up = Math.max(0, Math.sin(theta));      // theta is measured from +X, head at +Y
+  return Math.pow(up, sharpness);
+}
+
+
+/* ------------------------------------------------------------------ regions */
+
+/**
+ * A local edit to one stretch of the shank.
+ *
+ * Addressed by ANGLE, never by face or triangle. The ring is rebuilt from its
+ * spec on every parameter change, and the OCCT faces that come out of a rebuild
+ * are different objects with different indices; an edit stored against one
+ * silently reattaches itself somewhere else a few edits later. An angle is a
+ * property of the design rather than of any particular build of it, so a region
+ * picked today still means the same stretch of metal after the carat changes,
+ * after a reload, and in the exported STEP.
+ */
+export type RegionOverride = {
+  /** Radians from +X, head at +Y. start > end means the region wraps the seam. */
+  start: number;
+  end: number;
+  widthScale?: number;
+  thicknessScale?: number;
+  profile?: BandProfile;
+  /** Half-width of the ease at each end, radians. */
+  blend?: number;
+};
+
+/** Into [0, 2pi). */
+function norm(a: number): number {
+  const t = Math.PI * 2;
+  return ((a % t) + t) % t;
+}
+
+/**
+ * How strongly a region applies at one angle: 1 inside, 0 outside, eased across
+ * `blend` at both ends.
+ *
+ * The ease is not decoration. A step change in section is a crease in the
+ * lofted surface, and a crease in a cast ring is a stress riser and a place the
+ * polisher cannot reach. Smoothstep gives a tangent-continuous blend, which is
+ * what a bench jeweller's file would leave.
+ */
+function regionWeight(theta: number, r: RegionOverride): number {
+  const blend = Math.max(1e-4, r.blend ?? 0.16);
+  const start = norm(r.start), end = norm(r.end);
+  // Measure everything from the region's start, so a region that wraps the seam
+  // is simply a long one. Comparing against a seam that may sit *inside* the
+  // region is how every wrap bug in this kind of code gets written.
+  const span = norm(end - start);
+  if (span <= 0) return 0;
+
+  const ease = Math.min(blend, span / 2);
+  const x = norm(theta - start);
+
+  // One signed coordinate for both sides: how far inside the region this angle
+  // is, negative when outside. Smoothstep across +/- ease then gives exactly
+  // 1 well inside, 0.5 on the boundary and 0 well outside, with no seam between
+  // two separately-written branches to disagree about the edge.
+  const inside = x <= span
+    ? Math.min(x, span - x)
+    : -Math.min(norm(theta - end), norm(start - theta));
+
+  const u = clamp((inside + ease) / (2 * ease), 0, 1);
+  return u * u * (3 - 2 * u);
+}
+
+/**
+ * Layers region overrides onto a base section function.
+ *
+ * Overlapping regions multiply rather than fight: two edits that both narrow a
+ * stretch narrow it twice, which is what dragging two sliders looks like.
+ */
+export function applyRegions(
+  base: (theta: number) => BandSection,
+  regions: RegionOverride[] | undefined
+): (theta: number) => BandSection {
+  if (!regions?.length) return base;
+  return (theta) => {
+    const s = { ...base(theta) };
+    for (const r of regions) {
+      const w = regionWeight(theta, r);
+      if (w <= 0) continue;
+      if (r.widthScale != null) s.width *= 1 + (r.widthScale - 1) * w;
+      if (r.thicknessScale != null) s.thickness *= 1 + (r.thicknessScale - 1) * w;
+      // A profile cannot be blended — a section is one shape or the other — so
+      // it changes over the half of the ease where the region dominates.
+      if (r.profile && w > 0.5) s.profile = r.profile;
+    }
+    return s;
+  };
+}
+
+/** Does this design vary around the ring? Decides revolve vs loft. */
+export function hasRegionEdits(regions: RegionOverride[] | undefined): boolean {
+  return !!regions?.some((r) =>
+    (r.widthScale != null && r.widthScale !== 1) ||
+    (r.thicknessScale != null && r.thicknessScale !== 1) ||
+    r.profile != null);
+}
+
+/** The section a shank sweeps, as a function of angle. */
+export function shankSection(
+  style: ShankStyle, innerR: number, width: number, thickness: number,
+  profile: BandProfile
+): (theta: number) => BandSection {
+  const base: BandSection = { innerR, width, thickness, profile, shift: 0, twist: 0 };
+
+  switch (style) {
+    case "tapered":
+      // Narrow at the back of the finger, broadening to carry the head. The
+      // commonest shank there is, and the one a plain revolve cannot make.
+      return (t) => ({ ...base, width: width * (0.62 + 0.38 * shoulderBlend(t, 1.6)) });
+
+    case "twisted":
+      // Two full turns: it has to come back to where it started or the loft
+      // cannot close the ring.
+      return (t) => ({ ...base, twist: 2 * t });
+
+    case "plain":
+    default:
+      return () => base;
+  }
+}
+
+/**
+ * The slot that divides a split shank.
+ *
+ * A split shank is made by CUTTING, not by building two rails and joining them.
+ * Two rails have to be coincident over the whole bottom of the ring so they read
+ * as one band there, and a boolean between two solids sharing that much surface
+ * is the worst case OCCT has: fusing them took fifty-two seconds.
+ *
+ * The tool is a flat-sided prism, and that is the whole trick. OCCT intersects
+ * planes cheaply and curved surfaces expensively — the same slot as a lofted
+ * solid costs 3.8 seconds and as a swept ellipsoid 1.4, where this is 0.4. The
+ * taper that closes the slot at both ends is built into the prism's outline
+ * rather than into a swept section, so it costs nothing: the inner boundary
+ * simply rises out of the metal towards the ends, and where it clears the
+ * surface the rails rejoin.
+ */
+function splitSlot(
+  innerR: number, width: number, thickness: number, stations = 20
+) {
+  const outerR = innerR + thickness;
+  const halfW = (width * 0.34) / 2;
+  const reach = thickness + 1.2;
+
+  const lo: [number, number][] = [];
+  const hi: [number, number][] = [];
+  for (let i = 0; i <= stations; i++) {
+    const th = (i / stations) * Math.PI;            // the upper half of the ring
+    const depth = Math.pow(Math.max(0, Math.sin(th)), 2.2) * reach;
+    const rb = outerR + 0.5 - depth;
+    lo.push([Math.cos(th) * rb, Math.sin(th) * rb]);
+    hi.push([Math.cos(th) * (outerR + 3), Math.sin(th) * (outerR + 3)]);
+  }
+
+  const pts = [...lo, ...hi.reverse()];
+  let d = draw(pts[0]);
+  for (let i = 1; i < pts.length; i++) d = d.lineTo(pts[i]);
+  return d.close().sketchOnPlane("XY", -halfW).extrude(2 * halfW) as Shape3D;
 }
 
 // --------------------------------------------------------------------- gem --
@@ -626,12 +918,23 @@ function buildSideStones(
 export type RingDims = {
   innerR: number; outerR: number; bandWidth: number; thickness: number;
   girdleR: number; stoneHeight: number;
+  /** The stone's actual footprint, mm. Equal for a round; not for the others. */
+  stoneL: number; stoneW: number;
+  caratActual: number;
 };
 
 export type RingMetrics = {
   innerDiameter: number; outerDiameter: number;
   bandWidth: number; bandThickness: number;
   girdleDiameter: number; stoneHeight: number;
+  /**
+   * The stone's real length and width. A single diameter is only meaningful for
+   * a round; quoting 6.5mm for a marquise that is 9.4 x 3.9mm describes a stone
+   * that does not exist.
+   */
+  stoneLength: number; stoneWidth: number;
+  /** What the stone actually weighs, from its volume — not what was asked for. */
+  caratActual: number;
   volumeMm3: number; stoneVolumeMm3: number; stoneCount: number;
   /**
    * How many disconnected pieces the metal fused into. Anything but 1 cannot be
@@ -697,19 +1000,37 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   const innerR = (11.63 + ringSize * 0.8128) / 2;
   const thickness = clamp(bandWidth * 0.62, 1.2, 2.6);
   const outerR = innerR + thickness;
-  const girdleR = 3.25 * Math.cbrt(gemSize);
+  const girdleR = girdleRadiusFor(cut, gemSize);
   const d = gemDims(girdleR);
 
   const shankStones = (p?.shankStones || "none") as ShankStones;
+  const shankStyle = (p?.shankStyle || "plain") as ShankStyle;
+  const regions: RegionOverride[] = Array.isArray(p?.regions) ? p.regions : [];
+  const varied = hasRegionEdits(regions);
 
-  let band = buildBand(innerR, bandWidth, thickness, profile);
+  // A plain shank keeps the exact revolve; anything that varies has to be
+  // lofted. Worth the branch: the revolve is exact where the loft is 0.05% out,
+  // and most rings are plain.
+  const section = applyRegions(
+    shankSection(shankStyle, innerR, bandWidth, thickness, profile), regions);
+
+  let bands: Shape3D[] = (shankStyle === "plain" || shankStyle === "split") && !varied
+    ? [buildBand(innerR, bandWidth, thickness, profile)]
+    : [buildVariableBand(section)];
+
+  if (shankStyle === "split") {
+    bands = [bands[0].cut(splitSlot(innerR, bandWidth, thickness)) as Shape3D];
+  }
+  let band = bands[0];
   const accents: Shape3D[] = [];
 
   if (shankStones !== "none") {
     const L = shankStoneLayout(shankStones, outerR, bandWidth);
     if (opts.seats) {
-      band = cutAll(band, L.count,
-        (i) => paveSeat(L.angleAt(i), outerR, L.seatCentre, L.stoneR));
+      // Seats go into every rail: on a split shank the stones run down both.
+      bands = bands.map((bd) => cutAll(bd, L.count,
+        (i) => paveSeat(L.angleAt(i), outerR, L.seatCentre, L.stoneR)));
+      band = bands[0];
     }
     accents.push(...placeAccents(L.count, L.stoneR,
       (i) => ({ angle: L.angleAt(i), radius: L.seatCentre })));
@@ -722,7 +1043,8 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   const stand = <T extends Shape3D>(sh: T): T =>
     sh.rotate(-90, [0, 0, 0], [1, 0, 0]).translate([0, outerR - 0.35, 0]) as T;
 
-  const metalParts = [band, ...head.metal.map(stand)];
+  const metalParts = [...bands, ...head.metal.map(stand)];
+  void band;
 
   if (style === "three_stone") {
     const sides = buildSideStones(girdleR, outerR, 0.45);
@@ -752,6 +1074,16 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
     dims: {
       innerR, outerR, bandWidth, thickness,
       girdleR, stoneHeight: d.totalH,
+      // From the cut's own outline, so the footprint reported is the footprint
+      // built. Length is the long axis; for a round the two are equal.
+      ...(() => {
+        const o = gemOutline(cut, 128);
+        const xs = o.map((pt) => pt[0]), ys = o.map((pt) => pt[1]);
+        const a = (Math.max(...ys) - Math.min(...ys)) * girdleR;
+        const b = (Math.max(...xs) - Math.min(...xs)) * girdleR;
+        return { stoneL: Math.max(a, b), stoneW: Math.min(a, b) };
+      })(),
+      caratActual: 0,
     },
   };
 }
@@ -909,6 +1241,11 @@ export function ringMetrics(
     bandThickness: +d.thickness.toFixed(2),
     girdleDiameter: +(d.girdleR * 2).toFixed(2),
     stoneHeight: +d.stoneHeight.toFixed(2),
+    stoneLength: +d.stoneL.toFixed(2),
+    stoneWidth: +d.stoneW.toFixed(2),
+    // Weighed from the centre stone's own volume at 3.52 g/cm3, so the number
+    // shown is the one a scale would read, not the one that was typed in.
+    caratActual: +(stones.length ? measureVolume(stones[0]) * 3.52 / 200 : 0).toFixed(2),
     volumeMm3: +measureVolume(metal).toFixed(1),
     // Summed, not fused. The stones never touch each other, so their volumes
     // add exactly — and fusing a dozen halo accents to ask a question addition

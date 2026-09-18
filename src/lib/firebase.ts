@@ -2,7 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
+import { getFunctions } from "firebase/functions"; // <-- This is key
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -10,7 +10,7 @@ const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string,
   appId: import.meta.env.VITE_FIREBASE_APP_ID as string,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string, // ✅ add this
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string,
 };
 
 const app = initializeApp(firebaseConfig);
@@ -18,4 +18,4 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const functions = getFunctions(app, "us-central1");
+export const functions = getFunctions(app, "us-central1"); // <-- Exported functions instance

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -10,6 +10,7 @@ import { buildEnvironmentTexture, createBackdrop } from "../../lib/studio-env";
 import {
   finishMaps, applyTriplanar, addCylindricalUVs, FINISHES, FINISH_LABELS,
 } from "../../lib/finishes";
+import { createPicker, createRegionHighlight, type Region } from "../../lib/studio-pick";
 import {
   createSectionTool, createDimensions, applyDisplayMode, renderPNG,
   DISPLAY_MODES, DISPLAY_LABELS, type DisplayMode, type SectionAxis,
@@ -22,7 +23,10 @@ import {
   DEFAULT_SPEC, RingSpec, parseSpecFromPrompt, withDefaults,
   GEM_CUTS, SETTINGS, BAND_PROFILES, METALS, METAL_LABELS,
   METAL_APPEARANCE, METAL_DENSITY, SHANK_STONES, SHANK_STONE_LABELS, SETTING_LABELS,
+  SHANK_STYLES, SHANK_STYLE_LABELS,
 } from "../../lib/ring-spec";
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: () => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -39,7 +43,25 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const stoneMeshRef = useRef<THREE.Mesh | null>(null);
   const stoneMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const materialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
-  const frameRef = useRef<((r: number) => void) | null>(null);
+  const frameRef = useRef<((r: number, lean?: number) => void) | null>(null);
+
+  /**
+   * How far the default camera should lean over the head, 0..1.
+   *
+   * A halo, a cluster or a three-stone is a design ABOUT its head: the stones
+   * are arranged in the plane of the ring, and the three-quarter view that
+   * flatters a solitaire's profile shows them edge-on, as a row of spikes.
+   * Leaning the camera over reads the arrangement, at the cost of some of the
+   * shank — which for those designs is the right trade, and for a plain
+   * solitaire is not.
+   */
+  const viewLean = useMemo(() => {
+    if (spec.setting === "halo" || spec.setting === "three_stone") return 1;
+    if (spec.setting === "bezel") return 0.35;
+    return 0;
+  }, [spec.setting]);
+  const leanRef = useRef(viewLean);
+  leanRef.current = viewLean;
   // The material is created inside the mount effect, which runs AFTER the
   // appearance effect below. Without this flag that effect saw a null material
   // on its only run and returned, so whatever metal and finish the design
@@ -54,6 +76,12 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const [sectionOffset, setSectionOffset] = useState(0);
   const [dimsOn, setDimsOn] = useState(false);
   const [turntable, setTurntable] = useState(false);
+  const [lasso, setLasso] = useState(false);
+  const [lassoMiss, setLassoMiss] = useState(false);
+  const [activeRegion, setActiveRegion] = useState<number | null>(null);
+  const pickerRef = useRef<ReturnType<typeof createPicker> | null>(null);
+  const highlightRef = useRef<ReturnType<typeof createRegionHighlight> | null>(null);
+
   const [pinned, setPinned] = useState<RingSpec | null>(null);
   const [showPinned, setShowPinned] = useState(false);
 
@@ -211,6 +239,8 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     metalMesh.add(metalEdges);
     metalEdgesRef.current = metalEdges;
 
+    if (highlightRef.current) highlightRef.current.mesh.geometry = metalGeom;
+
     const radius = metalGeom.boundingSphere?.radius ?? 12;
     // Cap colours name the material at the cut: warm grey for metal, ice for
     // the stone, so a cross-section reads at a glance.
@@ -224,6 +254,14 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     setSectionOffset(0);
     frameRef.current?.(radius);
   }, [ringMesh]);
+
+  // A setting change that changes where the interest is re-frames the shot.
+  // Only on a change of lean: re-framing on every edit would fight the designer
+  // every time they orbited to look at something.
+  useEffect(() => {
+    const r = meshRef.current?.geometry?.boundingSphere?.radius;
+    if (r) frameRef.current?.(r, viewLean);
+  }, [viewLean]);
 
   // The merge finished: replace the preview's metal with the real thing.
   useEffect(() => {
@@ -241,6 +279,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
     mesh.geometry.dispose();
     mesh.geometry = g;
+    if (highlightRef.current) highlightRef.current.mesh.geometry = g;
 
     // The section tool holds the old geometry for its stencil pass; rebuild it
     // against the new one or the cut caps the shape that is no longer there.
@@ -282,6 +321,22 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.autoRotate = turntable;
   }, [turntable, rendererReady]);
+
+  // Orbiting and lassoing are both click-drag on the same canvas, so one has to
+  // yield. The lasso wins while it is armed.
+  useEffect(() => {
+    if (controlsRef.current) controlsRef.current.enabled = !lasso;
+  }, [lasso, rendererReady]);
+
+  // Show the regions the design currently carries, or the one being inspected.
+  useEffect(() => {
+    const h = highlightRef.current;
+    if (!h) return;
+    const shown: Region[] = (activeRegion === null ? spec.regions : [spec.regions[activeRegion]])
+      .filter(Boolean)
+      .map((r: any) => ({ body: "metal" as const, start: r.start, end: r.end }));
+    h.set(shown, centreRef.current ?? new THREE.Vector3());
+  }, [spec.regions, activeRegion, ringMesh, rendererReady]);
 
   // --- scene --------------------------------------------------------------
   useEffect(() => {
@@ -377,7 +432,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     scene.add(grid);
 
     // Frame the camera and drop the floor to the object's underside.
-    frameRef.current = (radius: number) => {
+    frameRef.current = (radius: number, lean = leanRef.current) => {
       floor.position.y = -radius - 0.4;
       grid.position.y = -radius - 0.4;
       // Fit the piece into the space the tool palette ISN'T covering.
@@ -395,7 +450,13 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       const dist = (radius / Math.sin(Math.min(vHalf, hHalf))) * 1.15;
 
       // Three-quarter view: reads as a product shot rather than a flat elevation.
-      camera.position.set(dist * 0.620, dist * 0.375, dist * 0.689);
+      // The azimuth is fixed; only the elevation moves, so leaning over the head
+      // does not also spin the ring and lose the profile the designer was just
+      // looking at. 22 degrees is the product-shot angle; 46 is high enough to
+      // read a halo's arrangement while the band still reads as a ring.
+      const elev = ((22 + 24 * clamp01(lean)) * Math.PI) / 180;
+      const ce = Math.cos(elev), se = Math.sin(elev);
+      camera.position.set(dist * ce * 0.669, dist * se, dist * ce * 0.743);
       camera.near = dist / 100; camera.far = dist * 12;
       camera.updateProjectionMatrix();
 
@@ -454,6 +515,24 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     scene.add(dims.group);
     dimsRef.current = dims;
 
+    const picker = createPicker(
+      renderer, camera,
+      () => ([
+        meshRef.current ? { mesh: meshRef.current, body: "metal" as const } : null,
+        stoneMeshRef.current ? { mesh: stoneMeshRef.current, body: "stone" as const } : null,
+      ].filter(Boolean) as { mesh: THREE.Mesh; body: "metal" | "stone" }[]),
+      () => centreRef.current ?? new THREE.Vector3(),
+    );
+    picker.setSize(w, h);
+    pickerRef.current = picker;
+    // Dev escape hatch: the pick buffer is invisible by construction, so there
+    // is no way to debug a selection from the UI alone.
+    if (import.meta.env.DEV) (window as any).__picker = picker;
+
+    const highlight = createRegionHighlight();
+    scene.add(highlight.mesh);
+    highlightRef.current = highlight;
+
     shotRef.current = () => {
       const url = renderPNG(renderer, composer, camera,
         (pw, ph) => { bloom.setSize(pw, ph); gtao.setSize(pw, ph); });
@@ -476,6 +555,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       composer.setSize(nw, nh);
       bloom.setSize(nw, nh);
       gtao.setSize(nw, nh);
+      picker.setSize(nw, nh);
       const r = meshRef.current?.geometry?.boundingSphere?.radius;
       if (r) frameRef.current?.(r);
     };
@@ -489,6 +569,8 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       cancelAnimationFrame(raf);
       controls.dispose();
       dims.dispose();
+      picker.dispose();
+      highlight.dispose();
       composer.dispose();
       backdrop.geometry.dispose();
       (backdrop.material as any).map?.dispose?.();
@@ -509,6 +591,30 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
   const set = <K extends keyof RingSpec>(k: K, v: RingSpec[K]) =>
     setSpec((s) => ({ ...s, [k]: v }));
+
+  const lassoRef = useRef<[number, number][]>([]);
+  const polyRef = useRef<SVGPolygonElement>(null);
+  const drawLasso = useCallback(() => {
+    const el = polyRef.current;
+    if (el) el.setAttribute("points", lassoRef.current.map(([x, y]) => `${x},${y}`).join(" "));
+  }, []);
+
+  const editRegion = (i: number, patch: Partial<RingSpec["regions"][number]>) =>
+    setSpec((s) => ({
+      ...s,
+      regions: s.regions.map((r, j) => (j === i ? { ...r, ...patch } : r)),
+    }));
+
+  // Escape abandons a lasso in progress. Without it the only way out of a
+  // half-drawn selection is to complete one you did not want.
+  useEffect(() => {
+    if (!lasso) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setLasso(false); lassoRef.current = []; }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lasso]);
 
   const [exporting, setExporting] = useState<"step" | "stl" | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -532,7 +638,72 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
 
   return (
     <div className="flex h-full w-full bg-black relative">
-      <div ref={mountRef} className="flex-1 h-full cursor-move" />
+      <div
+        ref={mountRef}
+        className={"flex-1 h-full " + (lasso ? "cursor-crosshair" : "cursor-move")}
+        onPointerDown={(e) => {
+          if (!lasso) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          lassoRef.current = [[e.clientX - r.left, e.clientY - r.top]];
+          drawLasso();
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          // The path lives in a ref, not in state. A pointer emits ~60 moves a
+          // second and this component owns the renderer; re-rendering it that
+          // often to redraw one polygon would cost more than the drawing does.
+          const path = lassoRef.current;
+          if (!lasso || path.length === 0) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - r.left, y = e.clientY - r.top;
+          const last = path[path.length - 1];
+          // Thin the path: every retained point is another side in the
+          // point-in-polygon test that runs for each pixel of the pick buffer.
+          if (Math.hypot(x - last[0], y - last[1]) < 4) return;
+          path.push([x, y]);
+          drawLasso();
+        }}
+        onPointerUp={(e) => {
+          if (!lasso) return;
+          const path = lassoRef.current;
+          lassoRef.current = [];
+          drawLasso();
+          e.currentTarget.releasePointerCapture?.(e.pointerId);
+          if (path.length < 3 || !pickerRef.current) return;
+
+          const picked = pickerRef.current.pick(path).filter((r) => r.body === "metal");
+          if (!picked.length) { setLassoMiss(true); return; }
+          setLassoMiss(false);
+
+          setSpec((prev) => {
+            const next = [...prev.regions, ...picked.map((r) => ({ start: r.start, end: r.end }))];
+            setActiveRegion(next.length - 1);
+            return { ...prev, regions: next };
+          });
+          setLasso(false);
+        }}
+      />
+
+      {/* The lasso itself. An SVG overlay rather than anything in the 3D scene:
+          it is a gesture on the screen, not an object in the world, and it must
+          not appear in the very buffer it is about to read. */}
+      {lasso && (
+        <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 20 }}>
+          <polygon ref={polyRef} points=""
+            fill="rgba(79,183,221,0.14)"
+            stroke="#4fb7dd" strokeWidth="1.5" strokeDasharray="5 4" />
+        </svg>
+      )}
+
+      {lasso && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-6 z-20 pointer-events-none
+                        px-3 py-1.5 rounded-full border border-white/10 bg-black/70 backdrop-blur
+                        text-[11px] text-white/70">
+          {lassoMiss
+            ? "Nothing metal in that loop \u2014 draw around part of the band"
+            : "Draw around a part of the band \u00b7 Esc to cancel"}
+        </div>
+      )}
 
       {/* Designer toolbar. Floating over the viewport rather than buried in the
           parameter panel: these change how you LOOK at the piece, and you reach
@@ -575,8 +746,50 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
             </>
           )}
           <Toggle label="Dimensions" on={dimsOn} onChange={setDimsOn} />
+          <Toggle
+            label={lasso ? "Drawing… (Esc)" : "Select a section"}
+            on={lasso}
+            onChange={(v) => { setLasso(v); lassoRef.current = []; setLassoMiss(false); }} />
           <Toggle label="Turntable" on={turntable} onChange={setTurntable} />
         </div>
+
+        {spec.regions.length > 0 && (
+          <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
+            <div className="text-[9px] uppercase tracking-widest text-white/35 px-0.5">
+              Sections ({spec.regions.length})
+            </div>
+            {spec.regions.map((r, i) => {
+              const deg = (a: number) => Math.round(((a * 180) / Math.PI + 360) % 360);
+              return (
+                <button key={i} onClick={() => setActiveRegion(activeRegion === i ? null : i)}
+                  className={"w-full text-left text-[10px] px-2 py-1 rounded border transition-colors " +
+                    (activeRegion === i
+                      ? "bg-[var(--gold-500)]/15 border-[var(--gold-500)]/50 text-[var(--gold-500)]"
+                      : "bg-white/5 border-white/10 text-white/55 hover:text-white/90")}>
+                  {deg(r.start)}° – {deg(r.end)}°
+                </button>
+              );
+            })}
+
+            {activeRegion !== null && spec.regions[activeRegion] && (
+              <div className="pt-1 space-y-1.5 border-t border-white/10">
+                <RegionSlider label="Width" value={spec.regions[activeRegion].widthScale ?? 1}
+                  onChange={(v) => editRegion(activeRegion, { widthScale: v })} />
+                <RegionSlider label="Thickness" value={spec.regions[activeRegion].thicknessScale ?? 1}
+                  onChange={(v) => editRegion(activeRegion, { thicknessScale: v })} />
+                <button
+                  onClick={() => {
+                    setSpec((p) => ({ ...p, regions: p.regions.filter((_, i) => i !== activeRegion) }));
+                    setActiveRegion(null);
+                  }}
+                  className="w-full text-[10px] px-2 py-1 rounded border border-red-500/30
+                             bg-red-900/15 text-red-300/80 hover:text-red-200">
+                  Remove section
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
           <Toggle
@@ -620,7 +833,9 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
           onChange={(v) => set("setting", v as any)} />
         <Choice label="Band profile" value={spec.bandProfile} options={BAND_PROFILES}
           onChange={(v) => set("bandProfile", v as any)} />
-        <Choice label="Shank" value={spec.shankStones} options={SHANK_STONES}
+        <Choice label="Shank shape" value={spec.shankStyle} options={SHANK_STYLES}
+          labels={SHANK_STYLE_LABELS} onChange={(v) => set("shankStyle", v as any)} />
+        <Choice label="Shank stones" value={spec.shankStones} options={SHANK_STONES}
           labels={SHANK_STONE_LABELS} onChange={(v) => set("shankStones", v as any)} />
         <Choice label="Metal" value={spec.metalType} options={METALS}
           labels={METAL_LABELS} onChange={(v) => set("metalType", v as any)} />
@@ -649,11 +864,26 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
           <Metric label="Inner Ø" value={metrics ? `${metrics.innerDiameter} mm` : "—"} />
           <Metric label="Outer Ø" value={metrics ? `${metrics.outerDiameter} mm` : "—"} />
           <Metric label="Band" value={metrics ? `${metrics.bandWidth} × ${metrics.bandThickness} mm` : "—"} />
-          <Metric label="Stone Ø" value={metrics ? `${metrics.girdleDiameter} mm` : "—"} />
+          <Metric
+            label={metrics && metrics.stoneLength !== metrics.stoneWidth ? "Stone" : "Stone Ø"}
+            value={!metrics ? "—"
+              : metrics.stoneLength === metrics.stoneWidth
+                ? `${metrics.stoneLength} mm`
+                : `${metrics.stoneLength} × ${metrics.stoneWidth} mm`} />
           <Metric label="Stone height" value={metrics ? `${metrics.stoneHeight} mm` : "—"} />
-          <Metric label="Metal volume" value={metrics ? `${metrics.volumeMm3} mm³` : "—"} />
-          <Metric label="Stones" value={metrics ? `${metrics.stoneCount} · ${metrics.stoneVolumeMm3} mm³` : "—"} />
-          <Metric label="Est. weight" value={weightG ? `${weightG.toFixed(2)} g` : "—"} highlight />
+          <Metric label="Stone weight" stale={isResolving}
+            value={metrics?.caratActual ? `${metrics.caratActual.toFixed(2)} ct` : "—"} />
+          {/* These three are the merge's output, and nothing else here is. While
+              a merge is in flight the rest of the panel is still true of the
+              design on screen, but these belong to the previous one — so they
+              are marked stale rather than left looking authoritative. A quoted
+              weight that is one edit out of date is a real invoice, wrong. */}
+          <Metric label="Metal volume" stale={isResolving}
+            value={metrics ? `${metrics.volumeMm3} mm³` : "—"} />
+          <Metric label="Stones" stale={isResolving}
+            value={metrics ? `${metrics.stoneCount} · ${metrics.stoneVolumeMm3} mm³` : "—"} />
+          <Metric label="Est. weight" stale={isResolving}
+            value={weightG ? `${weightG.toFixed(2)} g` : "—"} highlight />
           <p className="text-[9px] text-white/30 pt-1 leading-relaxed">
             Metal only, in {METAL_LABELS[spec.metalType]}, assuming a solid casting.
             Stones are excluded — they are a separate body.
@@ -805,6 +1035,23 @@ function Slider({ label, value, min, max, step, unit = "", onChange }: {
   );
 }
 
+/** A ×0.5–×2 multiplier, shown as a percentage because that is how it reads. */
+function RegionSlider({ label, value, onChange }: {
+  label: string; value: number; onChange: (v: number) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="flex items-baseline justify-between text-[9px] uppercase tracking-wider text-white/40 mb-0.5">
+        {label}
+        <span className="text-white/70 font-mono normal-case">{Math.round(value * 100)}%</span>
+      </span>
+      <input type="range" min={0.5} max={2} step={0.05} value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full accent-[var(--gold-500)]" />
+    </label>
+  );
+}
+
 function Toggle({ label, on, onChange }: {
   label: string; on: boolean; onChange: (v: boolean) => void;
 }) {
@@ -818,11 +1065,18 @@ function Toggle({ label, on, onChange }: {
   );
 }
 
-function Metric({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function Metric({ label, value, highlight, stale }: {
+  label: string; value: string; highlight?: boolean; stale?: boolean;
+}) {
   return (
     <div className="flex items-baseline justify-between text-[11px]">
       <span className="text-white/40">{label}</span>
-      <span className={"font-mono " + (highlight ? "text-[var(--gold-500)]" : "text-white/80")}>{value}</span>
+      <span
+        title={stale ? "From the previous build — this one is still merging" : undefined}
+        className={"font-mono transition-opacity " +
+          (stale ? "opacity-30 line-through decoration-white/30 "
+                 : (highlight ? "text-[var(--gold-500)] " : "text-white/80 "))}
+      >{value}</span>
     </div>
   );
 }

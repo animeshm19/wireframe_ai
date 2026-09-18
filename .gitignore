@@ -60,3 +60,8 @@ tsconfig.tsbuildinfo
 vite.bridge.config.ts
 /studio-only.html
 src/studio-only.tsx
+/leak-test.html
+src/leak-test.ts
+
+# FUSE mount artifact from the Claude device bridge.
+.fuse_hidden*

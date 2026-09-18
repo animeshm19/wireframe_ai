@@ -1,16 +1,70 @@
 // src/components/ContactSection.tsx
-import React from "react";
+import React, { useState } from "react"; // <-- Import useState
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
+import { httpsCallable } from "firebase/functions"; // <-- Import client Firebase Functions
+import { functions } from "../lib/firebase"; // <-- Import initialized functions instance
+
+// Define the type for the form data payload
+interface DemoRequestPayload {
+  fullName: string;
+  email: string;
+  company: string;
+  website: string;
+  teamSize: string;
+  useCase: string;
+  message: string;
+}
 
 export function ContactSection() {
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const formData = new FormData(e.currentTarget);
-    const payload = Object.fromEntries(formData.entries());
-    // For now, just log it. Hook this up to your backend / email service later.
-    console.log("Demo request:", payload);
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSuccessMessage(null);
+    setErrorMessage(null);
+    setIsLoading(true);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const payload: DemoRequestPayload = {
+        fullName: formData.get("fullName") as string,
+        email: formData.get("email") as string,
+        company: formData.get("company") as string,
+        website: formData.get("website") as string,
+        teamSize: formData.get("teamSize") as string,
+        useCase: formData.get("useCase") as string,
+        message: formData.get("message") as string,
+      };
+
+      // 1. Get the reference to the Cloud Function
+      // You MUST create a deployed Firebase HTTPS Callable function named 'requestDemo' for this to work end-to-end.
+      const sendDemoRequest = httpsCallable<DemoRequestPayload, { status: string }>(
+        functions,
+        'requestDemo'
+      );
+
+      // 2. Call the function with the form data
+      const result = await sendDemoRequest(payload);
+
+      // 3. Handle success
+      if (result.data.status === 'success') {
+        setSuccessMessage("Request sent successfully! We'll be in touch within one business day.");
+        e.currentTarget.reset(); // Clear the form
+      } else {
+        // Handle custom error response from the function
+        throw new Error("Server error: Could not process request.");
+      }
+
+    } catch (error) {
+      console.error("Demo request submission failed:", error);
+      // Display a user-friendly error message
+      setErrorMessage("There was an issue submitting your request. Please try again or email us directly.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -118,6 +172,7 @@ export function ContactSection() {
                 </span>
               </div>
 
+              {/* Form Inputs */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[11px] uppercase tracking-[0.18em] text-white/55">
@@ -153,7 +208,7 @@ export function ContactSection() {
                     name="company"
                     required
                     className="glassy-input"
-                    placeholder="Aurora Atelier"
+                    placeholder="EAJ Concepts"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -221,11 +276,25 @@ export function ContactSection() {
                 />
               </div>
 
+              {/* Success/Error Feedback */}
+              {successMessage && (
+                <p className="text-center text-sm text-emerald-400 font-medium">
+                  {successMessage}
+                </p>
+              )}
+              {errorMessage && (
+                <p className="text-center text-sm text-red-400 font-medium">
+                  {errorMessage}
+                </p>
+              )}
+
+
               <Button
                 type="submit"
                 className="mt-2 h-10 w-full rounded-xl text-sm font-medium"
+                disabled={isLoading} // <-- Disable button while loading
               >
-                Request demo
+                {isLoading ? "Sending Request..." : "Request demo"}
               </Button>
 
               <p className="text-[11px] text-white/45 text-center">

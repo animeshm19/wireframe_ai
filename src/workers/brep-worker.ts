@@ -13,27 +13,18 @@
  * abandon a running WebAssembly call any other way — there is no yield point to
  * check a cancel flag at — so being killable IS the cancellation mechanism.
  */
-import opencascade from "replicad-opencascadejs";
 import wasmUrl from "replicad-opencascadejs/wasm?url";
-import { setOC } from "replicad";
 import {
   buildRingParts, previewMesh, previewEdges, fuseMetal, ringMetrics, toSTEP, toSTL,
+  initKernel,
+  kernelHeapMB,
   type RingDims,
 } from "../lib/cad-engine-brep";
 import { checkManufacturability } from "../lib/cad-engine";
 import type { Shape3D } from "replicad";
 
-let booted: Promise<void> | null = null;
-
-function boot(): Promise<void> {
-  if (!booted) {
-    booted = (async () => {
-      const OC = await (opencascade as any)({ locateFile: () => wasmUrl });
-      setOC(OC);
-    })();
-  }
-  return booted;
-}
+/** The engine owns the kernel; the worker only says where the wasm lives. */
+const boot = (): Promise<void> => initKernel(() => wasmUrl);
 
 const report = (progress: number, stage: string) =>
   self.postMessage({ type: "PROGRESS", progress, stage });
@@ -73,7 +64,7 @@ self.onmessage = async (e: MessageEvent) => {
       if (stoneMesh) buffers.push(
         stoneMesh.vertices.buffer, stoneMesh.normals.buffer, stoneMesh.triangles.buffer);
 
-      self.postMessage({ type: "PREVIEW", metal, stones: stoneMesh, edges }, buffers as any);
+      self.postMessage({ type: "PREVIEW", metal, stones: stoneMesh, edges, heapMB: kernelHeapMB() }, buffers as any);
       return;
     }
 

@@ -19,6 +19,39 @@ export type RingSpec = {
   finish: Finish;
   /** Accent stones set into the shank itself, separate from the head. */
   shankStones: ShankStones;
+  /** The shape the shank sweeps as it goes round the finger. */
+  shankStyle: ShankStyle;
+  /**
+   * Local edits to stretches of the shank, addressed by angle.
+   *
+   * Angles, never geometry. A region picked with the lasso has to survive the
+   * ring being rebuilt — which happens on every parameter change — and face or
+   * triangle indices do not survive that. They are different objects with
+   * different numbers afterwards, and an edit stored against one silently
+   * reattaches itself somewhere else.
+   */
+  regions: RegionOverride[];
+};
+
+export type RegionOverride = {
+  /** Radians from +X, head at +Y. start > end means the region wraps the seam. */
+  start: number;
+  end: number;
+  widthScale?: number;
+  thicknessScale?: number;
+  profile?: BandProfile;
+  blend?: number;
+};
+
+export type ShankStyle = "plain" | "tapered" | "split" | "twisted";
+
+export const SHANK_STYLES: ShankStyle[] = ["plain", "tapered", "split", "twisted"];
+
+export const SHANK_STYLE_LABELS: Record<string, string> = {
+  plain: "Straight",
+  tapered: "Tapered",
+  split: "Split shank",
+  twisted: "Twisted",
 };
 
 export type ShankStones = "none" | "pave" | "half_eternity" | "eternity";
@@ -42,6 +75,7 @@ const _override: Partial<RingSpec> = {};
 if (_q?.get("metal")) _override.metalType = _q.get("metal") as MetalType;
 if (_q?.get("finish")) _override.finish = _q.get("finish") as Finish;
 if (_q?.get("shank")) _override.shankStones = _q.get("shank") as ShankStones;
+if (_q?.get("style")) _override.shankStyle = _q.get("style") as ShankStyle;
 if (_q?.get("setting")) _override.setting = _q.get("setting") as SettingStyle;
 if (_q?.get("cut")) _override.gemShape = _q.get("cut") as GemCut;
 if (_q?.get("profile")) _override.bandProfile = _q.get("profile") as BandProfile;
@@ -59,6 +93,8 @@ const _BASE_SPEC: RingSpec = {
   metalType: "platinum",
   finish: "polished",
   shankStones: "none",
+  shankStyle: "plain",
+  regions: [],
 };
 
 export const DEFAULT_SPEC: RingSpec = { ..._BASE_SPEC, ..._override };
@@ -180,6 +216,11 @@ export function parseSpecFromPrompt(prompt?: string | null): Partial<RingSpec> {
   else if (/\boval\b|elongated/.test(t)) out.gemShape = "oval";
   else if (/round|brilliant/.test(t)) out.gemShape = "round";
 
+  // Shank shape.
+  if (/split[- ]?shank|split\s*band/.test(t)) out.shankStyle = "split";
+  else if (/twist(ed)?|rope|braid/.test(t)) out.shankStyle = "twisted";
+  else if (/taper(ed|ing)?|pinched|knife[- ]?edge\s*shank/.test(t)) out.shankStyle = "tapered";
+
   // Settings.
   if (/\bhalo\b/.test(t)) out.setting = "halo";
   else if (/bezel|rub[- ]?over/.test(t)) out.setting = "bezel";
@@ -191,6 +232,11 @@ export function parseSpecFromPrompt(prompt?: string | null): Partial<RingSpec> {
   else if (/knife[- ]?edge/.test(t)) out.bandProfile = "knife";
   else if (/\bflat\b/.test(t)) out.bandProfile = "flat";
   else if (/round\s*band|\bd[- ]?shape/.test(t)) out.bandProfile = "round";
+
+  // Shank shape.
+  if (/split[- ]?shank|split\s*band/.test(t)) out.shankStyle = "split";
+  else if (/twist(ed)?|rope|braid/.test(t)) out.shankStyle = "twisted";
+  else if (/taper(ed|ing)?|pinched|knife[- ]?edge\s*shank/.test(t)) out.shankStyle = "tapered";
 
   // Settings.
   if (/three[- ]?stone|trilogy|past\s*present\s*future/.test(t)) out.setting = "three_stone";

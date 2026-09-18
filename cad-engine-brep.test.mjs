@@ -15,13 +15,14 @@ import { readFileSync } from "node:fs";
 import opencascade from "replicad-opencascadejs";
 import { setOC, measureVolume } from "replicad";
 
-let mesh, brep;
+let mesh, brep, pick;
 
 before(async () => {
   setOC(await opencascade({
     wasmBinary: readFileSync("node_modules/replicad-opencascadejs/dist/replicad_single.wasm"),
   }));
   mesh = await import("./.brepcheck/cad-engine.js");
+  pick = await import("./.brepcheck/studio-pick.js");
   brep = await import("./.brepcheck/cad-engine-brep.js");
 });
 
@@ -287,6 +288,43 @@ test("the seat depth the engine cuts is the depth the check assumes", () => {
   assert.ok(seatDepth < culet * 1.25, `seat ${seatDepth.toFixed(3)}mm wastes metal below the culet`);
 });
 
+test("every shank style builds one castable solid", () => {
+  for (const shankStyle of ["plain", "tapered", "split", "twisted"]) {
+    for (const shankStones of ["none", "pave"]) {
+      const { metrics } = brep.buildRing({ shankStyle, shankStones });
+      assert.equal(metrics.solidCount, 1,
+        `${shankStyle} + ${shankStones} is ${metrics.solidCount} pieces`);
+      assert.ok(metrics.volumeMm3 > 50, `${shankStyle}: ${metrics.volumeMm3}mm3 is implausible`);
+    }
+  }
+});
+
+test("a uniform variable band matches the exact revolve", () => {
+  // The revolve is exact against closed form; the loft is the approximation.
+  // If a band that does not vary disagrees with the revolve by more than a
+  // rounding error, the lofted path has the section wrong — and every style
+  // built on it, and every lasso edit later, inherits that.
+  const innerR = (11.63 + 6 * 0.8128) / 2, w = 2.5, t = Math.min(2.6, Math.max(1.2, w * 0.62));
+  const exact = measureVolume(brep.buildBand(innerR, w, t, "comfort"));
+  const lofted = measureVolume(brep.buildVariableBand(
+    () => ({ innerR, width: w, thickness: t, profile: "comfort", shift: 0, twist: 0 })
+  ));
+  const err = Math.abs(lofted - exact) / exact * 100;
+  assert.ok(err < 0.2, `lofted ${lofted.toFixed(2)} vs revolved ${exact.toFixed(2)} (${err.toFixed(2)}%)`);
+});
+
+test("shank styles change the metal they should", () => {
+  const vol = (shankStyle) => brep.buildRing({ shankStyle }).metrics.volumeMm3;
+  const plain = vol("plain");
+  // Tapered narrows toward the back of the finger, so it MUST be lighter.
+  assert.ok(vol("tapered") < plain, `tapered ${vol("tapered")} should be under plain ${plain}`);
+  // A split shank has a slot cut out of it, so it must be lighter too.
+  assert.ok(vol("split") < plain, `split ${vol("split")} should be under plain ${plain}`);
+  // A twist reorients the section without removing anything.
+  assert.ok(Math.abs(vol("twisted") - plain) / plain < 0.08,
+    `twisted ${vol("twisted")} should be close to plain ${plain}`);
+});
+
 test("STEP export is real boundary representation", async () => {
   const r = brep.buildRing({ gemSize: 1.25 });
   const text = await brep.toSTEP(r.metal, r.stones).text();
@@ -301,4 +339,164 @@ test("STEP export is real boundary representation", async () => {
   assert.equal(n(/TRIANGULATED|TESSELLATED|POLY_LOOP/g), 0, "no tessellation");
   assert.ok(/PRODUCT\('metal'/.test(text) && /PRODUCT\('stones'/.test(text),
     "metal and stones are separately named");
+});
+
+/* ---------------------------------------------------------------- regions */
+
+test("a region edit changes only the stretch it names", () => {
+  const base = { ringSize: 6, bandWidth: 2.5, gemSize: 1 };
+  const vol = (regions) =>
+    measureVolume(brep.fuseMetal(brep.buildRingParts({ ...base, regions }).metalParts).metal);
+
+  const plain = vol([]);
+  const narrow = vol([{ start: Math.PI / 6, end: (5 * Math.PI) / 6, widthScale: 0.6 }]);
+
+  // A third of the ring taken to 60% width removes roughly 0.33 * 0.4 of the
+  // band. Anything close to zero means the region was not applied; anything
+  // near the full 40% means it was applied everywhere.
+  const drop = (plain - narrow) / plain;
+  assert.ok(drop > 0.05 && drop < 0.20,
+    `region should remove 5-20% of the metal, removed ${(drop * 100).toFixed(1)}%`);
+
+  // The far side of the ring must be untouched: a region at the shoulders that
+  // also thins the back is the bug this whole angular scheme exists to prevent.
+  const at = brep.applyRegions(
+    brep.shankSection("plain", 8.255, 2.5, 1.55, "comfort"),
+    [{ start: Math.PI / 6, end: (5 * Math.PI) / 6, widthScale: 0.6 }],
+  );
+  assert.equal(at(Math.PI * 1.5).width, 2.5, "the back of the ring is unchanged");
+  assert.equal(at(Math.PI / 2).width, 2.5 * 0.6, "the middle of the region is fully edited");
+  const edge = at(Math.PI / 6).width;
+  assert.ok(edge > 2.5 * 0.6 && edge < 2.5,
+    `the boundary is eased, not stepped (got ${edge})`);
+});
+
+test("a region that wraps the seam is one region, not two", () => {
+  const base = { ringSize: 6, bandWidth: 2.5, gemSize: 1 };
+  const vol = (regions) =>
+    measureVolume(brep.fuseMetal(brep.buildRingParts({ ...base, regions }).metalParts).metal);
+
+  // 330deg -> 40deg crosses 0. If the wrap were handled by comparing against
+  // the seam directly this would select the other 290 degrees instead, and the
+  // volume would fall by far more than a 70 degree stretch can account for.
+  const wrapped = vol([{ start: (330 * Math.PI) / 180, end: (40 * Math.PI) / 180, widthScale: 0.5 }]);
+  const plain = vol([]);
+  const drop = (plain - wrapped) / plain;
+  assert.ok(drop > 0.03 && drop < 0.15,
+    `a 70deg wrapped region should remove 3-15%, removed ${(drop * 100).toFixed(1)}%`);
+});
+
+test("region edits still cast as one connected solid", () => {
+  const cases = [
+    [{ start: 0.5, end: 2.6, widthScale: 1.6 }],
+    [{ start: 3.5, end: 5.9, thicknessScale: 0.75 }],
+    [{ start: 5.8, end: 0.7, widthScale: 0.7 }],                 // wraps
+    [{ start: 0.5, end: 2.6, widthScale: 1.4 },
+     { start: 3.5, end: 5.0, thicknessScale: 1.3 }],             // two at once
+    [{ start: 0.5, end: 2.6, profile: "knife" }],
+  ];
+  for (const regions of cases) {
+    const { metalParts } = brep.buildRingParts({ ringSize: 6, bandWidth: 2.5, gemSize: 1, regions });
+    const { metal, dropped } = brep.fuseMetal(metalParts);
+    assert.equal(dropped, 0, `no part may be dropped: ${JSON.stringify(regions)}`);
+    assert.equal(metal.solids.length, 1,
+      `${JSON.stringify(regions)} made ${metal.solids.length} solids — uncastable`);
+  }
+});
+
+test("a locally thinned section is caught by the checks", () => {
+  const p = {
+    ringSize: 6, bandWidth: 2.5, gemSize: 1, metalType: "platinum",
+    regions: [{ start: 2.7, end: 3.5, thicknessScale: 0.5 }],
+  };
+  const { metrics } = brep.buildRing(p);
+  const issues = mesh.checkManufacturability(p, metrics);
+  assert.ok(issues.some((i) => i.code === "region_too_thin"),
+    `a 0.78mm section must be refused; got ${JSON.stringify(issues.map((i) => i.code))}`);
+
+  // And the same ring without the region must NOT be refused, or the check is
+  // just noise.
+  const clean = brep.buildRing({ ...p, regions: [] });
+  assert.ok(!mesh.checkManufacturability({ ...p, regions: [] }, clean.metrics)
+    .some((i) => i.code === "region_too_thin"), "an unedited band is fine");
+});
+
+test("carat weight is honest for every cut", () => {
+  // 3.25mm is the one-carat girdle radius of a ROUND brilliant, and for years
+  // every cut used it. The shapes hold different amounts of stone under the
+  // same girdle, so a "1.00ct" marquise weighed 0.75ct and a "1.00ct" emerald
+  // 1.24ct — a quarter of the stone, on the number the piece is priced by.
+  const cuts = ["round", "princess", "oval", "emerald", "cushion", "marquise", "pear"];
+  const worst = [];
+
+  for (const gemShape of cuts) {
+    for (const carat of [0.5, 1, 2.5]) {
+      const { stones } = brep.buildRingParts({ gemShape, gemSize: carat });
+      const got = (measureVolume(stones[0]) * 3.52) / 200;
+      const err = Math.abs(got - carat) / carat;
+      worst.push([gemShape, carat, got, err]);
+      assert.ok(err < 0.02,
+        `${gemShape} at ${carat}ct weighs ${got.toFixed(3)}ct (${(err * 100).toFixed(1)}% out)`);
+    }
+  }
+
+  // And the footprint reported must be the footprint built, not a diameter
+  // borrowed from the round.
+  const m = brep.buildRing({ gemShape: "marquise", gemSize: 1 }).metrics;
+  assert.ok(m.stoneLength > m.stoneWidth * 2,
+    `a marquise is long: got ${m.stoneLength} x ${m.stoneWidth}`);
+  const r = brep.buildRing({ gemShape: "round", gemSize: 1 }).metrics;
+  assert.equal(r.stoneLength, r.stoneWidth, "a round is as wide as it is long");
+  assert.ok(Math.abs(r.caratActual - 1) < 0.02,
+    `the reported weight must be the real one: ${r.caratActual}`);
+});
+
+/* ------------------------------------------------- lasso -> region mapping */
+
+test("a lasso becomes the region the designer drew", () => {
+  const B = Math.PI / 180;
+  const D = (d) => d * B;
+  const deg = (r) => Math.round((r * 180) / Math.PI);
+  // A lasso is sampled per pixel, so the input is a cloud of angles.
+  const sweep = (a, b) => {
+    const out = [];
+    for (let d = a; d <= b; d += 0.5) out.push(D(d));
+    return out;
+  };
+  const got = (angles) =>
+    pick.toRegions(angles, "metal", B).map((r) => [deg(r.start), deg(r.end)]);
+
+  assert.deepEqual(got(sweep(30, 150)), [[30, 150]], "a plain stretch");
+
+  // Every angle must come back in [0, 2pi). The engine, the highlight shader
+  // and the stored spec all work in that range; a negative angle matches
+  // nothing and the edit silently does nothing at all.
+  for (const r of pick.toRegions(sweep(200, 300), "metal", B)) {
+    assert.ok(r.start >= 0 && r.start < Math.PI * 2, `start out of range: ${r.start}`);
+    assert.ok(r.end >= 0 && r.end < Math.PI * 2, `end out of range: ${r.end}`);
+  }
+
+  // A region across the seam is ONE region with start > end, not two.
+  assert.deepEqual(got([...sweep(330, 359.9), ...sweep(0, 40)]), [[330, 40]]);
+
+  // Selecting the whole ring must not collapse to a zero-width region — the
+  // angle just under 2pi rounds up to a bucket that does not exist.
+  assert.deepEqual(got(sweep(0, 359.9)), [[0, 359]]);
+
+  // A lasso over the head crosses the prongs, and the gaps between them must
+  // not shatter the selection into slivers too narrow to edit.
+  assert.deepEqual(got([80, 86, 92, 98, 104, 110].flatMap((a) => sweep(a, a + 3))),
+    [[80, 113]], "six prongs are one selection");
+
+  // Genuinely separate selections stay separate.
+  assert.deepEqual(got([...sweep(20, 60), ...sweep(200, 240)]), [[20, 60], [200, 240]]);
+
+  // A single pixel is noise at a silhouette, not an instruction.
+  assert.deepEqual(got([D(10)]), []);
+
+  // Anything narrower than the engine's blend can never reach full strength, so
+  // a pinpoint selection is widened rather than left inert.
+  const tiny = pick.toRegions(sweep(100, 102), "metal", B)[0];
+  assert.ok(deg(tiny.end) - deg(tiny.start) >= 12,
+    `a tiny pick must be widened, got ${deg(tiny.start)}-${deg(tiny.end)}`);
 });

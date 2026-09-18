@@ -18,6 +18,9 @@ export type RingMesh = { metal: Mesh; stones: Mesh | null; edges: Float32Array }
  */
 export function useBrepWorker() {
   const previewRef = useRef<Worker | null>(null);
+  // Builds run through the current preview worker since it was created.
+  const buildsRef = useRef(0);
+  const idleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resolveRef = useRef<Worker | null>(null);
   const resolveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingStep = useRef<((b: Blob) => void) | null>(null);
@@ -36,6 +39,46 @@ export function useBrepWorker() {
     new URL("../workers/brep-worker.ts", import.meta.url), { type: "module" }
   ), []);
 
+  /**
+   * How many previews one worker is allowed before it is replaced.
+   *
+   * The OCCT kernel leaks about 1.9MB per preview and nothing in the engine can
+   * reclaim it — WebAssembly has no garbage collector reaching into OCCT, and
+   * deleting the shapes the engine returns recovers almost none of it. Left
+   * alone, a few hundred slider movements carry the tab past a gigabyte and it
+   * dies with "null function or function signature mismatch", which tells the
+   * customer nothing and tells us almost as little.
+   *
+   * Terminating the worker frees the entire WASM heap at a stroke. 80 builds is
+   * about 150MB — comfortable, and far enough apart that the replacement almost
+   * always happens while the user is looking at something rather than dragging.
+   */
+  const RECYCLE_AFTER = 80;
+
+  /**
+   * Replaces the preview worker once it has done enough builds, but only after
+   * the design has been still for a moment.
+   *
+   * Recycling mid-drag would stall a slider for a kernel boot. Waiting for a
+   * pause means the swap lands between edits, where 300ms of nothing is
+   * invisible. The old worker is terminated only after its replacement exists,
+   * so there is never a window with no worker to send to.
+   */
+  const scheduleRecycle = useCallback(() => {
+    buildsRef.current += 1;
+    if (buildsRef.current < RECYCLE_AFTER) return;
+    if (idleRef.current) clearTimeout(idleRef.current);
+
+    idleRef.current = setTimeout(() => {
+      const old = previewRef.current;
+      const fresh = spawn();
+      fresh.onmessage = old?.onmessage ?? null;
+      previewRef.current = fresh;
+      buildsRef.current = 0;
+      old?.terminate();
+    }, 1500);
+  }, [spawn]);
+
   useEffect(() => {
     const w = spawn();
     previewRef.current = w;
@@ -46,16 +89,18 @@ export function useBrepWorker() {
         setMesh({ metal: d.metal, stones: d.stones, edges: d.edges });
         setIsBuilding(false);
         setError(null);
+        scheduleRecycle();
         return;
       }
       if (d.type === "ERROR") { setError(d.error); setIsBuilding(false); }
     };
     return () => {
-      w.terminate();
+      previewRef.current?.terminate();
       resolveRef.current?.terminate();
       if (resolveTimer.current) clearTimeout(resolveTimer.current);
+      if (idleRef.current) clearTimeout(idleRef.current);
     };
-  }, [spawn]);
+  }, [spawn, scheduleRecycle]);
 
   const generate = useCallback((params: any) => {
     setIsBuilding(true);
