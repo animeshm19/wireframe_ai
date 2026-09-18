@@ -49,7 +49,7 @@ const FEATURES: Feature[] = [
 
 export function InteractiveFeatureGrid() {
   return (
-    <section className="relative py-24 sm:py-32 overflow-hidden bg-[#13000c]">
+    <section id="features" className="relative scroll-mt-24 py-24 sm:py-32 overflow-hidden bg-[#13000c]">
       <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
         <div className="max-w-2xl mx-auto text-center mb-16">
           <motion.h2 

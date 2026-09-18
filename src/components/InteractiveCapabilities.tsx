@@ -51,7 +51,7 @@ export function InteractiveCapabilities() {
   }, []);
 
   return (
-    <section className="relative py-24 sm:py-32 bg-[#13000c] border-t border-white/5 overflow-hidden">
+    <section id="capabilities" className="relative scroll-mt-24 py-24 sm:py-32 bg-[#13000c] border-t border-white/5 overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-(--gold-500)/5 blur-[100px] rounded-full mix-blend-screen opacity-60" />
       </div>
