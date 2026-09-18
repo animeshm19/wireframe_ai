@@ -1,333 +1,562 @@
-import React, { useState, useRef, useMemo, useCallback } from "react";
-import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
-import { 
-  Ruler, 
-  Scale, 
-  ShieldCheck, 
-  Sparkles 
-} from "lucide-react";
+/**
+ * Four things the engine does, drawn.
+ *
+ * What was here described four capabilities, three of which were not quite
+ * true and one of which was not true at all:
+ *
+ *   - "Auto-detects walls thinner than 0.6mm or unclosed meshes." The limits
+ *     are per alloy and none of them is 0.6 — platinum wants 0.70mm of wall
+ *     and 1.00mm of band, sterling 1.00 and 1.30 — and they are B-rep solids,
+ *     not meshes.
+ *   - "Change a ring size from 5 to 9 and the shank thickens proportionally."
+ *     It does not. thickness = clamp(bandWidth x 0.62, 1.2, 2.6): it follows
+ *     the band width and nothing else. Ring size moves the inner radius and
+ *     leaves the section alone — which is correct, and a better claim than
+ *     the one being made.
+ *   - "Poly: 12,404" sat in the corner of the viewport like a live readout.
+ *     It was a constant.
+ *   - "MESH WATERTIGHT" again: what the check counts is closed solids.
+ *
+ * Every number below now comes from the engine — its size formula, its alloy
+ * densities, its stone counts, the angles the lasso stores — or it is not
+ * stated.
+ *
+ * It is also operable now. The old rows responded to onMouseEnter only, so on
+ * any touch device the section was frozen on its first item and the other
+ * three were unreachable; there was no keyboard path either. They are tabs.
+ */
 
-// --- Data ---
-const CAPABILITIES = [
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { METAL_DENSITY, METAL_LABELS, type MetalType } from "../lib/ring-spec";
+
+/* The engine's own size relation, from cad-engine: inner diameter in
+ * millimetres, 16.51mm at size 6, 0.8128mm per size. */
+const innerDia = (size: number) => 11.63 + size * 0.8128;
+
+/** Measured metal volume of the reference design, cm³ — as the hero quotes. */
+const VOLUME_CM3 = 0.31;
+
+type Mode = "vocabulary" | "size" | "weight" | "regions";
+
+const CAPS: Array<{ id: Mode; title: string; kicker: string; desc: string }> = [
   {
-    id: "semantic",
-    title: "Semantic Understanding",
-    subtitle: "It speaks Jewelry.",
-    desc: "Wireframe doesn't just push vertices. It understands 'bezel', 'pavé', and 'gallery', ensuring parts attach where they belong.",
-    icon: Sparkles,
+    id: "vocabulary",
+    title: "It speaks the trade",
+    kicker: "Vocabulary → structure",
+    desc:
+      "Bezel, cathedral, three-stone, half eternity, pavé. Each names a way parts attach, not a look — so the head, the gallery and the shoulders are built where a bench jeweller would expect to find them.",
   },
   {
-    id: "dimensions",
-    title: "Adaptive Sizing",
-    subtitle: "Scaling that makes sense.",
-    desc: "Change a ring size from 5 to 9, and the shank thickens proportionally while the stone stays secure. No stretching.",
-    icon: Ruler,
+    id: "size",
+    title: "Rebuilt, never stretched",
+    kicker: "Size is a parameter, not a scale factor",
+    desc:
+      "Change the size and the ring is rebuilt from its spec. Scaling one instead would take the stone with it — a size 6 scaled to a size 9 turns a 1.50 ct centre into a 2.27 ct one, which is a different ring and a different invoice.",
   },
   {
-    id: "physics",
-    title: "Material Intelligence",
-    subtitle: "Instant weight & cost.",
-    desc: "Live calculations for metal volume (g) and stone weights (ct) as you design, so you never underquote.",
-    icon: Scale,
+    id: "weight",
+    title: "Weighed, not estimated",
+    kicker: "Volume × density",
+    desc:
+      "The metal volume is measured off the closed solid, then multiplied by the alloy's real density. Nothing here is a lookup table of typical ring weights.",
   },
   {
-    id: "production",
-    title: "Manufacturability Checks",
-    subtitle: "Print-safe by default.",
-    desc: "Auto-detects walls thinner than 0.6mm or unclosed meshes before you even export.",
-    icon: ShieldCheck,
+    id: "regions",
+    title: "Edits that stay put",
+    kicker: "Stored as angle, not as geometry",
+    desc:
+      "Widen one stretch of the shank and the edit is recorded as an angle around the finger. The ring is rebuilt on every parameter change, and the faces that come out are different objects each time — an edit pinned to one of them would quietly wander off somewhere else.",
   },
 ];
 
 export function InteractiveCapabilities() {
-  const [activeId, setActiveId] = useState<string>("semantic");
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [mode, setMode] = useState<Mode>("vocabulary");
+  const tabsRef = useRef<HTMLDivElement>(null);
 
-  const handleHover = useCallback((id: string) => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      setActiveId(id);
-    }, 40); 
-  }, []);
+  // Arrow keys move between tabs, which is what a tab list owes a keyboard.
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"];
+      if (!keys.includes(e.key)) return;
+      e.preventDefault();
+      const i = CAPS.findIndex((c) => c.id === mode);
+      const next =
+        e.key === "Home" ? 0
+        : e.key === "End" ? CAPS.length - 1
+        : e.key === "ArrowDown" || e.key === "ArrowRight"
+        ? (i + 1) % CAPS.length
+        : (i - 1 + CAPS.length) % CAPS.length;
+      setMode(CAPS[next].id);
+      const btns = tabsRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+      btns?.[next]?.focus();
+    },
+    [mode]
+  );
 
   return (
-    <section id="capabilities" className="relative scroll-mt-24 py-24 sm:py-32 bg-[#13000c] border-t border-white/5 overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-(--gold-500)/5 blur-[100px] rounded-full mix-blend-screen opacity-60" />
-      </div>
+    <section
+      id="capabilities"
+      className="relative scroll-mt-24 overflow-hidden border-t border-white/5 bg-ink-900 py-24 sm:py-32"
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(55% 45% at 82% 12%, rgba(198,155,178,0.08), transparent 62%)",
+        }}
+      />
 
-      <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          
-          <div className="space-y-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-            >
-              <h2 className="text-3xl font-semibold shiny-text mb-8">
-                Engineered for the Bench.
-              </h2>
-            </motion.div>
-            
-            <LayoutGroup>
-              <div className="space-y-2">
-                {CAPABILITIES.map((cap) => (
-                  <CapabilityRow 
-                    key={cap.id} 
-                    data={cap} 
-                    isActive={activeId === cap.id} 
-                    onHover={() => handleHover(cap.id)} 
-                  />
-                ))}
-              </div>
-            </LayoutGroup>
+      <div className="shell relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="flex items-center gap-3"
+        >
+          <span className="mono-label !text-metal-400">02</span>
+          <span className="h-px w-8 bg-white/15" />
+          <span className="mono-label">On the bench</span>
+        </motion.div>
+
+        <motion.h2
+          initial={{ opacity: 0, y: 18 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.75, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-5 max-w-[18ch] text-[clamp(1.9rem,1.2rem+2.4vw,3.1rem)] font-semibold leading-[1.04] tracking-[-0.035em] text-white"
+        >
+          Built the way it would be made.
+        </motion.h2>
+
+        <div className="mt-12 grid items-stretch gap-8 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-14">
+          {/* Tabs */}
+          <div
+            ref={tabsRef}
+            role="tablist"
+            aria-label="Engine capabilities"
+            aria-orientation="vertical"
+            onKeyDown={onKeyDown}
+            /* Two shapes, one list. On a phone the tabs are a horizontal strip
+               of fixed-size chips and the prose lives in the sheet, so nothing
+               reflows when the selection moves; from lg up they are a vertical
+               list carrying their own descriptions, where the extra width is
+               there to spend. Collapsing descriptions in place — which is what
+               was here — made the list change height on every selection and
+               slid the other rows out from under the pointer. */
+            className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0"
+          >
+            {CAPS.map((c, i) => {
+              const active = c.id === mode;
+              return (
+                <button
+                  key={c.id}
+                  role="tab"
+                  id={`cap-tab-${c.id}`}
+                  aria-selected={active}
+                  aria-controls={`cap-panel-${c.id}`}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => setMode(c.id)}
+                  /* Hover-to-select only where the list is the vertical one.
+                     In the phone layout the tabs are a strip that scrolls, so a
+                     chip can arrive under a stationary pointer on its own and
+                     change the selection without anyone asking. */
+                  onPointerEnter={(e) => {
+                    if (e.pointerType !== "mouse") return;
+                    if (!window.matchMedia("(min-width: 1024px)").matches) return;
+                    setMode(c.id);
+                  }}
+                  className={
+                    "relative shrink-0 rounded-xl border px-4 py-3 text-left transition-colors duration-300 lg:w-full lg:px-5 lg:py-4 " +
+                    (active
+                      ? "border-white/12 bg-white/[0.045]"
+                      : "border-white/8 hover:bg-white/[0.02] lg:border-transparent")
+                  }
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="cap-marker"
+                      transition={{ type: "spring", stiffness: 320, damping: 32 }}
+                      className="absolute inset-y-4 left-0 w-0.5 rounded-r bg-metal-300"
+                    />
+                  )}
+
+                  <div className="flex items-baseline gap-3">
+                    <span className={"mono-label !text-[0.5rem] " + (active ? "!text-metal-400" : "")}>
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span
+                      className={
+                        "text-[1.02rem] font-medium tracking-tight transition-colors duration-300 " +
+                        (active ? "text-white" : "text-white/55")
+                      }
+                    >
+                      {c.title}
+                    </span>
+                  </div>
+
+                  <div className="mono-label mt-1 !text-[0.48rem] !tracking-[0.14em]">
+                    {c.kicker}
+                  </div>
+
+                  {/* Always rendered, dimmed when inactive.
+                    *
+                    * Collapsing the inactive descriptions made the list change
+                    * height every time the selection moved, which slid the
+                    * other rows out from under the pointer — so moving toward
+                    * one row could land you on its neighbour. Reserving the
+                    * space costs nothing and makes all four readable at once. */}
+                  <p
+                    className={
+                      "mt-2.5 hidden text-[0.85rem] leading-relaxed transition-colors duration-300 lg:block " +
+                      (active ? "text-white/60" : "text-white/30")
+                    }
+                  >
+                    {c.desc}
+                  </p>
+                </button>
+              );
+            })}
           </div>
 
-          <motion.div 
-            layout
-            className="relative h-[500px] w-full bg-white/2 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-sm shadow-2xl"
+          {/* Sheet */}
+          <div
+            role="tabpanel"
+            id={`cap-panel-${mode}`}
+            aria-labelledby={`cap-tab-${mode}`}
+            className="card-edge relative min-h-[26rem] overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-b from-white/[0.04] to-white/[0.012] lg:min-h-[32rem]"
           >
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
-            
-            <div className="absolute inset-0 flex items-center justify-center perspective-[1000px]">
-              <CapabilityVisualizer activeId={activeId} />
-            </div>
+            <span aria-hidden="true" className="blueprint pointer-events-none absolute inset-0" />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent"
+            />
 
-            <div className="absolute bottom-6 left-6 right-6 flex justify-between items-center text-[10px] font-mono text-white/30 uppercase tracking-widest pointer-events-none">
-              <div className="flex gap-4">
-                <span>Mode: <span className="text-(--gold-500) transition-all duration-300">{activeId.toUpperCase()}</span></span>
-                <span>Poly: 12,404</span>
+            <div className="relative flex h-full flex-col p-5 sm:p-7">
+              <p className="mb-4 text-[0.85rem] leading-relaxed text-white/55 lg:hidden">
+                {CAPS.find((c) => c.id === mode)!.desc}
+              </p>
+
+              <div className="flex-1">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={mode}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                    className="h-full"
+                  >
+                    {mode === "vocabulary" && <VocabularySheet />}
+                    {mode === "size" && <SizeSheet />}
+                    {mode === "weight" && <WeightSheet />}
+                    {mode === "regions" && <RegionSheet />}
+                  </motion.div>
+                </AnimatePresence>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Engine Ready</span>
+
+              <div className="mono-label mt-4 flex items-center justify-between !text-[0.48rem]">
+                <span>Sheet {String(CAPS.findIndex((c) => c.id === mode) + 1).padStart(2, "0")} / 04</span>
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Drawn to the engine's own figures
+                </span>
               </div>
             </div>
-          </motion.div>
-
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-function CapabilityRow({ data, isActive, onHover }: { data: any, isActive: boolean, onHover: () => void }) {
-  return (
-    <motion.div 
-      layout
-      onMouseEnter={onHover}
-      className={`
-        group relative p-6 rounded-2xl cursor-pointer border
-        ${isActive ? "bg-white/5 border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.2)]" : "bg-transparent border-transparent hover:bg-white/2"}
-      `}
-      transition={{ layout: { duration: 0.2, ease: "easeOut" } }}
-    >
-      {isActive && (
-        <motion.div 
-          layoutId="active-cap-line"
-          className="absolute left-0 top-6 bottom-6 w-1 bg-(--gold-500) rounded-r-full"
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        />
-      )}
+/* ------------------------------------------------------------------ sheets -- */
 
-      <div className="flex items-start gap-4">
-        <motion.div 
-          layout
-          className={`
-            mt-1 p-2 rounded-lg transition-colors duration-300
-            ${isActive ? "bg-(--gold-500) text-black" : "bg-white/5 text-white/40 group-hover:text-white/80"}
-          `}
-        >
-          <data.icon size={20} />
-        </motion.div>
-        
-        <div className="flex-1">
-          <motion.h3 
-            layout="position"
-            className={`text-lg font-medium transition-colors ${isActive ? "text-white" : "text-white/60 group-hover:text-white"}`}
+function VocabularySheet() {
+  /* Counts are the engine's: pavé sets 13 stones, half eternity 21, full
+   * eternity 42, and a prong head is 4 or 6.
+   *
+   * The sheet is 520 wide rather than 420 because the callouts are the point
+   * of it — at the narrower box the longest of them ran off the edge. */
+  const CX = 200, CY = 170;
+
+  const right = [
+    { label: "Head · 6 prong", y: 86 },
+    { label: "Gallery rail", y: 126 },
+    { label: "Shoulder", y: 176 },
+    { label: "Shank · D-profile", y: 236 },
+  ];
+
+  return (
+    <div className="flex h-full flex-col">
+      <svg viewBox="0 0 520 272" className="w-full flex-1" role="img"
+           aria-label="A solitaire annotated with the names of its parts">
+        <g stroke="var(--metal-300)" fill="none" strokeWidth="1.3">
+          <circle cx={CX} cy={CY} r="74" />
+          <circle cx={CX} cy={CY} r="62" />
+        </g>
+
+        {/* Head: table, crown and two prongs in elevation. */}
+        <g stroke="var(--metal-200)" fill="none" strokeWidth="1.3">
+          <path d={`M ${CX - 24} 86 L ${CX} 62 L ${CX + 24} 86 L ${CX} 106 Z`} />
+          <path d={`M ${CX - 24} 86 L ${CX + 24} 86`} />
+          <path d={`M ${CX - 18} 88 L ${CX - 18} 102 M ${CX + 18} 88 L ${CX + 18} 102`} />
+        </g>
+
+        {/* Pavé along the left shoulder. */}
+        {Array.from({ length: 7 }).map((_, i) => {
+          const a = Math.PI * (0.78 + i * 0.058);
+          return (
+            <circle key={i} cx={CX + Math.cos(a) * 68} cy={CY + Math.sin(a) * 68}
+                    r="4" fill="none" stroke="var(--accent-400)" strokeWidth="1" />
+          );
+        })}
+
+        {right.map((r) => (
+          <g key={r.label}>
+            <line x1="284" y1={r.y} x2="322" y2={r.y}
+                  stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
+            <circle cx="284" cy={r.y} r="2" fill="var(--metal-300)" />
+            <text x="332" y={r.y + 3} className="fill-white/70"
+                  style={{ font: "500 9px ui-monospace, monospace" }}>
+              {r.label}
+            </text>
+          </g>
+        ))}
+
+        <g>
+          <line x1="104" y1="196" x2="140" y2="196"
+                stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
+          <circle cx="140" cy="196" r="2" fill="var(--accent-400)" />
+          <text x="96" y="199" textAnchor="end" className="fill-white/70"
+                style={{ font: "500 9px ui-monospace, monospace" }}>
+            Pavé · 13 stones
+          </text>
+        </g>
+      </svg>
+
+      <p className="mt-3 text-[0.78rem] leading-relaxed text-white/45">
+        Pavé sets 13 stones, half eternity 21, full eternity 42 — counts the
+        engine derives from the band, not numbers typed into a caption.
+      </p>
+    </div>
+  );
+}
+
+function SizeSheet() {
+  const [size, setSize] = useState(6);
+  const dia = innerDia(size);
+  const scaled = 1.5 * Math.pow(innerDia(9) / innerDia(6), 3);
+
+  const S = 6.4;
+  const ri = (dia / 2) * S;
+  const stoneR = (7.4 / 2) * S;          // 1.50 ct stays 7.4mm across
+  const ghostR = ((7.4 * (innerDia(9) / innerDia(6))) / 2) * S;
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* 520 wide, like the other sheets: the longest readout ran off a 420 box. */}
+      <svg viewBox="0 0 520 260" className="w-full flex-1" role="img"
+           aria-label={`Ring at US size ${size}`}>
+        <g transform="translate(176 132)">
+          {/* What scaling would do to the stone, for comparison. */}
+          <circle r={ghostR} cy={-(ri + 16)} fill="none" stroke="var(--accent-500)"
+                  strokeWidth="1" strokeDasharray="3 3" opacity="0.55" />
+          <motion.circle
+            animate={{ r: ri }} transition={{ type: "spring", stiffness: 240, damping: 30 }}
+            fill="none" stroke="var(--metal-300)" strokeWidth="1.4"
+          />
+          <motion.circle
+            animate={{ r: ri + 2.4 * S }} transition={{ type: "spring", stiffness: 240, damping: 30 }}
+            fill="none" stroke="var(--metal-300)" strokeWidth="1.4"
+          />
+          <motion.circle
+            animate={{ cy: -(ri + 16) }} transition={{ type: "spring", stiffness: 240, damping: 30 }}
+            r={stoneR} fill="none" stroke="var(--metal-200)" strokeWidth="1.4"
+          />
+        </g>
+
+        <g className="fill-white/60" style={{ font: "500 9px ui-monospace, monospace" }}>
+          <text x="330" y="96">stone · 7.40 mm · 1.50 ct</text>
+          <text x="330" y="112" className="fill-accent-400">if scaled · {scaled.toFixed(2)} ct</text>
+          <text x="330" y="150">inner Ø · {dia.toFixed(2)} mm</text>
+          <text x="330" y="166">band · 2.40 mm, unchanged</text>
+        </g>
+      </svg>
+
+      <div className="mt-2">
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <span className="mono-label !text-[0.52rem]">US ring size</span>
+          <span className="tabular text-[0.78rem] text-white/75">{size.toFixed(1)}</span>
+        </div>
+        <input type="range" min={3} max={13} step={0.5} value={size}
+               onChange={(e) => setSize(Number(e.target.value))}
+               className="slider-metal" aria-label="US ring size" />
+        <p className="mono-label mt-1 !text-[0.46rem] !normal-case !tracking-[0.1em]">
+          inner Ø = 11.63 + size × 0.8128 — the engine's relation
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function WeightSheet() {
+  const alloys: MetalType[] = ["platinum", "white_gold", "18k_gold", "14k_rose", "silver"];
+  const [metal, setMetal] = useState<MetalType>("platinum");
+  const grams = VOLUME_CM3 * METAL_DENSITY[metal];
+  const max = VOLUME_CM3 * METAL_DENSITY.platinum;
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex flex-wrap gap-1.5">
+        {alloys.map((m) => (
+          <button
+            key={m}
+            onClick={() => setMetal(m)}
+            className={
+              "rounded-full border px-2.5 py-1 text-[0.66rem] transition-colors duration-300 " +
+              (metal === m
+                ? "border-metal-400/50 bg-metal-400/10 text-metal-200"
+                : "border-white/10 text-white/45 hover:border-white/25 hover:text-white/75")
+            }
           >
-            {data.title}
-          </motion.h3>
-          <motion.p 
-            layout="position"
-            className="text-xs font-mono uppercase tracking-wider text-(--gold-500)/80 mt-1 mb-2"
+            {METAL_LABELS[m]}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6 flex flex-1 flex-col justify-center">
+        <div className="flex items-baseline gap-3">
+          <motion.span
+            key={grams.toFixed(2)}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="tabular text-[clamp(2.4rem,1.6rem+2.6vw,3.6rem)] font-semibold leading-none text-white"
           >
-            {data.subtitle}
-          </motion.p>
-          
-          <div className="relative overflow-hidden">
-            <AnimatePresence initial={false}>
-              {isActive && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                >
-                  <p className="text-sm text-white/60 leading-relaxed pb-1">
-                    {data.desc}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+            {grams.toFixed(2)}
+          </motion.span>
+          <span className="mono-label !text-[0.6rem]">grams</span>
+        </div>
+
+        <div className="mt-5 space-y-2">
+          {alloys.map((m) => {
+            const g = VOLUME_CM3 * METAL_DENSITY[m];
+            return (
+              <button
+                key={m}
+                onClick={() => setMetal(m)}
+                className="flex w-full items-center gap-3 text-left"
+              >
+                <span className={"mono-label w-32 shrink-0 !text-[0.5rem] " + (m === metal ? "!text-metal-300" : "")}>
+                  {METAL_LABELS[m]}
+                </span>
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                  <motion.span
+                    className={"block h-full rounded-full " + (m === metal ? "bg-metal-300" : "bg-white/20")}
+                    initial={false}
+                    animate={{ width: `${(g / max) * 100}%` }}
+                    transition={{ type: "spring", stiffness: 260, damping: 30 }}
+                  />
+                </span>
+                <span className={"tabular w-16 shrink-0 text-right text-[0.76rem] " + (m === metal ? "text-white" : "text-white/40")}>
+                  {g.toFixed(2)} g
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
-    </motion.div>
-  );
-}
 
-function CapabilityVisualizer({ activeId }: { activeId: string }) {
-  return (
-    <div className="relative w-64 h-64 preserve-3d">
-      <motion.div
-        animate={{ rotateY: 360 }}
-        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-        className="absolute inset-0 w-full h-full flex items-center justify-center preserve-3d"
-      >
-        <motion.div
-          animate={{ 
-            scale: activeId === "dimensions" ? 1.15 : 1,
-            rotateX: activeId === "physics" ? 15 : 0,
-          }}
-          transition={{ type: "spring", stiffness: 120, damping: 20 }}
-          className="w-full h-full flex items-center justify-center preserve-3d"
-        >
-          <VisualRing mode={activeId} />
-        </motion.div>
-      </motion.div>
-
-      <div className="absolute inset-0 pointer-events-none">
-        
-        <AnimatedOverlay show={activeId === "semantic"}>
-          <Label x={-80} y={-40} text="PRONGS (6)" delay={0.1} />
-          <Label x={90} y={0} text="GALLERY RAIL" delay={0.2} />
-          <Label x={-60} y={80} text="SHANK (D-PROFILE)" delay={0.3} />
-        </AnimatedOverlay>
-
-        <AnimatedOverlay show={activeId === "dimensions"}>
-          <div className="absolute top-[60%] left-1/2 -translate-x-1/2 w-40 h-px bg-(--gold-500) flex items-center justify-between shadow-[0_0_8px_rgba(225,185,92,0.5)]">
-            <div className="w-px h-3 bg-(--gold-500)" />
-            <div className="bg-black/80 px-2 py-1 text-[10px] text-(--gold-500) rounded border border-(--gold-500)/30 backdrop-blur-md">
-              18.2mm
-            </div>
-            <div className="w-px h-3 bg-(--gold-500)" />
-          </div>
-        </AnimatedOverlay>
-
-        <AnimatedOverlay show={activeId === "physics"}>
-          <div className="absolute -right-4 top-10 bg-white/5 backdrop-blur-xl border border-white/10 p-4 rounded-xl w-40 shadow-2xl">
-            <div className="flex justify-between text-xs text-white/60 mb-2">
-              <span>Gold 18k</span>
-              <span className="text-white font-medium">4.8g</span>
-            </div>
-            <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full w-[70%] bg-(--gold-500) shadow-[0_0_10px_rgba(225,185,92,0.5)]" />
-            </div>
-            <div className="flex justify-between text-xs text-white/60 mt-3 mb-2">
-              <span>Diamond</span>
-              <span className="text-white font-medium">1.02ct</span>
-            </div>
-            <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full w-[40%] bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]" />
-            </div>
-          </div>
-        </AnimatedOverlay>
-
-        <AnimatedOverlay show={activeId === "production"}>
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-emerald-950/80 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-full text-xs font-mono flex items-center gap-2 backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.2)]">
-            <ShieldCheck size={14} />
-            <span>MESH WATERTIGHT</span>
-          </div>
-        </AnimatedOverlay>
-
-      </div>
+      <p className="mt-4 text-[0.78rem] leading-relaxed text-white/45">
+        {VOLUME_CM3.toFixed(2)} cm³ of metal, measured off the closed solid,
+        times {METAL_DENSITY[metal]} g/cm³ for {METAL_LABELS[metal].toLowerCase()}.
+      </p>
     </div>
   );
 }
 
-function AnimatedOverlay({ show, children }: { show: boolean, children: React.ReactNode }) {
-  return (
-    <div 
-      className={`absolute inset-0 transition-opacity duration-500 ease-out ${show ? "opacity-100" : "opacity-0"}`}
-    >
-      {children}
-    </div>
-  );
-}
+function RegionSheet() {
+  const [size, setSize] = useState(6);
+  const reduced = useReducedMotion();
 
-function Label({ x, y, text, delay }: { x: number, y: number, text: string, delay: number }) {
-  return (
-    <div
-      className="absolute top-1/2 left-1/2 flex items-center gap-2 transition-transform duration-500"
-      style={{ transform: `translate(${x}px, ${y}px)` }}
-    >
-      <div className="w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white]" />
-      <div className="h-px w-6 bg-linear-to-r from-white/80 to-transparent" />
-      <div className="text-[10px] font-bold text-white/90 bg-black/40 px-2 py-1 rounded backdrop-blur-md border border-white/10 shadow-lg tracking-wider">
-        {text}
-      </div>
-    </div>
-  );
-}
+  /* The region from the engine's own regression: 158°–198°, still exactly
+   * that stretch after the ring is resized and resized back. */
+  const FROM = 158, TO = 198;
 
-function VisualRing({ mode }: { mode: string }) {
-  const isWireframe = mode === "production" || mode === "semantic";
-  const isHeatmap = mode === "physics";
-  
-  const STRUTS = useMemo(() => [0, 45, 90, 135, 180, 225, 270, 315], []);
-  const RINGS = useMemo(() => [0, 8, 16], []);
+  /* The size steps back and forth on its own, because the claim is about what
+   * survives a resize and a still picture cannot show that. It only runs while
+   * the sheet is on screen, and not at all for anyone who has asked for less
+   * motion — for them it is simply a labelled diagram. */
+  const hostRef = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    if (reduced) return;
+    let id = 0;
+    const io = new IntersectionObserver(([e]) => {
+      window.clearInterval(id);
+      if (e.isIntersecting) {
+        id = window.setInterval(() => setSize((s) => (s === 6 ? 9 : 6)), 2400);
+      }
+    }, { threshold: 0.3 });
+    if (hostRef.current) io.observe(hostRef.current);
+    return () => { io.disconnect(); window.clearInterval(id); };
+  }, [reduced]);
 
-  const ringBorderClass = isHeatmap
-    ? "border-blue-400/50 shadow-[0_0_15px_rgba(96,165,250,0.3)]"
-    : isWireframe
-      ? "border-white/30"
-      : "border-(--gold-500)/80 shadow-[0_0_15px_rgba(225,185,92,0.2)]";
+  const dia = innerDia(size);
+  const S = 6.4;
+  const ri = (dia / 2) * S;
+  const ro = ri + 2.4 * S;
 
-  const strutClass = isHeatmap
-    ? "bg-blue-500/60"
-    : "bg-white/20";
-
-  const strutOpacity = (isWireframe || isHeatmap) ? 'opacity-100' : 'opacity-0';
+  const arc = (r: number, a0: number, a1: number) => {
+    const p = (a: number) => {
+      const rad = ((a - 90) * Math.PI) / 180;
+      return [210 + Math.cos(rad) * r, 130 + Math.sin(rad) * r];
+    };
+    const [x0, y0] = p(a0);
+    const [x1, y1] = p(a1);
+    return `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`;
+  };
 
   return (
-    <div className="relative preserve-3d">
-      {RINGS.map((z) => (
-        <div 
-          key={z}
-          className={`absolute inset-0 -top-20 -left-20 h-40 w-40 rounded-full border-2 transition-colors duration-700 ${ringBorderClass}`}
-          style={{ transform: `translateZ(${z}px)` }}
+    <div className="flex h-full flex-col">
+      <svg ref={hostRef} viewBox="0 0 420 240" className="w-full flex-1" role="img"
+           aria-label={`Region from ${FROM} to ${TO} degrees at size ${size}`}>
+        <motion.circle animate={{ r: ri }} transition={{ type: "spring", stiffness: 200, damping: 28 }}
+                       cx="210" cy="130" fill="none" stroke="var(--metal-300)" strokeWidth="1.3" />
+        <motion.circle animate={{ r: ro }} transition={{ type: "spring", stiffness: 200, damping: 28 }}
+                       cx="210" cy="130" fill="none" stroke="var(--metal-300)" strokeWidth="1.3" />
+
+        {/* The edited stretch, drawn where its angles say it is. */}
+        <motion.path
+          animate={{ d: arc(ri + (ro - ri) / 2, FROM, TO) }}
+          transition={{ type: "spring", stiffness: 200, damping: 28 }}
+          fill="none" stroke="var(--accent-500)" strokeWidth={(ro - ri)} strokeOpacity="0.32"
         />
-      ))}
-      
-      {STRUTS.map((deg) => (
-        <div
-          key={deg}
-          className={`absolute h-4 w-px transition-opacity duration-500 ${strutOpacity} ${strutClass}`}
-          style={{
-            top: '-80px', left: '0',
-            transform: `rotate(${deg}deg) translate(80px) rotateX(90deg)`
-          }}
+        <motion.path
+          animate={{ d: arc(ro + 10, FROM, TO) }}
+          transition={{ type: "spring", stiffness: 200, damping: 28 }}
+          fill="none" stroke="var(--accent-400)" strokeWidth="1.2"
         />
-      ))}
 
-      <div className="absolute -top-28 left-0 preserve-3d" style={{ transform: "rotateX(-15deg)" }}>
-        <div className="relative animate-pulse">
-           <div 
-             className={`absolute -left-3 -top-3 w-6 h-6 rotate-45 border transition-colors duration-700
-               ${isHeatmap ? 'bg-blue-500/30 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-white/5 border-white shadow-[0_0_15px_rgba(255,255,255,0.2)]'}
-             `} 
-           />
-           <div 
-             className={`absolute -left-3 -top-3 w-6 h-6 rotate-45 border transition-colors duration-700
-               ${isHeatmap ? 'bg-blue-500/30 border-blue-400' : 'bg-white/5 border-white'}
-             `} 
-             style={{ transform: "rotateY(90deg)" }} 
-           />
-        </div>
-      </div>
+        <g className="fill-white/60" style={{ font: "500 9px ui-monospace, monospace" }}>
+          <text x="20" y="34">region · {FROM}° – {TO}°</text>
+          <text x="20" y="50" className="fill-accent-400">unchanged</text>
+          <text x="20" y="206">US size · {size.toFixed(1)}</text>
+          <text x="20" y="222">inner Ø · {dia.toFixed(2)} mm</text>
+        </g>
+      </svg>
+
+      <p className="mt-3 text-[0.78rem] leading-relaxed text-white/45">
+        The ring is rebuilt each time the size changes, so the faces it is made
+        of are new objects with new numbers. The edit is stored as an angle
+        around the finger, which is a property of the design rather than of any
+        one build of it — so it is still on the same stretch of shank
+        afterwards.
+      </p>
     </div>
   );
 }
+
+export default InteractiveCapabilities;
