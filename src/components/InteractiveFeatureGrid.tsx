@@ -1,342 +1,553 @@
-import React, { useRef, useState, useEffect } from "react";
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { 
-  Wand2, 
-  SlidersHorizontal, 
-  Box, 
-  Globe, 
-  ArrowUpRight
-} from "lucide-react";
+/**
+ * What it does, demonstrated rather than described.
+ *
+ * The previous version of this section had four cards whose visuals were
+ * decoration: a field of dots that pushed away from the cursor, a box that
+ * changed width, a ring drawn out of rotated divs, a spinning conic gradient.
+ * None of them showed the product doing anything, and one of them made a claim
+ * the codebase does not support — "access powerful libraries (BOSL2, MCAD)".
+ * Those are OpenSCAD libraries; nothing here has ever touched OpenSCAD.
+ *
+ * Every card below runs something real instead:
+ *
+ *   1. The prompt card calls parseSpecFromPrompt — the actual fallback parser
+ *      the product ships — on whatever you type.
+ *   2. The parametric card uses the engine's own band-thickness relation.
+ *   3. The manufacturability card reads MANUFACTURING_LIMITS, the same trade
+ *      figures the engine refuses designs on.
+ *   4. The B-rep card computes the real chord error of a faceted circle, which
+ *      is the actual difference between the STL and the STEP.
+ *
+ * So the section cannot drift away from the truth: if the engine's limits
+ * change, this page changes with them.
+ */
 
-type Feature = {
-  title: string;
-  desc: string;
-  icon: React.ElementType;
-  colSpan: string;
-  id: string;
-};
-
-const FEATURES: Feature[] = [
-  {
-    id: "ai",
-    title: "AI Mesh Generation",
-    desc: "Interactive geometry that responds to your input. Move your cursor to deform the mesh below.",
-    icon: Wand2,
-    colSpan: "md:col-span-2",
-  },
-  {
-    id: "parametric",
-    title: "Parametric Control",
-    desc: "Drag the slider to see how parameters drive form in real-time.",
-    icon: SlidersHorizontal,
-    colSpan: "md:col-span-1",
-  },
-  {
-    id: "export",
-    title: "3D Exports",
-    desc: "Production-ready solitaire geometry. Hover to rotate and inspect the setting.",
-    icon: Box,
-    colSpan: "md:col-span-1",
-  },
-  {
-    id: "browser",
-    title: "Cloud Engine",
-    desc: "Access powerful libraries (BOSL2, MCAD) instantly in the browser.",
-    icon: Globe,
-    colSpan: "md:col-span-2",
-  },
-];
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import {
+  MANUFACTURING_LIMITS,
+  METAL_LABELS,
+  parseSpecFromPrompt,
+  type MetalType,
+  type RingSpec,
+} from "../lib/ring-spec";
 
 export function InteractiveFeatureGrid() {
   return (
-    <section id="features" className="relative scroll-mt-24 py-24 sm:py-32 overflow-hidden bg-[#13000c]">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
-        <div className="max-w-2xl mx-auto text-center mb-16">
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl sm:text-4xl font-semibold shiny-text mb-4"
-          >
-            Capabilities designed to be played with.
-          </motion.h2>
-          <p className="text-white/60 text-lg">
-            Interact with the cards below to see our engine in action.
-          </p>
-        </div>
+    <section
+      id="features"
+      className="relative scroll-mt-24 overflow-hidden bg-ink-900 py-24 sm:py-32"
+    >
+      <div className="shell relative z-10">
+        <SectionHead
+          index="01"
+          kicker="Capabilities"
+          title="Four things a mesh tool cannot do."
+          lede="Each panel below is running the real thing — the same parser, the same trade limits, the same maths as the engine. Move something and watch it answer."
+        />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[320px]">
-          {FEATURES.map((feature) => (
-            <BentoCard key={feature.id} feature={feature} />
-          ))}
+        <div className="mt-14 grid grid-cols-1 gap-4 md:grid-cols-3 sm:gap-5">
+          <Card
+            i={0}
+            span="md:col-span-2"
+            index="01"
+            title="It reads the sentence"
+            body="Plain language in, engineering parameters out — metal, cut, carat, size, setting, finish."
+          >
+            <PromptDemo />
+          </Card>
+
+          <Card
+            i={1}
+            index="02"
+            title="Parametric, not baked"
+            body="Every dimension stays a number you can change, and the rest of the piece follows."
+          >
+            <SectionDemo />
+          </Card>
+
+          <Card
+            i={2}
+            index="03"
+            title="It refuses what will not cast"
+            body="Checked against what a casting house will actually accept, per alloy."
+          >
+            <CastDemo />
+          </Card>
+
+          <Card
+            i={3}
+            span="md:col-span-2"
+            index="04"
+            title="Exact solids, not triangles"
+            body="A mesh approximates a curve with flat facets. A STEP file carries the curve itself — which is what a caster's CAD package wants."
+          >
+            <BrepDemo />
+          </Card>
         </div>
       </div>
     </section>
   );
 }
 
-function BentoCard({ feature }: { feature: Feature }) {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const mouseX = useSpring(x, { stiffness: 500, damping: 100 });
-  const mouseY = useSpring(y, { stiffness: 500, damping: 100 });
+/* ------------------------------------------------------------------ chrome -- */
 
-  function onMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
-    const { left, top } = currentTarget.getBoundingClientRect();
-    mouseX.set(clientX - left);
-    mouseY.set(clientY - top);
-  }
+function SectionHead({
+  index, kicker, title, lede,
+}: { index: string; kicker: string; title: string; lede: string }) {
+  return (
+    <div className="max-w-2xl">
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="flex items-center gap-3"
+      >
+        <span className="mono-label !text-metal-400">{index}</span>
+        <span className="h-px w-8 bg-white/15" />
+        <span className="mono-label">{kicker}</span>
+      </motion.div>
+
+      <motion.h2
+        initial={{ opacity: 0, y: 18 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.75, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-5 text-[clamp(1.9rem,1.2rem+2.4vw,3.1rem)] font-semibold leading-[1.04] tracking-[-0.035em] text-white"
+      >
+        {title}
+      </motion.h2>
+
+      <motion.p
+        initial={{ opacity: 0, y: 18 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.75, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-4 max-w-xl text-[0.95rem] leading-relaxed text-white/55"
+      >
+        {lede}
+      </motion.p>
+    </div>
+  );
+}
+
+function Card({
+  i, span = "", index, title, body, children,
+}: {
+  i: number; span?: string; index: string; title: string;
+  body: string; children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
+
+  /* The edge glow follows the pointer through two custom properties, written
+   * at most once a frame. No state, so moving the pointer over a card never
+   * re-renders the demo running inside it. */
+  const onMove = useCallback((e: React.PointerEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--gx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--gy", `${e.clientY - r.top}px`);
+  }, []);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      onMouseMove={onMouseMove}
-      className={`
-        relative group overflow-hidden rounded-3xl border border-white/10 bg-white/2 backdrop-blur-sm
-        ${feature.colSpan} flex flex-col
-      `}
+      ref={ref}
+      onPointerMove={onMove}
+      initial={reduced ? { opacity: 0 } : { opacity: 0, y: 26, scale: 0.985 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{
+        duration: 0.8,
+        delay: reduced ? 0 : 0.07 * i,
+        ease: [0.16, 1, 0.3, 1],
+      }}
+      className={`card-edge group relative flex min-h-[21rem] flex-col overflow-hidden rounded-2xl border border-white/8 bg-white/[0.022] backdrop-blur-sm ${span}`}
     >
-      <div className="absolute inset-0 z-0">
-        {feature.id === "ai" && <ElasticMeshVisual />}
-        {feature.id === "parametric" && <ParametricSliderVisual />}
-        {feature.id === "export" && <SolitaireRingVisual mouseX={mouseX} mouseY={mouseY} />}
-        {feature.id === "browser" && <GlobeVisual />}
-      </div>
+      {/* The demo owns the upper area; the copy sits under it, never over it. */}
+      <div className="relative min-h-0 flex-1">{children}</div>
 
-      <div className="relative z-10 flex flex-col h-full p-8 pointer-events-none">
-        <div className="mb-auto flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 border border-white/10 backdrop-blur-md">
-            <feature.icon className="h-5 w-5 text-(--gold-400)" />
-          </div>
-          <ArrowUpRight className="h-5 w-5 text-white/20 group-hover:text-white/60 transition-colors" />
+      <div className="relative z-10 border-t border-white/6 bg-ink-900/55 p-5 backdrop-blur-md sm:p-6">
+        <div className="flex items-baseline gap-3">
+          <span className="mono-label !text-[0.55rem] !text-metal-400">{index}</span>
+          <h3 className="text-[1.05rem] font-medium tracking-tight text-white">
+            {title}
+          </h3>
         </div>
-        
-        <div className="mt-auto backdrop-blur-[2px] rounded-2xl p-2 -ml-2">
-          <h3 className="text-xl font-medium text-white mb-2">{feature.title}</h3>
-          <p className="text-sm text-white/60 leading-relaxed max-w-[90%]">
-            {feature.desc}
-          </p>
-        </div>
+        <p className="mt-1.5 max-w-[46ch] text-[0.85rem] leading-relaxed text-white/50">
+          {body}
+        </p>
       </div>
-
-      <SpotlightOverlay mouseX={mouseX} mouseY={mouseY} />
     </motion.div>
   );
 }
 
-function ElasticMeshVisual() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dots, setDots] = useState<Array<{x: number, y: number, baseX: number, baseY: number}>>([]);
+/* ------------------------------------------------------------- 01 · prompt -- */
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const { width, height } = containerRef.current.getBoundingClientRect();
-    const gap = 30;
-    const cols = Math.floor(width / gap);
-    const rows = Math.floor(height / gap);
-    const newDots = [];
-    
-    for (let i = 0; i < cols; i++) {
-      for (let j = 0; j < rows; j++) {
-        const x = i * gap + gap / 2;
-        const y = j * gap + gap / 2;
-        newDots.push({ x, y, baseX: x, baseY: y });
-      }
-    }
-    setDots(newDots);
-  }, []);
+const EXAMPLES = [
+  "platinum solitaire, 1.5 ct oval, cathedral setting, size 6.5",
+  "18k rose gold half eternity, 2.4mm band, hammered finish",
+  "white gold halo with a 0.9 ct cushion, split shank, 6 prong",
+];
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+/** The keys the parser can actually fill, in the order they read best. */
+/* `cap` marks the fields whose value is a bare enum word and so wants a capital.
+ * Applying it to everything turned "1.5 ct" into "1.5 Ct". */
+const FIELDS: Array<{
+  key: keyof RingSpec; label: string; cap?: boolean; fmt?: (v: any) => string;
+}> = [
+  { key: "metalType", label: "Metal", fmt: (v) => METAL_LABELS[v] ?? String(v) },
+  { key: "gemShape", label: "Cut", cap: true },
+  { key: "gemSize", label: "Carat", fmt: (v) => `${v} ct` },
+  { key: "setting", label: "Setting", cap: true, fmt: (v) => String(v).replace(/_/g, " ") },
+  { key: "ringSize", label: "Size", fmt: (v) => `US ${v}` },
+  { key: "bandWidth", label: "Band", fmt: (v) => `${v} mm` },
+  { key: "shankStyle", label: "Shank", cap: true },
+  { key: "shankStones", label: "Accents", cap: true, fmt: (v) => String(v).replace(/_/g, " ") },
+  { key: "finish", label: "Finish", cap: true },
+  { key: "prongCount", label: "Prongs", fmt: (v) => `${v}` },
+];
 
-    setDots(prev => prev.map(dot => {
-      const dx = mouseX - dot.baseX;
-      const dy = mouseY - dot.baseY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const maxDist = 150;
-      
-      if (dist < maxDist) {
-        const force = (maxDist - dist) / maxDist;
-        const angle = Math.atan2(dy, dx);
-        return {
-          ...dot,
-          x: dot.baseX - Math.cos(angle) * force * 40,
-          y: dot.baseY - Math.sin(angle) * force * 40
-        };
-      }
-      return { ...dot, x: dot.baseX, y: dot.baseY };
-    }));
-  };
+function PromptDemo() {
+  const [text, setText] = useState(EXAMPLES[0]);
+
+  // The real parser, on every keystroke. It is pure and fast enough to run
+  // inline; there is nothing to debounce.
+  const spec = useMemo(() => parseSpecFromPrompt(text), [text]);
+
+  const found = FIELDS.filter((f) => spec[f.key] !== undefined);
 
   return (
-    <div 
-      ref={containerRef} 
-      onMouseMove={handleMouseMove}
-      className="absolute inset-0 cursor-crosshair pointer-events-auto"
-    >
-      <svg className="w-full h-full opacity-40">
-        {dots.map((dot, i) => (
-          <circle
+    <div className="flex h-full flex-col gap-3 p-5 sm:p-6">
+      <div className="flex flex-wrap gap-1.5">
+        {EXAMPLES.map((ex, i) => (
+          <button
             key={i}
-            cx={dot.x}
-            cy={dot.y}
-            r={1.5}
-            fill="var(--gold-500)"
-            className="transition-transform duration-75 ease-out"
-          />
+            onClick={() => setText(ex)}
+            className={
+              "rounded-full border px-2.5 py-1 text-[0.68rem] transition-colors duration-300 " +
+              (text === ex
+                ? "border-metal-400/50 bg-metal-400/10 text-metal-200"
+                : "border-white/10 text-white/45 hover:border-white/25 hover:text-white/75")
+            }
+          >
+            Example {i + 1}
+          </button>
         ))}
-      </svg>
-    </div>
-  );
-}
+      </div>
 
-function ParametricSliderVisual() {
-  const [value, setValue] = useState(50);
-  const handleDrag = (e: React.ChangeEvent<HTMLInputElement>) => setValue(Number(e.target.value));
+      <label className="sr-only" htmlFor="prompt-demo">
+        Describe a ring
+      </label>
+      <textarea
+        id="prompt-demo"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        spellCheck={false}
+        className="glassy-input resize-none !rounded-lg !bg-black/40 font-mono !text-[0.78rem] !leading-relaxed"
+        placeholder="Describe a ring…"
+      />
 
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto">
-      <motion.div 
-        className="relative mb-8 border border-(--gold-500) bg-(--gold-500)/10"
-        style={{
-          width: 80 + value,
-          height: 80,
-          borderRadius: 40 - (value * 0.3),
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      >
-        <div className="absolute inset-0 flex items-center justify-center text-[10px] text-(--gold-500) font-mono">
-          {value}mm
+      {/* All ten fields are always listed, the unfilled ones greyed out.
+          Showing only what was found hides the more interesting half of the
+          answer — which is everything the parser is still looking for. */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mono-label mb-2 !text-[0.52rem]">
+          Extracted · {found.length} of {FIELDS.length}
         </div>
-      </motion.div>
-
-      <div className="w-48 px-4 py-3 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3">
-        <span className="text-[10px] text-white/50 font-mono">WIDTH</span>
-        <input 
-          type="range" 
-          min="0" 
-          max="100" 
-          value={value} 
-          onChange={handleDrag}
-          className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-(--gold-500)"
-        />
+        <div className="flex flex-wrap content-start gap-1.5">
+          {FIELDS.map((f) => {
+            const v = spec[f.key];
+            const has = v !== undefined;
+            return (
+              <motion.span
+                key={f.key}
+                layout
+                transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+                className={
+                  "inline-flex items-baseline gap-1.5 rounded-md border px-2 py-1 transition-colors duration-300 " +
+                  (has
+                    ? "border-white/12 bg-white/[0.06]"
+                    : "border-white/6 bg-transparent")
+                }
+              >
+                <span
+                  className={
+                    "mono-label !text-[0.5rem] " + (has ? "!text-metal-400" : "")
+                  }
+                >
+                  {f.label}
+                </span>
+                <span
+                  className={
+                    "text-[0.78rem] " +
+                    (f.cap ? "capitalize " : "") +
+                    (has ? "text-white" : "text-white/20")
+                  }
+                >
+                  {has ? (f.fmt ? f.fmt(v) : String(v)) : "—"}
+                </span>
+              </motion.span>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
-function SolitaireRingVisual({ mouseX, mouseY }: { mouseX: any, mouseY: any }) {
-  const rotateX = useTransform(mouseY, [0, 320], [10, -10]);
-  const rotateY = useTransform(mouseX, [0, 320], [-30, 30]);
+/* ---------------------------------------------------------- 02 · parametric -- */
+
+/** The engine's own relation: thickness follows width, clamped. */
+const thicknessFor = (w: number) => Math.min(2.6, Math.max(1.2, w * 0.62));
+
+function SectionDemo() {
+  const [width, setWidth] = useState(2.6);
+  const t = thicknessFor(width);
+
+  // Drawn at 26 px per millimetre, centred in a 220 x 150 viewBox.
+  const S = 26;
+  const w = width * S;
+  const h = t * S;
+  const cx = 110;
+  const cy = 74;
+
+  // A comfort-fit section: domed outside, gently relieved inside.
+  const d = `
+    M ${cx - w / 2} ${cy + h / 2}
+    L ${cx - w / 2} ${cy + h / 2 - h * 0.28}
+    Q ${cx - w / 2} ${cy - h / 2} ${cx} ${cy - h / 2}
+    Q ${cx + w / 2} ${cy - h / 2} ${cx + w / 2} ${cy + h / 2 - h * 0.28}
+    L ${cx + w / 2} ${cy + h / 2}
+    Q ${cx} ${cy + h / 2 - h * 0.16} ${cx - w / 2} ${cy + h / 2}
+    Z`;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center perspective-midrange">
-      <motion.div
-        style={{ rotateX, rotateY, rotateZ: 0 }}
-        className="relative preserve-3d"
-        animate={{ rotateY: 360 }}
-        transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
-      >
-        <div className="absolute inset-0 -top-16 -left-16 h-32 w-32 rounded-full border-2 border-(--gold-500)/50 translate-z-[3px]" />
-        <div className="absolute inset-0 -top-16 -left-16 h-32 w-32 rounded-full border-2 border-(--gold-500)/50 -translate-z-[3px]" />
-        
-        {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
-          <div
-            key={deg}
-            className="absolute bg-(--gold-500)/30"
-            style={{
-              width: '6px', height: '1px',
-              top: '0', left: '0',
-              transform: `rotate(${deg}deg) translate(64px) rotateY(90deg)`
-            }}
-          />
+    <div className="flex h-full flex-col p-5 sm:p-6">
+      <svg viewBox="0 0 220 150" className="min-h-[9rem] w-full flex-1" role="img"
+           aria-label={`Band section, ${width.toFixed(1)} by ${t.toFixed(2)} millimetres`}>
+        <defs>
+          <linearGradient id="bandfill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f0dfe7" stopOpacity="0.95" />
+            <stop offset="45%" stopColor="#c69bb2" stopOpacity="0.7" />
+            <stop offset="100%" stopColor="#4a3d43" stopOpacity="0.55" />
+          </linearGradient>
+        </defs>
+
+        {/* Dimension witnesses, the way a drawing marks them. */}
+        <g stroke="rgba(255,255,255,0.22)" strokeWidth="1">
+          <line x1={cx - w / 2} y1={cy + h / 2 + 10} x2={cx + w / 2} y2={cy + h / 2 + 10} />
+          <line x1={cx - w / 2} y1={cy + h / 2 + 6} x2={cx - w / 2} y2={cy + h / 2 + 14} />
+          <line x1={cx + w / 2} y1={cy + h / 2 + 6} x2={cx + w / 2} y2={cy + h / 2 + 14} />
+          <line x1={cx + w / 2 + 14} y1={cy - h / 2} x2={cx + w / 2 + 14} y2={cy + h / 2} />
+          <line x1={cx + w / 2 + 10} y1={cy - h / 2} x2={cx + w / 2 + 18} y2={cy - h / 2} />
+          <line x1={cx + w / 2 + 10} y1={cy + h / 2} x2={cx + w / 2 + 18} y2={cy + h / 2} />
+        </g>
+        <text x={cx} y={cy + h / 2 + 26} textAnchor="middle"
+              className="fill-white/55" style={{ font: "500 9px ui-monospace, monospace" }}>
+          {width.toFixed(1)} mm
+        </text>
+        <text x={cx + w / 2 + 22} y={cy + 3}
+              className="fill-white/55" style={{ font: "500 9px ui-monospace, monospace" }}>
+          {t.toFixed(2)}
+        </text>
+
+        <path d={d} fill="url(#bandfill)" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+      </svg>
+
+      <div className="mt-2">
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <span className="mono-label !text-[0.52rem]">Band width</span>
+          <span className="tabular text-[0.78rem] text-white/75">
+            {width.toFixed(1)} mm
+          </span>
+        </div>
+        <input
+          type="range" min={1.4} max={6} step={0.1} value={width}
+          onChange={(e) => setWidth(Number(e.target.value))}
+          className="slider-metal"
+          aria-label="Band width in millimetres"
+        />
+        <p className="mono-label mt-1 !text-[0.5rem] !tracking-[0.12em] !normal-case">
+          thickness = clamp(width × 0.62, 1.2, 2.6) — the engine's own relation
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------ 03 · manufacturable -- */
+
+const ALLOYS: MetalType[] = ["platinum", "18k_gold", "silver"];
+
+function CastDemo() {
+  const [metal, setMetal] = useState<MetalType>("platinum");
+  const [thick, setThick] = useState(1.35);
+
+  const lim = MANUFACTURING_LIMITS[metal];
+  const ok = thick >= lim.minBandThickness;
+
+  return (
+    <div className="flex h-full flex-col justify-between gap-4 p-5 sm:p-6">
+      <div className="flex flex-wrap gap-1.5">
+        {ALLOYS.map((m) => (
+          <button
+            key={m}
+            onClick={() => setMetal(m)}
+            className={
+              "rounded-full border px-2.5 py-1 text-[0.68rem] transition-colors duration-300 " +
+              (metal === m
+                ? "border-metal-400/50 bg-metal-400/10 text-metal-200"
+                : "border-white/10 text-white/45 hover:border-white/25 hover:text-white/75")
+            }
+          >
+            {MANUFACTURING_LIMITS[m].label}
+          </button>
         ))}
+      </div>
 
-        <div 
-          className="absolute preserve-3d" 
-          style={{ transform: "rotate(-90deg) translate(64px) rotateY(90deg)" }}
+      {/* The bar is the band thickness; the tick is the alloy's floor. */}
+      <div className="relative h-16">
+        <div className="absolute inset-x-0 top-6 h-2.5 overflow-hidden rounded-full bg-white/8">
+          <motion.div
+            animate={{ width: `${Math.min(100, (thick / 3) * 100)}%` }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className={ok ? "h-full bg-emerald-400/70" : "h-full bg-red-400/75"}
+          />
+        </div>
+        <motion.div
+          animate={{ left: `${(lim.minBandThickness / 3) * 100}%` }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className="absolute top-3 h-8 w-px bg-white/70"
         >
-          <div className="absolute w-8 h-8 -left-4 -top-4 rounded-full border border-(--gold-500)/40 rotate-x-90" />
+          <span className="mono-label absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap !text-[0.48rem] !text-white/60">
+            min {lim.minBandThickness.toFixed(2)}
+          </span>
+        </motion.div>
+      </div>
 
-          {[0, 60, 120, 180, 240, 300].map((deg) => (
-            <div key={deg} className="preserve-3d absolute inset-0">
-               <div 
-                 className="absolute w-px bg-(--gold-500) origin-bottom"
-                 style={{
-                   height: '24px',
-                   bottom: '0',
-                   left: '0',
-                   transform: `rotateY(${deg}deg) translateZ(4px) rotateX(-12deg)`
-                 }}
-               />
+      <div>
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <span className="mono-label !text-[0.52rem]">Band thickness</span>
+          <span className="tabular text-[0.78rem] text-white/75">
+            {thick.toFixed(2)} mm
+          </span>
+        </div>
+        <input
+          type="range" min={0.5} max={3} step={0.01} value={thick}
+          onChange={(e) => setThick(Number(e.target.value))}
+          className="slider-metal"
+          aria-label="Band thickness in millimetres"
+        />
+      </div>
+
+      {/* The wording is the engine's, not a paraphrase of it. */}
+      <div
+        role="status"
+        className={
+          "rounded-lg border px-3 py-2.5 text-[0.76rem] leading-relaxed transition-colors duration-300 " +
+          (ok
+            ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-300/90"
+            : "border-red-500/30 bg-red-500/8 text-red-300/90")
+        }
+      >
+        {ok
+          ? `Passes. ${lim.label} needs at least ${lim.minBandThickness.toFixed(2)}mm.`
+          : `Band is ${thick.toFixed(2)}mm thick; ${lim.label} needs at least ${lim.minBandThickness.toFixed(2)}mm to survive wear.`}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- 04 · b-rep -- */
+
+/** Inner radius of a US size 6.5 band, in millimetres. */
+const RING_R = 8.45;
+
+function BrepDemo() {
+  const [facets, setFacets] = useState(16);
+  const reduced = useReducedMotion();
+
+  /* The sagitta: how far a flat chord falls away from the arc it replaces.
+   * This is the entire difference between the STL and the STEP, in one
+   * number, and it is why a caster asks for the STEP. */
+  const error = RING_R * (1 - Math.cos(Math.PI / facets));
+
+  const R = 58;
+  const cx = 74;
+  const cy = 74;
+
+  const poly = useMemo(() => {
+    const pts: string[] = [];
+    for (let i = 0; i <= facets; i++) {
+      const a = (i / facets) * Math.PI * 2 - Math.PI / 2;
+      pts.push(`${(cx + Math.cos(a) * R).toFixed(2)},${(cy + Math.sin(a) * R).toFixed(2)}`);
+    }
+    return pts.join(" ");
+  }, [facets]);
+
+  return (
+    <div className="flex h-full flex-col gap-4 p-5 sm:p-6 sm:flex-row sm:items-center">
+      <svg viewBox="0 0 148 148" className="mx-auto h-40 w-40 shrink-0 sm:h-44 sm:w-44"
+           role="img" aria-label={`Circle approximated by ${facets} facets`}>
+        {/* The exact curve. */}
+        <circle cx={cx} cy={cy} r={R} fill="none"
+                stroke="var(--metal-300)" strokeWidth="1.25" />
+        {/* The facets that stand in for it. */}
+        <motion.polyline
+          points={poly}
+          fill="none"
+          stroke="var(--accent-500)"
+          strokeWidth="1.25"
+          strokeLinejoin="round"
+          animate={reduced ? undefined : { opacity: [0.85, 1, 0.85] }}
+          transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* The gap between them, at the point where it is widest. */}
+        <circle cx={cx} cy={cy - R} r="2" fill="var(--accent-500)" />
+      </svg>
+
+      <div className="min-w-0 flex-1">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/8 bg-white/8">
+          <div className="bg-ink-900/80 px-3 py-2.5">
+            <div className="mono-label !text-[0.5rem]">STL · triangles</div>
+            <div className="tabular mt-0.5 text-[0.95rem] text-white">
+              {error < 0.005 ? "< 0.005" : error.toFixed(3)} mm
             </div>
-          ))}
-
-          <div className="absolute -translate-y-5 preserve-3d">
-             <DiamondWireframe />
+            <div className="mt-0.5 text-[0.66rem] text-white/40">out of round</div>
+          </div>
+          <div className="bg-ink-900/80 px-3 py-2.5">
+            <div className="mono-label !text-[0.5rem]">STEP · B-rep</div>
+            <div className="tabular mt-0.5 text-[0.95rem] text-emerald-300">0.000 mm</div>
+            <div className="mt-0.5 text-[0.66rem] text-white/40">it is the cylinder</div>
           </div>
         </div>
 
-      </motion.div>
-      <style>{`
-        .preserve-3d { transform-style: preserve-3d; } 
-        .translate-z-\[3px\] { transform: translateZ(3px); } 
-        .-translate-z-\[3px\] { transform: translateZ(-3px); }
-        .rotate-x-90 { transform: rotateX(90deg); }
-      `}</style>
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <span className="mono-label !text-[0.52rem]">Mesh resolution</span>
+            <span className="tabular text-[0.78rem] text-white/75">{facets} facets</span>
+          </div>
+          <input
+            type="range" min={6} max={96} step={1} value={facets}
+            onChange={(e) => setFacets(Number(e.target.value))}
+            className="slider-metal"
+            aria-label="Number of facets approximating the circle"
+          />
+        </div>
+
+        <p className="mt-2.5 text-[0.76rem] leading-relaxed text-white/45">
+          A size 6.5 band is {RING_R} mm in radius. At {facets} facets its hole is{" "}
+          <span className="tabular text-white/75">{error.toFixed(3)} mm</span> out of
+          round — enough to feel. Raising the count shrinks the error but never
+          reaches zero, and every extra facet is more file.
+        </p>
+      </div>
     </div>
   );
 }
 
-function DiamondWireframe() {
-  return (
-    <div className="relative preserve-3d">
-      {[0, 60, 120].map((deg) => (
-        <div
-          key={deg}
-          className="absolute border-[0.5px] border-white/60 bg-white/5"
-          style={{
-            width: '18px', 
-            height: '16px',
-            left: '-9px',
-            top: '-8px',
-            transform: `rotateY(${deg}deg)`,
-            clipPath: 'polygon(25% 0%, 75% 0%, 100% 30%, 50% 100%, 0% 30%)'
-          }}
-        />
-      ))}
-      
-      <div className="absolute w-[18px] h-[18px] -left-[9px] -top-[3px] rounded-full border border-white/30 rotate-x-90" />
-      <div className="absolute w-2 h-2 -left-1 -top-2 border border-white/30 rotate-x-90" />
-      <div className="absolute w-8 h-8 -left-4 -top-4 bg-white/20 blur-md rounded-full animate-pulse" />
-    </div>
-  )
-}
-
-function GlobeVisual() {
-  return (
-    <div className="absolute inset-0 opacity-30">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] bg-[conic-gradient(from_0deg,transparent_0_340deg,rgba(198,155,178,0.5)_360deg)] animate-[spin_8s_linear_infinite]" />
-      <div className="absolute inset-4 rounded-full border border-dashed border-white/20" />
-      <div className="absolute inset-16 rounded-full border border-white/10" />
-    </div>
-  );
-}
-
-function SpotlightOverlay({ mouseX, mouseY }: { mouseX: any, mouseY: any }) {
-  return (
-    <motion.div
-      className="pointer-events-none absolute -inset-px opacity-0 group-hover:opacity-100 transition duration-300 z-30"
-      style={{
-        background: useTransform(
-          [mouseX, mouseY],
-          ([x, y]) => `radial-gradient(600px circle at ${x}px ${y}px, rgba(255,255,255,0.06), transparent 40%)`
-        ),
-      }}
-    />
-  );
-}
+export default InteractiveFeatureGrid;

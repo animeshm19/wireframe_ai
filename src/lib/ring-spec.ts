@@ -157,6 +157,27 @@ export const METAL_APPEARANCE: Record<MetalType, { color: string; roughness: num
   silver:     { color: "#fbfaf5", roughness: 0.14 },  // fine silver F0
 };
 
+/**
+ * Minimum safe dimensions for casting and daily wear, in millimetres.
+ *
+ * Sources are standard trade practice: casting houses generally refuse walls
+ * below ~0.8mm in gold and ~0.7mm in platinum, and prongs below ~0.8mm diameter
+ * bend or snap in wear. Silver is softer and needs more material.
+ *
+ * These live here rather than in the geometry engine so that anything which
+ * needs to quote them — the manufacturability check, the Studio, the landing
+ * page — reads the same table without importing the CAD kernel to get at it.
+ */
+export const MANUFACTURING_LIMITS: Record<MetalType, {
+  minWall: number; minProngDia: number; minBandThickness: number; label: string;
+}> = {
+  platinum:   { minWall: 0.70, minProngDia: 0.80, minBandThickness: 1.00, label: "Platinum" },
+  white_gold: { minWall: 0.80, minProngDia: 0.85, minBandThickness: 1.10, label: "18k White Gold" },
+  "18k_gold": { minWall: 0.80, minProngDia: 0.85, minBandThickness: 1.10, label: "18k Yellow Gold" },
+  "14k_rose": { minWall: 0.80, minProngDia: 0.85, minBandThickness: 1.10, label: "14k Rose Gold" },
+  silver:     { minWall: 1.00, minProngDia: 1.00, minBandThickness: 1.30, label: "Sterling Silver" },
+};
+
 /** Density in g/cm3 — used for weight and cost estimates. */
 export const METAL_DENSITY: Record<MetalType, number> = {
   platinum: 21.45,

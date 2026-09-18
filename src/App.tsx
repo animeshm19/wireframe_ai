@@ -8,7 +8,6 @@ import { Hero } from "./components/Hero";
 import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
-import { DockBar } from "./components/DockBar";
 import { ContactSection } from "./components/ContactSection";
 import { Pricing } from "./components/Pricing";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -45,7 +44,14 @@ function HomePage() {
   return (
     <PageWrapper>
       <Hero />
-      <DockBar />
+      {/* The macOS dock is parked, not deleted.
+       *
+       * It is a beautifully made component — the genie portal especially — but
+       * it is a macOS dock on a jewellery CAD site, and it sat between the
+       * hero and the features doing nothing for either: it broke the scroll
+       * just as the ring finished resolving, and it argued with the one idea
+       * the page is making. DockBar.tsx is untouched; put this line back to
+       * bring it home. */}
       <InteractiveFeatureGrid />
       <InteractiveCapabilities />
       <Pricing />

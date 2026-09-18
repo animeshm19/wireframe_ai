@@ -1,3 +1,5 @@
+import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec";
+
 /**
  * Shared ring geometry engine (P1-S1).
  *
@@ -635,24 +637,12 @@ export function buildRing(
 
 // --------------------------------------------------------- manufacturability --
 
-export type MetalKey = "platinum" | "white_gold" | "18k_gold" | "14k_rose" | "silver";
-
-/**
- * Minimum safe dimensions for casting and daily wear, in millimetres.
- *
- * Sources are standard trade practice: casting houses generally refuse walls
- * below ~0.8mm in gold and ~0.7mm in platinum, and prongs below ~0.8mm diameter
- * bend or snap in wear. Silver is softer and needs more material.
- */
-export const MANUFACTURING_LIMITS: Record<MetalKey, {
-  minWall: number; minProngDia: number; minBandThickness: number; label: string;
-}> = {
-  platinum:   { minWall: 0.70, minProngDia: 0.80, minBandThickness: 1.00, label: "Platinum" },
-  white_gold: { minWall: 0.80, minProngDia: 0.85, minBandThickness: 1.10, label: "18k White Gold" },
-  "18k_gold": { minWall: 0.80, minProngDia: 0.85, minBandThickness: 1.10, label: "18k Yellow Gold" },
-  "14k_rose": { minWall: 0.80, minProngDia: 0.85, minBandThickness: 1.10, label: "14k Rose Gold" },
-  silver:     { minWall: 1.00, minProngDia: 1.00, minBandThickness: 1.30, label: "Sterling Silver" },
-};
+/* The manufacturing limits moved to ring-spec so the marketing pages can read
+ * the real numbers without pulling the whole geometry kernel in behind them —
+ * importing this module costs @jscad/modeling. Re-exported here because the
+ * engine, the worker and the tests all import them from this path. */
+export type MetalKey = MetalType;
+export { MANUFACTURING_LIMITS } from "./ring-spec";
 
 export type Issue = {
   severity: "error" | "warning";
