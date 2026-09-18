@@ -2,14 +2,12 @@
 import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion"; 
-import { auth } from "./lib/firebase";
 import { useAuth } from "./auth/auth-context"; 
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
 import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
-import { CapabilitiesTable } from "./components/CapabilitiesTable"; 
 import { Footer } from "./components/Footer";
-import { SmoothCursor } from "@/components/ui/smooth-cursor";
+import { PrecisionCursor } from "@/components/ui/precision-cursor";
 import { DockBar } from "./components/DockBar";
 import { ContactSection } from "./components/ContactSection";
 import { Pricing } from "./components/Pricing";
@@ -97,9 +95,17 @@ export default function App() {
 
   return (
     <div className={"flex min-h-screen flex-col" + (isAppRoute ? "" : " cursor-none")}>
+      {/* Keyboard users land here first and can jump the nav. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[10000] focus:rounded-full focus:bg-ink-950 focus:px-5 focus:py-2.5 focus:text-sm focus:text-white focus:outline-2 focus:outline-(--metal-400)"
+      >
+        Skip to content
+      </a>
+
       {!isAppRoute && <Navbar />}
 
-      <div className="flex-1 flex flex-col">
+      <div id="main" className="flex-1 flex flex-col">
         {/* AnimatePresence enables exit animations */}
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
@@ -127,19 +133,14 @@ export default function App() {
       </div>
 
       {!isAppRoute && <Footer />}
+
+      {/* Grain and vignette sit above everything and take no input. They are
+          what stop the flat dark gradients reading as flat dark gradients. */}
+      {!isAppRoute && <div className="vignette-layer" aria-hidden="true" />}
+      {!isAppRoute && <div className="grain-layer" aria-hidden="true" />}
       
-      {/* Enhanced Cursor */}
-      {!isAppRoute && <SmoothCursor />}
+      {/* Reticle. Mounts only on a fine pointer, wide screen, motion allowed. */}
+      {!isAppRoute && <PrecisionCursor />}
     </div>
   );
 }
-
-console.log("FB env", {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-});
-
-console.log("UID:", auth.currentUser?.uid);

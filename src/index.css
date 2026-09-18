@@ -1,148 +1,457 @@
-/* src/index.css (Tailwind v4 entry + project helpers) */
+/* src/index.css — Tailwind v4 entry + the wireframe design foundation.
+ *
+ * Everything below is one layer: tokens, type, texture, motion. Sections
+ * inherit from here rather than inventing their own values, which is the
+ * whole point — a page looks designed when its parts share a system.
+ *
+ * The palette is unchanged. The two brand mauves and the pink are exactly
+ * the values they always were; what is new is that they now have light and
+ * dark relatives, because metal is never a flat colour. A single mauve fill
+ * reads as grey plastic; the same mauve with a highlight and a shadow reads
+ * as polished metal. Same hue, different material.
+ */
+
 @import "tailwindcss";
 
-/* Optional theme tokens */
 @custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------- tokens -- */
+
+:root {
+  --radius: 0.625rem;
+
+  /* Ink. The page was two near-identical blacks (#13000c in the hero,
+   * #13010c everywhere else) which met at a visible seam. One value now. */
+  --ink-950: #050003;
+  --ink-900: #13010c;
+  --ink-850: #1a0510;
+  --ink-800: #2b111a;
+
+  /* Metal. --metal-500 and --metal-400 ARE the old --gold-500 / --gold-400,
+   * unchanged. The rest are the same hue lightened and darkened so a surface
+   * can have a highlight and a shadow. */
+  --metal-700: #4a3d43;
+  --metal-600: #6b5a61;
+  --metal-500: rgb(131, 110, 118);
+  --metal-400: rgb(198, 155, 178);
+  --metal-300: #ddc3d1;
+  --metal-200: #f0dfe7;
+
+  /* Accent — the existing pink, now a named token instead of a literal
+   * repeated in six components. (--pink-500 was "#2g3824", which is not a
+   * colour: g is not a hex digit, so every use of it silently did nothing.) */
+  --accent-500: #e12882;
+  --accent-400: #f45ba2;
+  --accent-glow: rgba(225, 40, 130, 0.35);
+
+  --background: var(--ink-900);
+  --foreground: oklch(0.985 0 0);
+  --border: rgba(255, 255, 255, 0.10);
+  --edge-strong: rgba(255, 255, 255, 0.18);
+
+  /* Aliases kept so existing `text-(--gold-500)` call sites keep working.
+   * They resolve to the same values they always did. */
+  --gold-500: var(--metal-500);
+  --gold-400: var(--metal-400);
+  --pink-500: var(--accent-500);
+
+  /* Type */
+  --font-display: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: "Inter Tight", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Fluid type scale. Every size interpolates between a phone and a desktop,
+   * so nothing has to be re-specified per breakpoint and nothing overflows
+   * a 320px screen. */
+  --step-xs: clamp(0.70rem, 0.68rem + 0.10vw, 0.75rem);
+  --step-sm: clamp(0.80rem, 0.77rem + 0.15vw, 0.875rem);
+  --step-0:  clamp(0.95rem, 0.92rem + 0.18vw, 1.05rem);
+  --step-1:  clamp(1.15rem, 1.08rem + 0.40vw, 1.40rem);
+  --step-2:  clamp(1.45rem, 1.28rem + 0.85vw, 2.05rem);
+  --step-3:  clamp(1.90rem, 1.55rem + 1.75vw, 3.10rem);
+  --step-4:  clamp(2.45rem, 1.75rem + 3.40vw, 4.80rem);
+  --step-5:  clamp(3.00rem, 1.80rem + 5.80vw, 7.50rem);
+
+  /* Motion. One easing family, so every transition on the page feels like
+   * it came from the same hand. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
+  --dur-fast: 220ms;
+  --dur-mid: 520ms;
+  --dur-slow: 900ms;
+
+  /* Layout */
+  --gutter: clamp(1rem, 0.6rem + 2vw, 2.5rem);
+  --shell: 80rem;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-ink-850: var(--ink-850);
+  --color-ink-800: var(--ink-800);
+  --color-metal-700: var(--metal-700);
+  --color-metal-600: var(--metal-600);
+  --color-metal-500: var(--metal-500);
+  --color-metal-400: var(--metal-400);
+  --color-metal-300: var(--metal-300);
+  --color-metal-200: var(--metal-200);
+  --color-accent-500: var(--accent-500);
+  --color-accent-400: var(--accent-400);
+
+  --text-xs: var(--step-xs);
+  --text-sm: var(--step-sm);
+  --text-base: var(--step-0);
+  --text-lg: var(--step-1);
+  --text-xl: var(--step-2);
+  --text-2xl: var(--step-3);
+  --text-3xl: var(--step-4);
+  --text-4xl: var(--step-5);
+
+  --ease-out-expo: var(--ease-out-expo);
+  --ease-in-out-quint: var(--ease-in-out-quint);
 }
 
-:root {
-  --radius: 0.625rem;
-  --background: #13010c;
-  --foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-
-  /* Brand pink */
-  --gold-500: rgb(131, 110, 118);
-  --gold-400: rgb(198, 155, 178);
-  --pink-500: #2g3824;
-}
+/* ------------------------------------------------------------------ base -- */
 
 @layer base {
-  * { @apply border-(--border) outline-[oklch(0.556_0_0)/.5]; }
-  html, body, #root { height: 100%; }
-  body { @apply bg-(--background) text-(--foreground) antialiased; }
+  *,
+  *::before,
+  *::after {
+    @apply border-(--border);
+  }
+
+  html {
+    /* overflow-x is clipped rather than hidden: hidden on the root element
+     * silently breaks `position: sticky` in every descendant, which the
+     * pinned sections later on depend on. */
+    overflow-x: clip;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Keeps the browser chrome from flashing white behind a rubber-band
+     * overscroll on iOS. */
+    background-color: var(--ink-950);
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-(--background) text-(--foreground) antialiased;
+    font-family: var(--font-sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    overflow-x: clip;
+    /* Stops a horizontal drag on a touch device from bouncing the page
+     * sideways when a section scrolls its own content. */
+    overscroll-behavior-x: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    line-height: 0.98;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* A visible keyboard focus ring, on one token, everywhere. Its absence is
+   * the single most common reason a beautiful site fails an accessibility
+   * review. */
+  :focus-visible {
+    outline: 2px solid var(--metal-400);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--accent-glow);
+    color: #fff;
+  }
+
+  img, svg, video, canvas {
+    display: block;
+    max-width: 100%;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--ink-950); }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.09);
+    border-radius: 999px;
+    border: 2px solid var(--ink-950);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--metal-500); }
 }
 
-/* Helpers  */
+/* --------------------------------------------------------------- texture -- */
 
-/* Glass + outline */
-.glass {
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: 0 0 20px rgba(225,185,92,0.25);
-  border-radius: 1.5rem;
-}
-.gold-text { color: var(--gold-500); }
-
-/* Fancy underline */
-.underline-fancy { position: relative; }
-.underline-fancy::after {
-  content: "";
-  position: absolute; left: 0; bottom: -4px; height: 2px; width: 0%;
-  background: linear-gradient(90deg, var(--gold-500), var(--gold-400));
-  transition: width .35s ease;
-}
-.underline-fancy:hover::after { width: 100%; }
-
-/* Mesh background */
-.mesh-bg {
-  background-image:
-    radial-gradient(1200px 600px at 10% 10%, rgba(225,185,92,0.08), transparent 60%),
-    radial-gradient(800px 400px at 90% 10%, rgba(87,178,255,0.07), transparent 55%),
-    radial-gradient(1000px 600px at 80% 80%, rgba(225,185,92,0.05), transparent 60%);
-  background-size: cover;
+/* Film grain and a vignette, fixed over the whole page.
+ *
+ * This is the cheapest large jump in perceived quality a dark site can make.
+ * A flat CSS gradient reads as a flat CSS gradient; the same gradient under a
+ * little noise reads as something photographed. The noise is a static SVG
+ * turbulence tile — no animation, no repaint, no measurable cost.
+ */
+.grain-layer,
+.vignette-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar        { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb  { background: rgba(255,255,255,.08); border-radius: 999px; }
+.grain-layer {
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
 
+.vignette-layer {
+  z-index: 9997;
+  background:
+    radial-gradient(130% 90% at 50% 0%, transparent 38%, rgba(5, 0, 3, 0.55) 100%),
+    radial-gradient(110% 80% at 50% 100%, transparent 45%, rgba(5, 0, 3, 0.45) 100%);
+}
+
+/* ------------------------------------------------------------- utilities -- */
 
 @layer utilities {
-  .shiny-text {
-    position: relative;
-    display: inline-block;
-    background-image: linear-gradient(
-      90deg,
-      rgba(255,255,255,0.85) 0%,
-      rgba(255,255,255,0.85) 35%,
-      #ffffff 50%,
-      rgba(255,255,255,0.85) 65%,
-      rgba(255,255,255,0.85) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    background-size: 200% auto;
-    animation: shine 2.4s linear infinite;
+
+  /* Page shell. One container, one gutter, respects notch insets. */
+  .shell {
+    width: 100%;
+    max-width: var(--shell);
+    margin-inline: auto;
+    padding-inline: max(var(--gutter), env(safe-area-inset-left), env(safe-area-inset-right));
   }
 
+  /* The metal treatment. Seven stops of one hue — the brand mauve lightened
+   * to a highlight and darkened to a shadow — swept diagonally. The sweep is
+   * what makes it read as a surface catching light rather than as a colour.
+   *
+   * .shiny-gold and .shiny-text are the names the existing markup already
+   * uses, so they are selectors on the same rules rather than aliases: in
+   * Tailwind v4 a custom utility cannot @apply another custom utility. */
+  .text-metal,
   .shiny-gold {
-    position: relative;
-    display: inline-block;
     background-image: linear-gradient(
-      90deg,
-      #2e1224 0%,
-      #fcfcfc 25%,
-      #2e1224 45%,
-      #fcfcfc 55%,
-      #e7e7e7 80%
+      100deg,
+      var(--metal-500) 0%,
+      var(--metal-300) 14%,
+      var(--metal-200) 27%,
+      var(--metal-400) 40%,
+      var(--metal-600) 52%,
+      var(--metal-200) 68%,
+      var(--metal-400) 86%,
+      var(--metal-500) 100%
     );
+    background-size: 200% auto;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    background-size: 220% auto;
-    animation: shine 2.8s linear infinite;
   }
 
-  @keyframes shine {
-    to { background-position: 200% center; }
+  .text-metal-sweep,
+  .shiny-gold {
+    animation: metal-sweep 7s var(--ease-in-out-quint) infinite;
   }
+
+  @keyframes metal-sweep {
+    0%, 100% { background-position: 0% center; }
+    50%      { background-position: 100% center; }
+  }
+
+  /* Plain bright text with a soft falloff — for body-weight headings that
+   * should not compete with the metal ones. */
+  .text-bright,
+  .shiny-text {
+    background-image: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.72) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .gold-text { color: var(--metal-400); }
+
+  /* The mono spec label. Used for every number, index, unit and status on the
+   * page — it is the detail that makes the whole thing read as an instrument
+   * rather than as a brochure. */
+  .mono-label {
+    font-family: var(--font-mono);
+    font-size: var(--step-xs);
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.42);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* A 1px rule that fades out at both ends, so it reads as engraved rather
+   * than as a border. */
+  .hairline {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(90deg, transparent, var(--edge-strong), transparent);
+  }
+
+  .hairline-metal {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(90deg, transparent, var(--metal-500), transparent);
+  }
+
+  /* Glass. Kept as a class because a lot of markup already asks for it, but
+   * rebuilt: the old one had a hard gold glow on every instance, which is
+   * what made stacked panels look like they were lit from inside. */
+  .glass {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.025) 100%
+    );
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 1.5rem;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+      0 30px 80px -20px rgba(0, 0, 0, 0.85);
+  }
+
+  /* A raised surface that lifts toward the pointer. */
+  .lift {
+    transition: transform var(--dur-fast) var(--ease-out-expo),
+                box-shadow var(--dur-fast) var(--ease-out-expo);
+  }
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.9);
+  }
+
+  .mesh-bg {
+    background-image:
+      radial-gradient(1200px 600px at 10% 10%, rgba(198, 155, 178, 0.07), transparent 60%),
+      radial-gradient(1000px 600px at 80% 80%, rgba(225, 40, 130, 0.05), transparent 60%);
+  }
+
+  .underline-fancy { position: relative; }
+  .underline-fancy::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -4px;
+    height: 1px;
+    width: 0%;
+    background: linear-gradient(90deg, var(--metal-500), var(--metal-300));
+    transition: width var(--dur-mid) var(--ease-out-expo);
+  }
+  .underline-fancy:hover::after { width: 100%; }
+
+  /* Full viewport height that accounts for mobile browser chrome. 100vh on
+   * iOS Safari is the height with the address bar hidden, so a 100vh hero is
+   * always taller than the screen and always cropped on first paint. */
+  .min-h-screen-safe { min-height: 100vh; min-height: 100dvh; }
+  .h-screen-safe { height: 100vh; height: 100dvh; }
+
+  .pb-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .pt-safe { padding-top: max(1rem, env(safe-area-inset-top)); }
 }
 
-@media (pointer: coarse) {
-  .cursor-none { cursor: auto; }
-}
+/* ----------------------------------------------------------------- forms -- */
 
-/* Glassy input fields used in the contact form */
 .glassy-input {
   width: 100%;
   border-radius: 0.9rem;
-  border: 1px solid rgba(255,255,255,0.18);
-  background-color: rgba(0,0,0,0.55);
-  padding: 0.65rem 0.8rem;
-  font-size: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background-color: rgba(0, 0, 0, 0.45);
+  padding: 0.7rem 0.85rem;
+  /* 16px minimum: anything smaller makes iOS Safari zoom the page on focus,
+   * and the zoom does not undo itself when the field is blurred. */
+  font-size: 16px;
+  font-family: var(--font-sans);
   color: #f9fafb;
+  transition: border-color var(--dur-fast) var(--ease-out-expo),
+              box-shadow var(--dur-fast) var(--ease-out-expo),
+              background-color var(--dur-fast) var(--ease-out-expo);
 }
 
-.glassy-input::placeholder {
-  color: rgba(249,250,251,0.6);
+@media (min-width: 640px) {
+  .glassy-input { font-size: var(--step-sm); }
 }
+
+.glassy-input::placeholder { color: rgba(249, 250, 251, 0.42); }
 
 .glassy-input:focus {
-  outline: 1px solid var(--gold-400);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--metal-400);
+  background-color: rgba(0, 0, 0, 0.62);
   box-shadow:
-    0 0 0 1px rgba(255,255,255,0.12),
-    0 0 24px rgba(225,185,92,0.45);
+    0 0 0 1px var(--metal-400),
+    0 0 30px -6px var(--accent-glow);
 }
 
 .glassy-select {
   appearance: none;
   -webkit-appearance: none;
-  -moz-appearance: none;
   background-image:
-    linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.8) 50%),
-    linear-gradient(135deg, rgba(255,255,255,0.8) 50%, transparent 50%);
-  background-position:
-    calc(100% - 12px) 50%,
-    calc(100% - 7px) 50%;
-  background-size: 7px 7px, 7px 7px;
+    linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.7) 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.7) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
+  background-size: 6px 6px, 6px 6px;
   background-repeat: no-repeat;
+}
+
+/* ---------------------------------------------------------------- motion -- */
+
+/* Coarse pointers get the system cursor back and no hover-only affordances.
+ * The custom cursor is meaningless without a mouse and the hover states are
+ * unreachable, so they must never be the only way to read something. */
+/* The native cursor is only hidden where the reticle actually mounts. It needs
+ * a fine pointer, a screen wide enough for it, and motion allowed — if any of
+ * those is false the component returns null, and hiding the system cursor
+ * anyway would leave the page with no pointer at all. */
+@media (pointer: coarse), (prefers-reduced-motion: reduce), (max-width: 767px) {
+  .cursor-none,
+  .cursor-none * { cursor: auto; }
+}
+
+/* One global switch. Everything animated on this site is either a transition,
+ * a CSS animation, or Framer Motion — the first two stop here, and Framer
+ * reads the same media query itself. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .grain-layer { display: none; }
 }
