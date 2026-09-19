@@ -1,20 +1,49 @@
-// src/components/wireframe/chat-shell.tsx
-import React, { useState, useEffect, useRef } from "react";
+/**
+ * The chat.
+ *
+ * Rebuilt around the way the tool is actually used: you write a sentence, you
+ * get a piece, you open it in the Studio, you come back and write another.
+ * Everything here serves that loop, and everything in it is reachable from the
+ * keyboard.
+ *
+ * Bugs fixed while rebuilding:
+ *
+ *   - window.innerWidth was read during render in three places to decide
+ *     whether the sidebar existed and whether the Studio replaced the feed.
+ *     Nothing re-rendered on resize, so the layout was frozen to whatever the
+ *     window was at mount — drag it narrower and the sidebar stayed.
+ *   - loadPersistedState() ran on every render, and the useState default built
+ *     a fresh chat object every render to throw it away. Both are lazy now.
+ *   - URL.createObjectURL was called during render for each attachment chip
+ *     and revoked in onLoad, so every keystroke in the composer minted a new
+ *     blob URL for every pending file and orphaned the last one. They are
+ *     created once per file and revoked when the file is dropped.
+ *   - The feed scrolled to the bottom on every change, smoothly, which fought
+ *     anyone who had scrolled up to read. It only follows when you are already
+ *     at the bottom, and offers a button when you are not.
+ *   - Two window.confirm() calls. A blocking native dialog in an app that has
+ *     a WebGL canvas running is a bad idea, and it cannot say what is about to
+ *     be lost.
+ *   - "Pro Plan" was printed under the name of every signed-in user.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { 
-  Menu, Plus, X, Pin, Trash2, Settings, 
-  PanelLeftClose, Cpu, ArrowUpRight, Box, Paperclip, 
-  File as FileIcon, Loader2, LogOut, LogIn,
-  CheckSquare, Square //
+import {
+  Menu, Plus, X, Pin, Trash2, Settings, PanelLeftClose, PanelLeft,
+  Cpu, ArrowUp, Box, Paperclip, File as FileIcon, Loader2, LogOut, LogIn,
+  Check, Search, Copy, RefreshCw, Maximize2, ArrowDown, Command as CommandIcon,
 } from "lucide-react";
 import type { ChatSession, ChatMessage, ChatAttachment } from "./chat-types";
 import { AuthDialog } from "./auth-dialog";
 import { useAuth } from "../../auth/auth-context";
 import { createDesignJob, uploadJobAttachment, deleteChatFromBackend } from "@/lib/design-jobs";
 import { DesignJobCard } from "./design-job-card";
-import { FlickeringGrid } from "../ui/shadcn-io/flickering-grid";
 import { StudioWorkspace } from "./studio-workspace";
+import { attachShortcuts, chord, type Binding } from "../../lib/keyboard";
+import { useIsDesktop } from "../../lib/use-media-query";
+import { CommandPalette, ShortcutSheet, ConfirmDialog, type Command } from "../ui/command-center";
 
 import logo from "../../assets/logo.png";
 
@@ -26,12 +55,21 @@ type PersistedState = {
   isSidebarCollapsed: boolean;
 };
 
-// --- Helpers ---
+/* Starters that the parser actually understands. Anything offered as a
+ * one-tap example had better come back with a filled spec, or the first thing
+ * a new visitor learns is that it does not work. */
+const STARTERS = [
+  "Platinum solitaire, 1.5 ct round brilliant, size 6.5",
+  "18k rose gold half eternity, 2.4mm band, hammered finish",
+  "White gold halo, 0.9 ct cushion, split shank, 6 prong",
+  "Three-stone emerald cut in platinum, cathedral setting, size 7",
+];
+
 function createEmptyChat(label?: string): ChatSession {
   const now = Date.now();
   return {
-    id: `chat-${now}`,
-    title: label ?? "New Collection",
+    id: `chat-${now}-${Math.random().toString(36).slice(2, 7)}`,
+    title: label ?? "New collection",
     messages: [],
     createdAt: now,
     updatedAt: now,
@@ -39,728 +77,861 @@ function createEmptyChat(label?: string): ChatSession {
   };
 }
 
-function generateTitleFromText(text: string): string {
+function titleFrom(text: string): string {
   const cleaned = text.replace(/\s+/g, " ").trim();
-  if (!cleaned) return "New Collection";
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "New Collection";
-  return words.slice(0, 4).join(" ") + (words.length > 4 ? "..." : "");
+  if (!cleaned) return "New collection";
+  const words = cleaned.split(/\s+/);
+  return words.slice(0, 5).join(" ") + (words.length > 5 ? "…" : "");
 }
 
-function loadPersistedState(): PersistedState | null {
+function loadPersisted(): PersistedState | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    return raw ? (JSON.parse(raw) as PersistedState) : null;
   } catch {
     return null;
   }
 }
 
-function initials(nameOrEmail?: string | null) {
-  const s = (nameOrEmail ?? "").trim();
-  if (!s) return "WF";
-  return s.slice(0, 2).toUpperCase();
+function initials(s?: string | null) {
+  const v = (s ?? "").trim();
+  return v ? v.slice(0, 2).toUpperCase() : "WF";
 }
 
-// --- Pulsating Background Component ---
-function PulsatingBackground() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <motion.div
-        className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full bg-[var(--gold-500)] blur-[120px]"
-        initial={{ opacity: 0.15, scale: 1 }}
-        animate={{
-          scale: [1, 1.15, 1],
-          opacity: [0.15, 0.25, 0.15],
-        }}
-        transition={{
-          duration: 10,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
-      <motion.div
-        className="absolute top-[20%] -right-[10%] w-[80%] h-[80%] rounded-full bg-[#731E47] blur-[140px]"
-        initial={{ opacity: 0.1, scale: 1 }}
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.1, 0.2, 0.1],
-        }}
-        transition={{
-          duration: 14,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 2,
-        }}
-      />
-      <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[150px]"
-        animate={{
-          opacity: [0.05, 0.12, 0.05],
-        }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 5,
-        }}
-      />
-    </div>
-  );
+function relativeDay(ts: number): string {
+  const d = Math.floor((Date.now() - ts) / 86_400_000);
+  if (d <= 0) return "Today";
+  if (d === 1) return "Yesterday";
+  if (d < 7) return "This week";
+  if (d < 30) return "This month";
+  return "Earlier";
 }
 
 export function ChatShell() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const persisted = loadPersistedState();
+  const isDesktop = useIsDesktop();
 
-  // State
-  const [chats, setChats] = useState<ChatSession[]>(persisted?.chats ?? [createEmptyChat()]);
-  const [activeChatId, setActiveChatId] = useState<string>(persisted?.activeChatId ?? (chats[0]?.id || ""));
+  // Lazy: read storage once, not on every render.
+  const [chats, setChats] = useState<ChatSession[]>(
+    () => loadPersisted()?.chats ?? [createEmptyChat()]
+  );
+  const [activeChatId, setActiveChatId] = useState<string>(
+    () => loadPersisted()?.activeChatId ?? ""
+  );
+  const [collapsed, setCollapsed] = useState<boolean>(
+    () => loadPersisted()?.isSidebarCollapsed ?? false
+  );
+
   const [input, setInput] = useState("");
-  
-  // File Upload State
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Layout States
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(persisted?.isSidebarCollapsed ?? false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeWorkspaceJobId, setActiveWorkspaceJobId] = useState<string | null>(null);
-
-  // Bulk Selection State
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set());
-
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  
-  const pendingPromptRef = useRef<string | null>(null);
-  const pendingFilesRef = useRef<File[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Derived
-  const activeChat = chats.find((c) => c.id === activeChatId) ?? chats[0];
-  const sortedChats = [...chats].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || b.updatedAt - a.updatedAt);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [studioJobId, setStudioJobId] = useState<string | null>(null);
 
-  // Persistence
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [confirm, setConfirm] = useState<{ ids: string[]; title: string; body: string } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const pendingRef = useRef<{ text: string; files: File[] } | null>(null);
+
+  const active = chats.find((c) => c.id === activeChatId) ?? chats[0];
+
+  // Keep activeChatId honest: a stale id from storage, or a deleted chat,
+  // would otherwise leave `active` pointing at chats[0] while the sidebar
+  // highlighted nothing.
+  useEffect(() => {
+    if (active && active.id !== activeChatId) setActiveChatId(active.id);
+  }, [active, activeChatId]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ chats, activeChatId, isSidebarCollapsed }));
-  }, [chats, activeChatId, isSidebarCollapsed]);
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ chats, activeChatId, isSidebarCollapsed: collapsed })
+    );
+  }, [chats, activeChatId, collapsed]);
 
-  // Auto-scroll
+  /* --------------------------------------------------------- attachments -- */
+
+  /* One object URL per file, made when the file arrives and released when it
+   * leaves. Minting them in render meant a new blob for every pending file on
+   * every keystroke. */
+  const [previews, setPreviews] = useState<Map<File, string>>(new Map());
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeChat?.messages.length, isGenerating, activeChatId, selectedFiles.length]);
+    setPreviews((prev) => {
+      const next = new Map<File, string>();
+      for (const f of files) {
+        const existing = prev.get(f);
+        next.set(f, existing ?? (f.type.startsWith("image/") ? URL.createObjectURL(f) : ""));
+      }
+      for (const [f, url] of prev) if (!next.has(f) && url) URL.revokeObjectURL(url);
+      return next;
+    });
+  }, [files]);
+  useEffect(() => () => { previews.forEach((u) => u && URL.revokeObjectURL(u)); }, []); // eslint-disable-line
 
-  // Handlers
-  const handleNewChat = () => {
-    const newChat = createEmptyChat();
-    setChats([newChat, ...chats]);
-    setActiveChatId(newChat.id);
-    setMobileMenuOpen(false);
-    setActiveWorkspaceJobId(null);
+  /* ------------------------------------------------------------- scroll -- */
+
+  const onFeedScroll = useCallback(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+  }, []);
+
+  const jumpToEnd = useCallback((smooth = true) => {
+    endRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "end" });
+  }, []);
+
+  // Follow new messages only when already at the bottom.
+  useEffect(() => {
+    if (atBottom) jumpToEnd(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.messages.length, generating]);
+
+  // A different collection always starts at its end, without animating there.
+  useEffect(() => { jumpToEnd(false); setAtBottom(true); }, [activeChatId, jumpToEnd]);
+
+  /* ------------------------------------------------------------ actions -- */
+
+  const newChat = useCallback(() => {
+    const c = createEmptyChat();
+    setChats((prev) => [c, ...prev]);
+    setActiveChatId(c.id);
+    setDrawerOpen(false);
+    setStudioJobId(null);
     setInput("");
-    setSelectedFiles([]);
-    setIsSelectionMode(false); // Reset selection mode on new chat
-  };
+    setFiles([]);
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, []);
 
-  const deleteChat = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    
-    const confirmDelete = window.confirm("Are you sure you want to delete this collection? This will permanently remove all designs associated with it.");
-    if (!confirmDelete) return;
-
-    await performDelete([id]);
-  };
-
-  //
-  const performDelete = async (idsToDelete: string[]) => {
-    const idsSet = new Set(idsToDelete);
-    const newChats = chats.filter(c => !idsSet.has(c.id));
-    
-    if (newChats.length === 0) newChats.push(createEmptyChat());
-    setChats(newChats);
-    
-    // If active chat was deleted, switch to the first available
-    if (idsSet.has(activeChatId)) {
-      setActiveChatId(newChats[0].id);
-    }
-
+  const reallyDelete = useCallback(async (ids: string[]) => {
+    const set = new Set(ids);
+    setChats((prev) => {
+      const next = prev.filter((c) => !set.has(c.id));
+      if (next.length === 0) next.push(createEmptyChat());
+      if (set.has(activeChatId)) setActiveChatId(next[0].id);
+      return next;
+    });
     if (user) {
-      try {
-        console.log("Deleting backend data for chats:", idsToDelete);
-        // Execute deletions in parallel
-        await Promise.all(idsToDelete.map(id => deleteChatFromBackend(id)));
-      } catch (err) {
-        console.error("Failed to cleanup backend jobs:", err);
-      }
+      try { await Promise.all(ids.map((id) => deleteChatFromBackend(id))); }
+      catch (err) { console.error("Backend cleanup failed:", err); }
     }
-  };
+  }, [activeChatId, user]);
 
-  //
-  const deleteSelectedChats = async () => {
-    if (selectedChatIds.size === 0) return;
-    
-    const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedChatIds.size} collections?`);
-    if (!confirmDelete) return;
+  const askDelete = (chat: ChatSession) =>
+    setConfirm({
+      ids: [chat.id],
+      title: `Delete “${chat.title}”?`,
+      body: `${chat.messages.length} message${chat.messages.length === 1 ? "" : "s"} and every design in this collection will be removed. This cannot be undone.`,
+    });
 
-    await performDelete(Array.from(selectedChatIds));
-    setIsSelectionMode(false);
-    setSelectedChatIds(new Set());
-  };
+  const togglePin = (id: string) =>
+    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c)));
 
-  //
-  const toggleChatSelection = (id: string) => {
-    const next = new Set(selectedChatIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setSelectedChatIds(next);
-  };
-
-  //
-  const toggleSelectionMode = () => {
-    setIsSelectionMode(!isSelectionMode);
-    setSelectedChatIds(new Set());
-  };
-
-  const togglePin = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setChats(chats.map(c => c.id === id ? { ...c, isPinned: !c.isPinned } : c));
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      setMobileMenuOpen(false);
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
-  };
-
-  // --- File Handling ---
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...newFiles]);
-    }
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const sendMessage = async (text: string, files: File[] = []) => {
+  const send = useCallback(async (text: string, attach: File[]) => {
     const now = Date.now();
-    let uploadedAttachments: ChatAttachment[] = [];
+    let uploaded: ChatAttachment[] = [];
+    let uploadFailed = false;
 
-    if (files.length > 0 && user) {
-      setIsUploading(true);
+    if (attach.length > 0 && user) {
+      setUploading(true);
       try {
-        const uploadResults = await Promise.all(
-          files.map(file => uploadJobAttachment(file, user.uid))
-        );
-        
-        uploadedAttachments = uploadResults.map(res => ({
-          name: res.name,
-          url: res.url,
-          type: res.type
-        }));
-      } catch (error) {
-        console.error("Upload failed", error);
+        const res = await Promise.all(attach.map((f) => uploadJobAttachment(f, user.uid)));
+        uploaded = res.map((r) => ({ name: r.name, url: r.url, type: r.type }));
+      } catch (err) {
+        console.error("Upload failed", err);
+        uploadFailed = true;   // said out loud below, not swallowed
       } finally {
-        setIsUploading(false);
+        setUploading(false);
       }
     }
 
-    const userMsg: ChatMessage = { 
-      id: `msg-${now}`, 
-      role: "user", 
-      content: text, 
-      createdAt: now,
-      attachments: uploadedAttachments
+    const userMsg: ChatMessage = {
+      id: `msg-${now}`, role: "user", content: text, createdAt: now, attachments: uploaded,
     };
-    
-    setChats(prev => prev.map(c => {
-      if (c.id !== activeChatId) return c;
-      const title = c.messages.length === 0 ? generateTitleFromText(text) : c.title;
-      return { ...c, title, messages: [...c.messages, userMsg], updatedAt: now };
-    }));
+    setChats((prev) => prev.map((c) =>
+      c.id !== activeChatId ? c
+        : { ...c,
+            title: c.messages.length === 0 ? titleFrom(text) : c.title,
+            messages: [...c.messages, userMsg],
+            updatedAt: now }
+    ));
 
-    setIsGenerating(true);
-    try {
-      const attachmentUrls = uploadedAttachments.map(a => a.url);
-      const { jobId } = await createDesignJob(text, activeChatId, attachmentUrls);
-      
-      const botMsg: ChatMessage = {
-        id: `sys-${Date.now()}`,
-        role: "assistant",
-        content: "Processing geometry...",
-        createdAt: Date.now(),
-        designJobId: jobId
-      };
-      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, botMsg] } : c));
-    } catch (err: any) {
-      const errorMsg: ChatMessage = {
-        id: `err-${Date.now()}`,
-        role: "assistant",
-        content: `System Error: ${err.message}`,
-        createdAt: Date.now()
-      };
-      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: [...c.messages, errorMsg] } : c));
-    } finally {
-      setIsGenerating(false);
+    if (uploadFailed) {
+      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
+        id: `warn-${Date.now()}`, role: "assistant", createdAt: Date.now(),
+        content: "Your attachments did not upload, so this was sent without them.",
+      }]}));
     }
-  };
 
-  const handleSubmit = () => {
-    if ((!input.trim() && selectedFiles.length === 0) || isGenerating || isUploading) return;
-    
+    setGenerating(true);
+    try {
+      const { jobId } = await createDesignJob(text, activeChatId, uploaded.map((a) => a.url));
+      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
+        id: `sys-${Date.now()}`, role: "assistant", createdAt: Date.now(),
+        content: "Building the solid.", designJobId: jobId,
+      }]}));
+    } catch (err: any) {
+      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
+        id: `err-${Date.now()}`, role: "assistant", createdAt: Date.now(),
+        content: `Could not start that build — ${err?.message ?? "unknown error"}`,
+      }]}));
+    } finally {
+      setGenerating(false);
+    }
+  }, [activeChatId, user]);
+
+  const submit = useCallback(() => {
+    const text = input.trim();
+    if ((!text && files.length === 0) || generating || uploading) return;
     if (!user) {
-      pendingPromptRef.current = input;
-      pendingFilesRef.current = selectedFiles;
+      pendingRef.current = { text: input, files };
       setAuthOpen(true);
       return;
     }
-    
-    sendMessage(input, selectedFiles);
+    send(input, files);
     setInput("");
-    setSelectedFiles([]);
+    setFiles([]);
+  }, [input, files, generating, uploading, user, send]);
+
+  const retry = (text: string) => {
+    setInput(text);
+    requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      composerRef.current?.setSelectionRange(text.length, text.length);
+    });
   };
 
+  const copy = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      window.setTimeout(() => setCopiedId((v) => (v === id ? null : v)), 1400);
+    } catch { /* clipboard denied — nothing useful to say */ }
+  };
+
+  /* ---------------------------------------------------------- shortcuts -- */
+
+  const bindings: Binding[] = useMemo(() => [
+    { keys: "mod+k", label: "Command palette", group: "General", whenTyping: true,
+      run: () => setPaletteOpen((v) => !v) },
+    { keys: "?", label: "Keyboard shortcuts", group: "General",
+      run: () => setHelpOpen((v) => !v) },
+    { keys: "mod+b", label: "Show or hide the sidebar", group: "General", whenTyping: true,
+      run: () => setCollapsed((v) => !v) },
+    { keys: "mod+n", label: "New collection", group: "Collections", whenTyping: true,
+      run: newChat },
+    { keys: "mod+f", label: "Search collections", group: "Collections", whenTyping: true,
+      run: () => { setCollapsed(false); setSearching(true); requestAnimationFrame(() => searchRef.current?.focus()); } },
+    { keys: "mod+enter", label: "Send", group: "Composer", whenTyping: true, run: submit },
+    { keys: "mod+u", label: "Attach a file", group: "Composer", whenTyping: true,
+      run: () => fileInputRef.current?.click() },
+    { keys: "escape", label: "Close what is open", group: "General", whenTyping: true,
+      run: () => {
+        if (paletteOpen) return setPaletteOpen(false);
+        if (helpOpen) return setHelpOpen(false);
+        if (searching) { setSearching(false); setQuery(""); return; }
+        if (studioJobId) return setStudioJobId(null);
+        if (drawerOpen) return setDrawerOpen(false);
+        composerRef.current?.blur();
+      } },
+  ], [newChat, submit, paletteOpen, helpOpen, searching, studioJobId, drawerOpen]);
+
+  useEffect(() => attachShortcuts(bindings), [bindings]);
+
+  const lastPrompt = useMemo(
+    () => [...(active?.messages ?? [])].reverse().find((m) => m.role === "user")?.content ?? "",
+    [active?.messages]
+  );
+
+  const commands: Command[] = useMemo(() => [
+    { id: "new", label: "New collection", group: "Collections", keys: "mod+n", run: newChat },
+    { id: "search", label: "Search collections", group: "Collections", keys: "mod+f",
+      run: () => { setCollapsed(false); setSearching(true); requestAnimationFrame(() => searchRef.current?.focus()); } },
+    { id: "pin", label: active?.isPinned ? "Unpin this collection" : "Pin this collection",
+      group: "Collections", disabled: !active, run: () => active && togglePin(active.id) },
+    { id: "del", label: "Delete this collection", group: "Collections",
+      disabled: !active, run: () => active && askDelete(active) },
+    ...STARTERS.map((s, i) => ({
+      id: `starter-${i}`, label: s, group: "Start from", keywords: "prompt example starter",
+      run: () => { setInput(s); requestAnimationFrame(() => composerRef.current?.focus()); },
+    })),
+    { id: "again", label: "Reuse my last prompt", group: "Composer", keywords: "repeat retry",
+      disabled: !lastPrompt, run: () => retry(lastPrompt) },
+    { id: "attach", label: "Attach a file", group: "Composer", keys: "mod+u",
+      run: () => fileInputRef.current?.click() },
+    { id: "sidebar", label: collapsed ? "Show the sidebar" : "Hide the sidebar",
+      group: "View", keys: "mod+b", run: () => setCollapsed((v) => !v) },
+    { id: "studio", label: "Close the Studio", group: "View",
+      disabled: !studioJobId, run: () => setStudioJobId(null) },
+    { id: "keys", label: "Keyboard shortcuts", group: "View", keys: "?", run: () => setHelpOpen(true) },
+    { id: "settings", label: "Studio settings", group: "Account", run: () => navigate("/settings") },
+    { id: "auth", label: user ? "Sign out" : "Sign in", group: "Account",
+      run: () => (user ? signOut().catch(console.error) : setAuthOpen(true)) },
+  ], [active, collapsed, studioJobId, lastPrompt, newChat, navigate, user, signOut]);
+
+  /* ------------------------------------------------------------ sidebar -- */
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = q
+      ? chats.filter((c) =>
+          c.title.toLowerCase().includes(q) ||
+          c.messages.some((m) => m.content.toLowerCase().includes(q)))
+      : chats;
+    return [...list].sort(
+      (a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || b.updatedAt - a.updatedAt
+    );
+  }, [chats, query]);
+
+  const grouped = useMemo(() => {
+    const out: Array<{ heading: string; items: ChatSession[] }> = [];
+    for (const c of visible) {
+      const heading = c.isPinned ? "Pinned" : relativeDay(c.updatedAt);
+      const last = out[out.length - 1];
+      if (last?.heading === heading) last.items.push(c);
+      else out.push({ heading, items: [c] });
+    }
+    return out;
+  }, [visible]);
+
+  const showSidebar = isDesktop || drawerOpen;
+  const width = collapsed && isDesktop ? 72 : 286;
+
   return (
-    <div className="relative flex h-[100dvh] w-full overflow-hidden bg-[#13010C] text-white selection:bg-[#731E47] selection:text-white">
-      <AuthDialog 
-        open={authOpen} 
-        onClose={() => setAuthOpen(false)} 
+    <div className="relative flex h-[100dvh] w-full overflow-hidden bg-ink-900 text-white">
+      <AuthDialog
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
         onAuthed={() => {
-          if (pendingPromptRef.current || pendingFilesRef.current.length > 0) {
-            sendMessage(pendingPromptRef.current || "", pendingFilesRef.current);
-            pendingPromptRef.current = null;
-            pendingFilesRef.current = [];
+          const p = pendingRef.current;
+          if (p && (p.text.trim() || p.files.length)) {
+            send(p.text, p.files);
             setInput("");
-            setSelectedFiles([]);
+            setFiles([]);
           }
-        }} 
+          pendingRef.current = null;
+        }}
+      />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+      <ShortcutSheet open={helpOpen} onClose={() => setHelpOpen(false)} bindings={bindings} />
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title ?? ""}
+        body={confirm?.body ?? ""}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => confirm && reallyDelete(confirm.ids)}
       />
 
-      {/* --- Mobile Header --- */}
-      <div className="absolute top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b border-white/10 bg-[#13010C]/80 px-4 backdrop-blur-md md:hidden">
-        <button onClick={() => setMobileMenuOpen(true)} className="p-2 text-white/70 hover:text-white">
-          <Menu className="h-5 w-5" />
-        </button>
-        <div className="flex items-center gap-2">
-          <img src={logo} alt="Wireframe" className="h-5 w-auto" />
-          <span className="text-sm font-semibold tracking-wide uppercase text-white/90">Wireframe AI</span>
-        </div>
-        <button onClick={handleNewChat} className="p-2 text-[var(--gold-500)]">
-          <Plus className="h-5 w-5" />
-        </button>
-      </div>
+      {/* ------------------------------------------------------- sidebar -- */}
 
-      {/* --- Sidebar --- */}
       <AnimatePresence>
-        {(mobileMenuOpen || window.innerWidth >= 768) && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
-            />
-            
-            <motion.aside 
-              initial={false}
-              animate={{ 
-                width: isSidebarCollapsed ? 80 : 280,
-                x: window.innerWidth < 768 && !mobileMenuOpen ? -320 : 0
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-white/10 bg-[#0a0005] md:relative"
-            >
-              <div className={`flex items-center h-16 px-4 border-b border-white/5 ${isSidebarCollapsed ? "justify-center" : "justify-between"}`}>
-                {!isSidebarCollapsed && (
-                  <div className="flex items-center gap-3">
-                    <img src={logo} alt="Wireframe" className="h-6 w-auto" />
-                    <span className="text-sm font-medium tracking-wide">Wireframe AI</span>
-                  </div>
-                )}
-                
-                <button 
-                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                  className="hidden md:flex p-2 text-white/40 hover:text-white transition-colors"
-                >
-                  {isSidebarCollapsed ? (
-                    <img src={logo} alt="Wireframe" className="h-6 w-6 object-contain" />
-                  ) : (
-                    <PanelLeftClose className="h-4 w-4" />
-                  )}
-                </button>
-                
-                <button onClick={() => setMobileMenuOpen(false)} className="md:hidden p-2 text-white/40 hover:text-white">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* */}
-              <div className="p-3">
-                {isSelectionMode ? (
-                  <button 
-                    onClick={deleteSelectedChats}
-                    disabled={selectedChatIds.size === 0}
-                    className={`w-full flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400 hover:bg-red-500/20 transition-all ${isSidebarCollapsed ? "justify-center px-0" : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {!isSidebarCollapsed && <span>Delete ({selectedChatIds.size})</span>}
-                  </button>
-                ) : (
-                  <button 
-                    onClick={handleNewChat}
-                    className={`w-full flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 hover:bg-white/10 hover:border-[var(--gold-500)]/30 transition-all ${isSidebarCollapsed ? "justify-center px-0" : ""}`}
-                  >
-                    <Plus className="h-4 w-4 text-[var(--gold-500)]" />
-                    {!isSidebarCollapsed && <span>New Collection</span>}
-                  </button>
-                )}
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-                {/* */}
-                {!isSidebarCollapsed && (
-                  <div className="flex items-center justify-between px-2 py-2">
-                    <div className="text-[10px] font-medium uppercase tracking-widest text-white/30">History</div>
-                    <button 
-                      onClick={toggleSelectionMode}
-                      className="text-[10px] text-[var(--gold-500)] hover:text-white transition-colors uppercase tracking-widest"
-                    >
-                      {isSelectionMode ? "Done" : "Edit"}
-                    </button>
-                  </div>
-                )}
-                
-                {sortedChats.map((chat) => (
-                  <button
-                    key={chat.id}
-                    onClick={() => { 
-                      if (isSelectionMode) {
-                        toggleChatSelection(chat.id);
-                      } else {
-                        setActiveChatId(chat.id); 
-                        setMobileMenuOpen(false); 
-                      }
-                    }}
-                    title={chat.title}
-                    className={`group relative flex w-full items-center gap-3 rounded-lg p-2.5 text-left text-sm transition-all duration-200
-                      ${!isSelectionMode && chat.id === activeChatId 
-                        ? "bg-white/10 text-white shadow-lg" 
-                        : "text-white/50 hover:bg-white/5 hover:text-white/80"
-                      } ${isSidebarCollapsed ? "justify-center" : ""}`}
-                  >
-                    {isSidebarCollapsed ? (
-                       //
-                       isSelectionMode ? (
-                        <div className={`h-4 w-4 rounded border ${selectedChatIds.has(chat.id) ? "bg-[var(--gold-500)] border-[var(--gold-500)]" : "border-white/30"}`} />
-                       ) : (
-                        <div className="h-4 w-4 text-white/50">{chat.id === activeChatId && <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--gold-500)]" />}</div>
-                       )
-                    ) : (
-                      <>
-                        {/* */}
-                        {isSelectionMode && (
-                          <div className={selectedChatIds.has(chat.id) ? "text-[var(--gold-500)]" : "text-white/30"}>
-                            {selectedChatIds.has(chat.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                          </div>
-                        )}
-
-                        <span className="truncate flex-1">{chat.title}</span>
-                        {!isSelectionMode && chat.isPinned && <Pin className="h-3 w-3 text-[var(--gold-500)] rotate-45" />}
-                        
-                        {!isSelectionMode && (
-                          <div className="hidden group-hover:flex items-center gap-1 absolute right-2 bg-[#0a0005] shadow-xl pl-2 rounded-l-lg border-l border-white/10">
-                            <div onClick={(e) => togglePin(e, chat.id)} className="p-1.5 hover:text-[var(--gold-500)]">
-                              <Pin className="h-3 w-3" />
-                            </div>
-                            <div onClick={(e) => deleteChat(e, chat.id)} className="p-1.5 hover:text-red-400">
-                              <Trash2 className="h-3 w-3" />
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <div className="border-t border-white/10 p-3 space-y-1">
-                <button 
-                  onClick={() => navigate("/settings")}
-                  className={`w-full flex items-center gap-3 rounded-lg p-2.5 text-sm text-white/50 hover:bg-white/5 hover:text-white transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
-                >
-                  <Settings className="h-4 w-4" />
-                  {!isSidebarCollapsed && <span>Studio Settings</span>}
-                </button>
-
-                {/* SIGN IN / SIGN OUT BUTTONS */}
-                {user ? (
-                  <button 
-                    onClick={handleSignOut}
-                    className={`w-full flex items-center gap-3 rounded-lg p-2.5 text-sm text-red-400/70 hover:bg-white/5 hover:text-red-400 transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    {!isSidebarCollapsed && <span>Sign Out</span>}
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => setAuthOpen(true)}
-                    className={`w-full flex items-center gap-3 rounded-lg p-2.5 text-sm text-[var(--gold-500)] hover:bg-white/5 hover:text-white transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
-                  >
-                    <LogIn className="h-4 w-4" />
-                    {!isSidebarCollapsed && <span>Sign In</span>}
-                  </button>
-                )}
-                
-                <div className={`flex items-center gap-3 rounded-xl bg-white/5 p-2.5 mt-2 ${isSidebarCollapsed ? "justify-center" : ""}`}>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--gold-500)] to-[#731E47] text-[10px] font-bold text-white shadow-inner">
-                    {initials(user?.email)}
-                  </div>
-                  {!isSidebarCollapsed && (
-                    <div className="flex-1 overflow-hidden">
-                      <p className="truncate text-xs font-medium text-white">
-                        {user?.displayName || "Guest"}
-                      </p>
-                      <p className="truncate text-[10px] text-white/40">
-                        {user ? "Pro Plan" : "Sign in to save"}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.aside>
-          </>
+        {showSidebar && !isDesktop && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setDrawerOpen(false)}
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          />
         )}
       </AnimatePresence>
 
-      <div className="relative flex flex-1 overflow-hidden">
-        
-        {/* LEFT: Chat Feed */}
-        <motion.main 
-          initial={false}
-          animate={{ 
-            flex: activeWorkspaceJobId ? "0 0 400px" : "1 1 auto",
-            display: activeWorkspaceJobId && window.innerWidth < 768 ? "none" : "flex"
-          }}
-          className={`relative flex-col border-r border-white/10 bg-[#13010C] transition-all duration-500
-            ${activeWorkspaceJobId ? "hidden md:flex max-w-[400px]" : "w-full flex"}
-          `}
-        >
-          {/* Pulsating Background */}
-          <PulsatingBackground />
+      <motion.aside
+        initial={false}
+        animate={{ width, x: showSidebar ? 0 : -width - 8 }}
+        transition={{ type: "spring", stiffness: 340, damping: 34 }}
+        aria-label="Collections"
+        className="fixed inset-y-0 left-0 z-50 flex shrink-0 flex-col border-r border-white/8 bg-ink-950 md:relative md:z-auto"
+      >
+        <div className={"flex h-14 items-center border-b border-white/6 px-3 " + (collapsed && isDesktop ? "justify-center" : "justify-between")}>
+          {!(collapsed && isDesktop) && (
+            <div className="flex items-center gap-2.5">
+              <img src={logo} alt="" className="h-6 w-auto" />
+              <span className="text-[0.9rem] font-medium tracking-tight text-white/90">wireframe</span>
+            </div>
+          )}
+          <button
+            onClick={() => (isDesktop ? setCollapsed((v) => !v) : setDrawerOpen(false))}
+            title={isDesktop ? `Toggle sidebar · ${chord("mod+b")}` : "Close"}
+            aria-label="Toggle sidebar"
+            className="grid h-8 w-8 place-items-center rounded-lg text-white/40 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            {!isDesktop ? <X className="h-4 w-4" />
+              : collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        </div>
 
-          <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
-            <FlickeringGrid squareSize={3} gridGap={24} color="#e1b95c" maxOpacity={0.15} flickerChance={0.2} />
-          </div>
+        <div className="p-3">
+          <button
+            onClick={newChat}
+            title={`New collection · ${chord("mod+n")}`}
+            className={"flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[0.85rem] text-white/80 transition-colors hover:border-metal-400/40 hover:bg-white/[0.07] " + (collapsed && isDesktop ? "justify-center px-0" : "")}
+          >
+            <Plus className="h-4 w-4 shrink-0 text-metal-300" />
+            {!(collapsed && isDesktop) && (
+              <>
+                <span className="flex-1 text-left">New collection</span>
+                <kbd className="mono-label !text-[0.42rem] !text-white/30">{chord("mod+n")}</kbd>
+              </>
+            )}
+          </button>
+        </div>
 
-          <div className="relative z-10 flex-1 overflow-y-auto px-4 pt-20 pb-4 md:px-8 md:pt-10 scrollbar-hide">
-            <div className="mx-auto max-w-3xl space-y-10">
-              
-              {activeChat.messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-24 text-center opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-forwards">
-                  <div className="mb-6 flex h-24 w-24 items-center justify-center">
-                    <img src={logo} alt="Wireframe" className="h-full w-auto object-contain drop-shadow-[0_0_30px_rgba(131,110,118,0.3)]" />
-                  </div>
-                  <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight mb-3">
-                    Wireframe Atelier
-                  </h1>
-                  <p className="max-w-md text-sm text-white/50 leading-relaxed px-4">
-                    Generate parametric jewelry meshes ready for manufacturing. <br/>
-                    Try "Solitaire ring with 1ct diamond".
-                  </p>
-                </div>
+        {!(collapsed && isDesktop) && (
+          <div className="px-3 pb-2">
+            <div className="flex items-center gap-2 rounded-lg border border-white/8 bg-black/30 px-2.5 py-1.5 focus-within:border-metal-400/40">
+              <Search className="h-3.5 w-3.5 shrink-0 text-white/30" />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => setSearching(true)}
+                placeholder="Search collections"
+                aria-label="Search collections"
+                className="w-full bg-transparent py-0.5 text-[0.8rem] text-white placeholder:text-white/25 focus:outline-none"
+              />
+              {query && (
+                <button onClick={() => setQuery("")} aria-label="Clear search"
+                        className="text-white/30 hover:text-white"><X className="h-3 w-3" /></button>
               )}
-
-              {activeChat.messages.map((msg) => (
-                <div key={msg.id} className="group relative pl-8 md:pl-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  <div className="absolute left-[11px] top-0 -bottom-10 w-px bg-white/10 group-last:bottom-0 md:left-[15px]" />
-                  
-                  <div className={`absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full border text-[10px] md:h-8 md:w-8
-                    ${msg.role === "user" 
-                      ? "border-white/20 bg-[#13010C] text-white shadow-lg z-10" 
-                      : "border-[var(--gold-500)]/40 bg-[#1a0510] text-[var(--gold-500)] shadow-[0_0_15px_rgba(131,110,118,0.2)] z-10"
-                    }`}
-                  >
-                    {msg.role === "user" ? <div className="h-1.5 w-1.5 rounded-full bg-white" /> : <Cpu className="h-3 w-3 md:h-4 md:w-4" />}
-                  </div>
-
-                  <div className="space-y-2 pt-0.5 md:pt-1">
-                    <div className="flex items-baseline gap-3">
-                      <span className={`text-[10px] font-mono uppercase tracking-widest ${msg.role === "user" ? "text-white/40" : "text-[var(--gold-500)]/80"}`}>
-                        {msg.role === "user" ? "PROMPT" : "GENERATOR"}
-                      </span>
-                    </div>
-
-                    <div className={`text-sm leading-relaxed md:text-base ${msg.role === "user" ? "text-white/90" : "text-white/80"}`}>
-                      {msg.content}
-                    </div>
-
-                    {msg.attachments && msg.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-3 mt-3">
-                        {msg.attachments.map((file, i) => (
-                          <div key={i} className="group/file relative rounded-xl border border-white/10 bg-white/5 overflow-hidden transition-all hover:bg-white/10">
-                            {file.type.startsWith("image/") ? (
-                              <div className="h-32 w-32 bg-black/50">
-                                <img src={file.url} alt={file.name} className="h-full w-full object-cover transition-transform group-hover/file:scale-105" />
-                              </div>
-                            ) : (
-                              <div className="h-20 w-32 flex flex-col items-center justify-center gap-2 p-2">
-                                <Box className="h-6 w-6 text-white/50" />
-                                <span className="text-[10px] text-white/50 truncate max-w-full px-2">{file.name}</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {msg.designJobId && (
-                      <div className="mt-4 w-full max-w-md">
-                        <DesignJobCard jobId={msg.designJobId} />
-                        
-                        <div className="mt-2 flex justify-end">
-                          <button 
-                            onClick={() => setActiveWorkspaceJobId(msg.designJobId!)}
-                            className="text-[10px] text-white/50 hover:text-[var(--gold-500)] flex items-center gap-1 transition-colors uppercase tracking-widest font-semibold"
-                          >
-                            Open in Studio <ArrowUpRight className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              
-              <div ref={messagesEndRef} className="h-4" />
             </div>
           </div>
+        )}
 
-          {/* Floating Command Bar */}
-          <div className="p-4 md:p-6 bg-[#13010C] border-t border-white/5">
-            <div className="mx-auto max-w-3xl space-y-3">
-              
-              <AnimatePresence>
-                {selectedFiles.length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: "auto" }}
-                    exit={{ opacity: 0, y: 10, height: 0 }}
-                    className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
-                  >
-                    {selectedFiles.map((file, i) => (
-                      <div key={i} className="relative group shrink-0">
-                        <div className="relative h-16 w-16 rounded-xl border border-white/20 bg-white/5 overflow-hidden">
-                          {file.type.startsWith("image/") ? (
-                            <img 
-                              src={URL.createObjectURL(file)} 
-                              alt="preview" 
-                              className="h-full w-full object-cover"
-                              onLoad={(e) => URL.revokeObjectURL(e.currentTarget.src)} 
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center">
-                              <FileIcon className="h-6 w-6 text-white/40" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                        <button 
-                          onClick={() => removeFile(i)}
-                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-[#13010C] border border-white/20 text-white flex items-center justify-center hover:bg-red-500 hover:border-red-500 transition-colors shadow-lg z-10"
-                        >
-                          <X className="h-3 w-3" />
+        <nav className="flex-1 overflow-y-auto px-2 pb-2">
+          {grouped.length === 0 && !(collapsed && isDesktop) && (
+            <p className="px-3 py-6 text-center text-[0.8rem] text-white/30">
+              Nothing matches “{query}”.
+            </p>
+          )}
+          {grouped.map((g) => (
+            <div key={g.heading} className="mb-1">
+              {!(collapsed && isDesktop) && (
+                <div className="mono-label px-2 pb-1 pt-3 !text-[0.44rem]">{g.heading}</div>
+              )}
+              {g.items.map((c) => {
+                const on = c.id === active?.id;
+                return (
+                  <div key={c.id} className="group relative">
+                    <button
+                      onClick={() => { setActiveChatId(c.id); setDrawerOpen(false); setStudioJobId(null); }}
+                      title={c.title}
+                      aria-current={on ? "true" : undefined}
+                      className={"flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[0.85rem] transition-colors " +
+                        (on ? "bg-white/[0.09] text-white" : "text-white/50 hover:bg-white/[0.04] hover:text-white/85") +
+                        (collapsed && isDesktop ? " justify-center" : "")}
+                    >
+                      {collapsed && isDesktop ? (
+                        <span className={"h-1.5 w-1.5 rounded-full " + (on ? "bg-metal-300" : "bg-white/20")} />
+                      ) : (
+                        <>
+                          {c.isPinned && <Pin className="h-3 w-3 shrink-0 rotate-45 text-metal-400" />}
+                          <span className="truncate">{c.title}</span>
+                        </>
+                      )}
+                    </button>
+
+                    {!(collapsed && isDesktop) && (
+                      <div className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded-lg bg-ink-950/95 pl-2 group-hover:flex group-focus-within:flex">
+                        <button onClick={() => togglePin(c.id)} title={c.isPinned ? "Unpin" : "Pin"}
+                                aria-label={c.isPinned ? "Unpin" : "Pin"}
+                                className="grid h-7 w-7 place-items-center rounded text-white/35 hover:text-metal-300">
+                          <Pin className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => askDelete(c)} title="Delete" aria-label="Delete"
+                                className="grid h-7 w-7 place-items-center rounded text-white/35 hover:text-red-400">
+                          <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t border-white/6 p-2">
+          <SideAction icon={CommandIcon} label="Commands" hint={chord("mod+k")}
+                      collapsed={collapsed && isDesktop} onClick={() => setPaletteOpen(true)} />
+          <SideAction icon={Settings} label="Settings"
+                      collapsed={collapsed && isDesktop} onClick={() => navigate("/settings")} />
+          {user
+            ? <SideAction icon={LogOut} label="Sign out" tone="danger"
+                          collapsed={collapsed && isDesktop} onClick={() => signOut().catch(console.error)} />
+            : <SideAction icon={LogIn} label="Sign in" tone="accent"
+                          collapsed={collapsed && isDesktop} onClick={() => setAuthOpen(true)} />}
+
+          <div className={"mt-2 flex items-center gap-2.5 rounded-xl bg-white/[0.04] p-2 " + (collapsed && isDesktop ? "justify-center" : "")}>
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-metal-400 to-accent-500 text-[0.55rem] font-semibold text-ink-900">
+              {initials(user?.displayName || user?.email)}
+            </span>
+            {!(collapsed && isDesktop) && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[0.78rem] text-white/85">
+                  {user?.displayName || user?.email || "Not signed in"}
+                </p>
+                <p className="mono-label !text-[0.42rem]">
+                  {user ? "Signed in" : "Sign in to save your work"}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.aside>
+
+      {/* ---------------------------------------------------------- main -- */}
+
+      <div className="relative flex min-w-0 flex-1">
+        <main
+          className={"relative flex min-w-0 flex-col " +
+            (studioJobId ? "hidden lg:flex lg:w-[420px] lg:shrink-0 lg:border-r lg:border-white/8" : "flex-1")}
+        >
+          {/* Top bar */}
+          <header className="z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/6 bg-ink-900/85 px-3 backdrop-blur-xl">
+            {!isDesktop && (
+              <button onClick={() => setDrawerOpen(true)} aria-label="Open collections"
+                      className="grid h-9 w-9 place-items-center rounded-lg text-white/60 hover:bg-white/5 hover:text-white">
+                <Menu className="h-5 w-5" />
+              </button>
+            )}
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-[0.9rem] font-medium tracking-tight text-white/90">
+                {active?.title ?? "New collection"}
+              </h1>
+              <p className="mono-label !text-[0.42rem]">
+                {active?.messages.length ?? 0} message{(active?.messages.length ?? 0) === 1 ? "" : "s"}
+              </p>
+            </div>
+            <button onClick={() => setPaletteOpen(true)} title={`Commands · ${chord("mod+k")}`}
+                    className="hidden items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-[0.75rem] text-white/45 transition-colors hover:border-white/20 hover:text-white/80 sm:flex">
+              <Search className="h-3.5 w-3.5" />
+              <span>Commands</span>
+              <kbd className="mono-label !text-[0.42rem] !text-white/30">{chord("mod+k")}</kbd>
+            </button>
+            {!isDesktop && (
+              <button onClick={newChat} aria-label="New collection"
+                      className="grid h-9 w-9 place-items-center rounded-lg text-metal-300 hover:bg-white/5">
+                <Plus className="h-5 w-5" />
+              </button>
+            )}
+          </header>
+
+          {/* Feed */}
+          <div ref={feedRef} onScroll={onFeedScroll}
+               className="relative flex-1 overflow-y-auto px-4 py-6 md:px-8">
+            {/* The empty state is centred in the space it has rather than
+                stacked at the top of it, which left the starters floating in
+                the upper third with a screen of nothing underneath. */}
+            <div className={"mx-auto max-w-3xl " +
+              ((!active || active.messages.length === 0) ? "flex min-h-full items-center justify-center" : "")}>
+              {(!active || active.messages.length === 0) ? (
+                <EmptyState onPick={(s) => { setInput(s); composerRef.current?.focus(); }} />
+              ) : (
+                <ol className="space-y-8">
+                  {active.messages.map((m) => (
+                    <Message
+                      key={m.id}
+                      msg={m}
+                      copied={copiedId === m.id}
+                      onCopy={() => copy(m.id, m.content)}
+                      onRetry={() => retry(m.content)}
+                      onOpenStudio={() => m.designJobId && setStudioJobId(m.designJobId)}
+                    />
+                  ))}
+                </ol>
+              )}
+              {generating && (
+                <div className="mt-8 flex items-center gap-3 pl-9">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-metal-300" />
+                  <span className="mono-label !text-[0.46rem]">Working</span>
+                </div>
+              )}
+              <div ref={endRef} className="h-2" />
+            </div>
+
+            <AnimatePresence>
+              {!atBottom && (
+                <motion.button
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                  onClick={() => jumpToEnd(true)}
+                  className="sticky bottom-3 left-1/2 z-10 ml-[-4.5rem] flex w-36 items-center justify-center gap-2 rounded-full border border-white/12 bg-ink-950/90 px-3 py-2 text-[0.75rem] text-white/70 shadow-xl backdrop-blur"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" /> Latest
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Composer */}
+          <div className="shrink-0 border-t border-white/6 bg-ink-900 px-4 pb-4 pt-3 md:px-8">
+            <div className="mx-auto max-w-3xl">
+              <AnimatePresence>
+                {files.length > 0 && (
+                  <motion.ul
+                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-2 flex gap-2 overflow-x-auto pb-1"
+                  >
+                    {files.map((f, i) => (
+                      <li key={`${f.name}-${i}`} className="relative shrink-0">
+                        <div className="h-14 w-14 overflow-hidden rounded-xl border border-white/12 bg-white/5">
+                          {previews.get(f)
+                            ? <img src={previews.get(f)} alt="" className="h-full w-full object-cover" />
+                            : <span className="grid h-full w-full place-items-center"><FileIcon className="h-5 w-5 text-white/35" /></span>}
+                        </div>
+                        <button
+                          onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}
+                          aria-label={`Remove ${f.name}`}
+                          className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full border border-white/20 bg-ink-950 text-white transition-colors hover:border-red-500 hover:bg-red-500"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </li>
                     ))}
-                  </motion.div>
+                  </motion.ul>
                 )}
               </AnimatePresence>
 
-              <div className="relative flex items-end gap-2 rounded-3xl border border-white/10 bg-[#0a0005]/80 p-2 shadow-[0_0_40px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-all focus-within:border-[var(--gold-500)]/40 focus-within:bg-[#0a0005]">
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileSelect} 
-                  className="hidden" 
-                  multiple 
-                  accept=".jpg,.jpeg,.png,.webp,.stl,.obj" 
-                />
-                
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mb-1 ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/50 hover:bg-white/10 hover:text-white transition-colors"
-                  title="Attach images or models"
-                >
-                  <Paperclip className="h-5 w-5" />
+              <div className="relative flex items-end gap-1.5 rounded-2xl border border-white/10 bg-black/40 p-1.5 transition-colors focus-within:border-metal-400/45">
+                <input ref={fileInputRef} type="file" multiple hidden
+                       accept=".jpg,.jpeg,.png,.webp,.stl,.obj"
+                       onChange={(e) => {
+                         if (e.target.files?.length) setFiles((p) => [...p, ...Array.from(e.target.files!)]);
+                         e.target.value = "";
+                       }} />
+                <button onClick={() => fileInputRef.current?.click()}
+                        title={`Attach · ${chord("mod+u")}`} aria-label="Attach a file"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white/40 transition-colors hover:bg-white/8 hover:text-white">
+                  <Paperclip className="h-4.5 w-4.5" />
                 </button>
 
                 <textarea
+                  ref={composerRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSubmit();
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); return; }
+                    // Up arrow in an empty box recalls the last prompt, the way
+                    // a shell does. Only when empty, so it never eats a caret move.
+                    if (e.key === "ArrowUp" && input === "" && lastPrompt) {
+                      e.preventDefault(); retry(lastPrompt);
                     }
                   }}
-                  placeholder="Describe your design parameters..."
-                  className="flex-1 resize-none bg-transparent px-2 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none md:text-base max-h-32 scrollbar-hide"
                   rows={1}
-                  style={{ minHeight: "48px" }}
+                  placeholder={isDesktop ? "Describe a piece — metal, stone, setting, size…" : "Describe a piece…"}
+                  aria-label="Describe a piece"
+                  className="max-h-40 flex-1 resize-none bg-transparent px-1 py-2.5 text-[0.92rem] text-white placeholder:text-white/28 focus:outline-none"
+                  style={{ minHeight: 44 }}
                 />
-                
+
                 <button
-                  onClick={handleSubmit}
-                  disabled={(!input.trim() && selectedFiles.length === 0) || isGenerating || isUploading}
-                  className="mb-1 mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-all hover:bg-[var(--gold-500)] hover:text-black disabled:opacity-30 disabled:hover:bg-white/10 disabled:hover:text-white"
+                  onClick={submit}
+                  disabled={(!input.trim() && files.length === 0) || generating || uploading}
+                  aria-label="Send"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-ink-900 transition-all hover:bg-metal-200 disabled:bg-white/10 disabled:text-white/30"
                 >
-                  {isGenerating || isUploading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <ArrowUpRight className="h-5 w-5" />
-                  )}
+                  {generating || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {/* Keyboard hints, for the people who have a keyboard. On a phone
+                  this row was two pieces of advice you cannot take. */}
+              <div className="mt-2 hidden items-center justify-between px-1 md:flex">
+                <p className="mono-label !text-[0.42rem]">
+                  Enter to send · Shift + Enter for a new line
+                </p>
+                <button onClick={() => setHelpOpen(true)}
+                        className="mono-label !text-[0.42rem] transition-colors hover:!text-white/70">
+                  Shortcuts · ?
                 </button>
               </div>
             </div>
           </div>
-        </motion.main>
+        </main>
 
-        {/* RIGHT: Studio Workspace */}
+        {/* --------------------------------------------------------- studio -- */}
         <AnimatePresence>
-          {activeWorkspaceJobId && (
-            <motion.div 
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="absolute inset-0 z-50 md:static md:flex-1 bg-[#0a0005] border-l border-white/10 shadow-2xl"
+          {studioJobId && (
+            <motion.section
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              transition={{ type: "spring", stiffness: 300, damping: 32 }}
+              aria-label="Studio"
+              className="absolute inset-0 z-30 bg-ink-950 lg:static lg:flex-1"
             >
-              <StudioWorkspace 
-                jobId={activeWorkspaceJobId} 
-                onClose={() => setActiveWorkspaceJobId(null)} 
-              />
-            </motion.div>
+              <StudioWorkspace jobId={studioJobId} onClose={() => setStudioJobId(null)} />
+            </motion.section>
           )}
         </AnimatePresence>
-
       </div>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------- pieces -- */
+
+function SideAction({
+  icon: Icon, label, hint, collapsed, tone, onClick,
+}: {
+  icon: any; label: string; hint?: string; collapsed: boolean;
+  tone?: "danger" | "accent"; onClick: () => void;
+}) {
+  const colour =
+    tone === "danger" ? "text-red-400/70 hover:text-red-400"
+    : tone === "accent" ? "text-metal-300 hover:text-white"
+    : "text-white/45 hover:text-white";
+  return (
+    <button
+      onClick={onClick}
+      title={hint ? `${label} · ${hint}` : label}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.82rem] transition-colors hover:bg-white/5 ${colour} ${collapsed ? "justify-center" : ""}`}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {!collapsed && (
+        <>
+          <span className="flex-1 text-left">{label}</span>
+          {hint && <kbd className="mono-label !text-[0.42rem] !text-white/25">{hint}</kbd>}
+        </>
+      )}
+    </button>
+  );
+}
+
+function EmptyState({ onPick }: { onPick: (s: string) => void }) {
+  return (
+    <div className="flex w-full flex-col items-center justify-center py-8 text-center">
+      <motion.img
+        src={logo} alt=""
+        initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        className="h-14 w-auto opacity-80"
+      />
+      <motion.h2
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-6 text-[1.4rem] font-medium tracking-tight text-white"
+      >
+        What are we making?
+      </motion.h2>
+      <motion.p
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.14, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-2 max-w-md text-[0.88rem] leading-relaxed text-white/45"
+      >
+        Describe it the way you would to a bench jeweller. Name the metal, the
+        stone, the setting and the size, and you get a parametric solid back.
+      </motion.p>
+
+      <div className="mt-8 grid w-full max-w-xl gap-2 sm:grid-cols-2">
+        {STARTERS.map((s, i) => (
+          <motion.button
+            key={s}
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.2 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
+            onClick={() => onPick(s)}
+            className="group rounded-xl border border-white/8 bg-white/[0.025] px-3.5 py-3 text-left text-[0.82rem] leading-snug text-white/60 transition-colors hover:border-metal-400/35 hover:bg-white/[0.05] hover:text-white/90"
+          >
+            {s}
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Message({
+  msg, copied, onCopy, onRetry, onOpenStudio,
+}: {
+  msg: ChatMessage; copied: boolean;
+  onCopy: () => void; onRetry: () => void; onOpenStudio: () => void;
+}) {
+  const isUser = msg.role === "user";
+  return (
+    <li className="group relative pl-9">
+      <span
+        aria-hidden="true"
+        className={"absolute left-0 top-0 grid h-7 w-7 place-items-center rounded-full border " +
+          (isUser
+            ? "border-white/15 bg-ink-900"
+            : "border-metal-400/35 bg-ink-850")}
+      >
+        {isUser
+          ? <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
+          : <Cpu className="h-3.5 w-3.5 text-metal-300" />}
+      </span>
+
+      <div className="flex items-center gap-3">
+        <span className="mono-label !text-[0.44rem]">{isUser ? "You" : "wireframe"}</span>
+        <span className="h-px flex-1 bg-white/5" />
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <IconBtn label={copied ? "Copied" : "Copy"} onClick={onCopy}>
+            {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+          </IconBtn>
+          {isUser && (
+            <IconBtn label="Use this prompt again" onClick={onRetry}>
+              <RefreshCw className="h-3 w-3" />
+            </IconBtn>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-1.5 whitespace-pre-wrap text-[0.92rem] leading-relaxed text-white/85">
+        {msg.content}
+      </p>
+
+      {msg.attachments && msg.attachments.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {msg.attachments.map((f, i) => (
+            <li key={i} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+              {f.type.startsWith("image/") ? (
+                <img src={f.url} alt={f.name} className="h-28 w-28 object-cover" />
+              ) : (
+                <span className="flex h-20 w-28 flex-col items-center justify-center gap-1.5 px-2">
+                  <Box className="h-5 w-5 text-white/40" />
+                  <span className="truncate text-[0.62rem] text-white/45">{f.name}</span>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {msg.designJobId && (
+        <div className="mt-3 max-w-md">
+          <DesignJobCard jobId={msg.designJobId} />
+          <button
+            onClick={onOpenStudio}
+            className="group/s mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] py-2.5 text-[0.8rem] text-white/70 transition-colors hover:border-metal-400/40 hover:text-white"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            Open in the Studio
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function IconBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} title={label} aria-label={label}
+            className="grid h-6 w-6 place-items-center rounded text-white/35 transition-colors hover:bg-white/8 hover:text-white">
+      {children}
+    </button>
   );
 }

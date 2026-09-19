@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -15,7 +16,14 @@ import {
   createSectionTool, createDimensions, applyDisplayMode, renderPNG,
   DISPLAY_MODES, DISPLAY_LABELS, type DisplayMode, type SectionAxis,
 } from "../../lib/studio-tools";
-import { Loader2, X, RotateCcw, Download, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import {
+  Loader2, X, RotateCcw, Download, CheckCircle2, AlertTriangle, XCircle,
+  Camera, Pin, GitCompare, Scissors, Ruler, Lasso, RotateCw, SlidersHorizontal,
+  Command as CommandIcon, Keyboard, Layers,
+} from "lucide-react";
+import { attachShortcuts, chord, type Binding } from "../../lib/keyboard";
+import { useMediaQuery } from "../../lib/use-media-query";
+import { CommandPalette, ShortcutSheet, type Command } from "../ui/command-center";
 import { Button } from "../ui/button";
 import { useBrepWorker, type RingMesh } from "../../hooks/useBrepWorker";
 import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
@@ -44,6 +52,14 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   const stoneMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const materialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const frameRef = useRef<((r: number, lean?: number) => void) | null>(null);
+  /**
+   * How much of the viewport's left edge the floating tool palette is covering,
+   * in CSS pixels. The framing used to assume the palette was always there —
+   * a hardcoded 202 — so on a phone, where it is not, the fit believed it had
+   * 188px of a 390px screen to work with and drew the ring at half size, shoved
+   * to the right. It is a live measurement now: nothing covered, nothing lost.
+   */
+  const paletteWRef = useRef(0);
 
   /**
    * How far the default camera should lean over the head, 0..1.
@@ -443,11 +459,12 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       // the horizontal fit uses the usable width, and the camera then slides
       // over by half the palette. On a wide viewport the palette is a small
       // fraction of the width and this barely does anything, which is right.
-      const paletteW = 202;                       // 186px panel + its margin
-      const usableW = Math.max(120, mount.clientWidth - paletteW);
+      const mountW = mount.clientWidth || 1;
+      const mountH = mount.clientHeight || 1;
+      const paletteW = Math.min(paletteWRef.current, mountW * 0.4);
+      const usableW = Math.max(120, mountW - paletteW);
       const vHalf = (camera.fov * Math.PI) / 360;
-      const hHalf = Math.atan(Math.tan(vHalf) * (usableW / Math.max(1, mount.clientHeight)));
-      const dist = (radius / Math.sin(Math.min(vHalf, hHalf))) * 1.15;
+      const hHalf = Math.atan(Math.tan(vHalf) * (usableW / mountH));
 
       // Three-quarter view: reads as a product shot rather than a flat elevation.
       // The azimuth is fixed; only the elevation moves, so leaning over the head
@@ -456,19 +473,101 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       // read a halo's arrangement while the band still reads as a ring.
       const elev = ((22 + 24 * clamp01(lean)) * Math.PI) / 180;
       const ce = Math.cos(elev), se = Math.sin(elev);
-      camera.position.set(dist * ce * 0.669, dist * se, dist * ce * 0.743);
-      camera.near = dist / 100; camera.far = dist * 12;
+      const dir = new THREE.Vector3(ce * 0.669, se, ce * 0.743).normalize();
+      const rightAxis = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
+      const upAxis = new THREE.Vector3().crossVectors(dir, rightAxis).normalize();
+
+      // Breathing room around the piece. A phone has none to spare, so it gets
+      // less of it: the same margin that reads as composure on a desktop reads
+      // as a small ring lost in a big black rectangle on a 390px screen.
+      const margin = mountW < 640 ? 1.06 : 1.16;
+
+      // Fit the SILHOUETTE, not the bounding sphere.
+      //
+      // A ring is a disc with a stone on it: nothing like a ball. Fitting the
+      // sphere that contains it reserves room for a piece that is not there, and
+      // the narrower the viewport the worse the waste — on a phone, where width
+      // is the binding constraint, it left the ring at half the size it could
+      // have been. So the eight corners of the real bounding box are projected
+      // onto the camera's own axes and the distance solved from those extents.
+      // The sphere stays as the fallback for the first call, before there is a
+      // mesh to measure.
+      const box = new THREE.Box3();
+      for (const o of [meshRef.current, stoneMeshRef.current]) {
+        if (!o) continue;
+        const b = new THREE.Box3().setFromObject(o);
+        if (!b.isEmpty()) box.isEmpty() ? box.copy(b) : box.union(b);
+      }
+
+      let dist: number;
+      const centre = new THREE.Vector3();
+      if (box.isEmpty()) {
+        dist = (radius / Math.sin(Math.min(vHalf, hHalf))) * margin;
+      } else {
+        box.getCenter(centre);
+        // Solved point by point, not axis by axis.
+        //
+        // Taking the widest extent, the tallest extent and the nearest extent
+        // and adding them together budgets for a piece whose extremes all
+        // coincide. A ring's never do: the part sticking out sideways is the
+        // part leaning away from the lens. So each sampled point asks only for
+        // the distance IT needs to stay in frame — its own depth plus its own
+        // offset over the tangent — and the answer is the largest of those.
+        //
+        // And the points are the mesh's own, not the bounding box's corners. A
+        // ring is a disc: the box around it is mostly air, and its corners are
+        // in the four places where there is no ring at all. Fitting to them
+        // left a third of a phone screen empty around a piece that could have
+        // filled it.
+        const tH = Math.tan(hHalf), tV = Math.tan(vHalf);
+        const v = new THREE.Vector3();
+        dist = 0;
+        const need = () => {
+          const depth = v.dot(dir);
+          dist = Math.max(
+            dist,
+            depth + (Math.abs(v.dot(rightAxis)) * margin) / tH,
+            depth + (Math.abs(v.dot(upAxis)) * margin) / tV,
+          );
+        };
+
+        let sampled = 0;
+        for (const o of [meshRef.current, stoneMeshRef.current]) {
+          const pos = (o?.geometry as THREE.BufferGeometry | undefined)?.getAttribute("position");
+          if (!o || !pos) continue;
+          o.updateWorldMatrix(true, false);
+          // A solved ring is tens of thousands of vertices and this runs on
+          // every resize. Every 4000th of them describes the silhouette to well
+          // under a pixel, and the margin covers the rest.
+          const stride = Math.max(1, Math.floor(pos.count / 4000));
+          for (let i = 0; i < pos.count; i += stride) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).sub(centre);
+            need();
+            sampled++;
+          }
+        }
+
+        if (!sampled) {
+          for (let i = 0; i < 8; i++) {
+            v.set(
+              i & 1 ? box.max.x : box.min.x,
+              i & 2 ? box.max.y : box.min.y,
+              i & 4 ? box.max.z : box.min.z,
+            ).sub(centre);
+            need();
+          }
+        }
+      }
+
+      camera.position.copy(dir).multiplyScalar(dist).add(centre);
+      camera.near = Math.max(0.01, dist / 100); camera.far = dist * 12;
       camera.updateProjectionMatrix();
 
       const visibleW = 2 * dist * Math.tan(Math.atan(Math.tan(vHalf) * camera.aspect));
-      const shift = (paletteW / 2 / Math.max(1, mount.clientWidth)) * visibleW;
-      const right = new THREE.Vector3()
-        .crossVectors(camera.up, camera.position.clone().normalize())
-        .normalize()
-        .multiplyScalar(-shift);
+      const shift = rightAxis.clone().multiplyScalar(-(paletteW / 2 / mountW) * visibleW);
 
-      controls.target.copy(right);
-      camera.position.add(right);
+      controls.target.copy(centre).add(shift);
+      camera.position.add(shift);
       controls.update();
       c.left = -radius * 2.4; c.right = radius * 2.4;
       c.top = radius * 2.4; c.bottom = -radius * 2.4;
@@ -605,17 +704,6 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
       regions: s.regions.map((r, j) => (j === i ? { ...r, ...patch } : r)),
     }));
 
-  // Escape abandons a lasso in progress. Without it the only way out of a
-  // half-drawn selection is to complete one you did not want.
-  useEffect(() => {
-    if (!lasso) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setLasso(false); lassoRef.current = []; }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [lasso]);
-
   const [exporting, setExporting] = useState<"step" | "stl" | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -636,336 +724,659 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
     }
   };
 
+  /* ------------------------------------------------------------ chrome -- */
+
+  const isWide = useMediaQuery("(min-width: 1024px)");
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [toolsOpen, setToolsOpen] = useState(true);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // On a narrow screen both panels start out of the way: the model is the
+  // point, and two overlays on a phone leave nothing to look at.
+  useEffect(() => { setPanelOpen(isWide); setToolsOpen(isWide); }, [isWide]);
+
+  // Tell the framing how much of the viewport's left edge is spoken for, and
+  // re-frame when that changes. Only the wide layout puts the tools beside the
+  // model; on a phone they are a sheet over the bottom, so nothing is lost off
+  // the left and the piece gets the whole width.
+  useEffect(() => {
+    paletteWRef.current = isWide && toolsOpen ? 236 : 0;
+    const r = meshRef.current?.geometry?.boundingSphere?.radius;
+    if (r) frameRef.current?.(r);
+  }, [isWide, toolsOpen]);
+
+  const say = useCallback((m: string) => {
+    setToast(m);
+    window.setTimeout(() => setToast((v) => (v === m ? null : v)), 2200);
+  }, []);
+
+  const exportable = !exporting && !isResolving && !!metrics;
+
+  /* Shortcuts.
+   *
+   * A modelling tool driven only by a mouse is one nobody uses for eight
+   * hours. Single letters for the things you reach for constantly, digits for
+   * the display modes, and every one of them is listed under ?.
+   */
+  const bindings: Binding[] = useMemo(() => [
+    ...DISPLAY_MODES.map((m, i) => ({
+      keys: String(i + 1),
+      label: `Display: ${DISPLAY_LABELS[m]}`,
+      group: "View",
+      run: () => setDisplay(m),
+    })),
+    { keys: "s", label: "Section cut", group: "View", run: () => setSectionOn((v) => !v) },
+    { keys: "d", label: "Dimensions", group: "View", run: () => setDimsOn((v) => !v) },
+    { keys: "t", label: "Turntable", group: "View", run: () => setTurntable((v) => !v) },
+    { keys: "backslash", label: "Show or hide the panels", group: "View",
+      run: () => { const next = !(panelOpen || toolsOpen); setPanelOpen(next); setToolsOpen(next); } },
+
+    { keys: "l", label: "Select a section of the band", group: "Edit",
+      run: () => { setLasso((v) => !v); lassoRef.current = []; setLassoMiss(false); } },
+    { keys: "p", label: "Pin this version for compare", group: "Edit",
+      run: () => { setPinned(spec); setShowPinned(false); say("Pinned for compare"); } },
+    { keys: "c", label: "Compare against the pinned version", group: "Edit",
+      disabled: !pinned, run: () => setShowPinned((v) => !v) },
+    { keys: "r", label: "Reset to the generated design", group: "Edit",
+      disabled: !jobSpec, run: () => { if (jobSpec) { setSpec(jobSpec); say("Reset to the generated design"); } } },
+
+    { keys: "e", label: "Download STEP", group: "Export",
+      disabled: !exportable, run: () => exportable && download("step") },
+    { keys: "shift+e", label: "Download STL", group: "Export",
+      disabled: !exportable, run: () => exportable && download("stl") },
+    { keys: "g", label: "Save a render (PNG)", group: "Export",
+      run: () => { shotRef.current?.(); say("Render saved"); } },
+
+    { keys: "mod+k", label: "Command palette", group: "General", whenTyping: true,
+      run: () => setPaletteOpen((v) => !v) },
+    { keys: "?", label: "Keyboard shortcuts", group: "General",
+      run: () => setHelpOpen((v) => !v) },
+    { keys: "escape", label: "Cancel, or close the Studio", group: "General", whenTyping: true,
+      run: () => {
+        if (paletteOpen) return setPaletteOpen(false);
+        if (helpOpen) return setHelpOpen(false);
+        // A half-drawn lasso is abandoned before the Studio is: otherwise the
+        // only way out of a selection you did not want is to finish it.
+        if (lasso) { setLasso(false); lassoRef.current = []; return; }
+        onClose();
+      } },
+  ], [spec, pinned, jobSpec, exportable, lasso, paletteOpen, helpOpen, panelOpen, toolsOpen, say, onClose]);
+
+  useEffect(() => attachShortcuts(bindings), [bindings]);
+
+  const commands: Command[] = useMemo(() => [
+    ...DISPLAY_MODES.map((m, i) => ({
+      id: `disp-${m}`, label: `Display: ${DISPLAY_LABELS[m]}`, group: "View",
+      keys: String(i + 1), run: () => setDisplay(m),
+    })),
+    { id: "sec", label: sectionOn ? "Hide the section cut" : "Section cut", group: "View",
+      keys: "s", run: () => setSectionOn((v) => !v) },
+    ...(["x", "y", "z"] as SectionAxis[]).map((a) => ({
+      id: `axis-${a}`, label: `Cut along ${a.toUpperCase()}`, group: "View",
+      disabled: !sectionOn, run: () => setSectionAxis(a),
+    })),
+    { id: "dims", label: dimsOn ? "Hide dimensions" : "Show dimensions", group: "View",
+      keys: "d", run: () => setDimsOn((v) => !v) },
+    { id: "turn", label: turntable ? "Stop the turntable" : "Turntable", group: "View",
+      keys: "t", run: () => setTurntable((v) => !v) },
+    { id: "lasso", label: "Select a section of the band", group: "Edit", keys: "l",
+      run: () => { setLasso(true); lassoRef.current = []; setLassoMiss(false); } },
+    { id: "pin", label: "Pin this version for compare", group: "Edit", keys: "p",
+      run: () => { setPinned(spec); setShowPinned(false); say("Pinned for compare"); } },
+    { id: "cmp", label: showPinned ? "Show the current version" : "Show the pinned version",
+      group: "Edit", keys: "c", disabled: !pinned, run: () => setShowPinned((v) => !v) },
+    { id: "reset", label: "Reset to the generated design", group: "Edit", keys: "r",
+      disabled: !jobSpec, run: () => jobSpec && setSpec(jobSpec) },
+    { id: "spec", label: "Copy the spec as JSON", group: "Edit", keywords: "clipboard export",
+      run: () => {
+        navigator.clipboard?.writeText(JSON.stringify(spec, null, 2))
+          .then(() => say("Spec copied")).catch(() => say("Clipboard is blocked"));
+      } },
+    { id: "step", label: "Download STEP", group: "Export", keys: "e",
+      disabled: !exportable, run: () => download("step") },
+    { id: "stl", label: "Download STL", group: "Export", keys: "shift+e",
+      disabled: !exportable, run: () => download("stl") },
+    { id: "png", label: "Save a render (PNG)", group: "Export", keys: "g",
+      run: () => { shotRef.current?.(); say("Render saved"); } },
+    { id: "keys", label: "Keyboard shortcuts", group: "General", keys: "?",
+      run: () => setHelpOpen(true) },
+    { id: "close", label: "Close the Studio", group: "General", keys: "escape", run: onClose },
+  ], [spec, pinned, jobSpec, exportable, sectionOn, dimsOn, turntable, showPinned, say, onClose]);
+
+  const title = `${spec.gemShape} · ${SETTING_LABELS[spec.setting] ?? spec.setting} · ${METAL_LABELS[spec.metalType]}`;
+  const errorCount = issues.filter((i: any) => i.severity === "error").length;
+
   return (
-    <div className="flex h-full w-full bg-black relative">
-      <div
-        ref={mountRef}
-        className={"flex-1 h-full " + (lasso ? "cursor-crosshair" : "cursor-move")}
-        onPointerDown={(e) => {
-          if (!lasso) return;
-          const r = e.currentTarget.getBoundingClientRect();
-          lassoRef.current = [[e.clientX - r.left, e.clientY - r.top]];
-          drawLasso();
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          // The path lives in a ref, not in state. A pointer emits ~60 moves a
-          // second and this component owns the renderer; re-rendering it that
-          // often to redraw one polygon would cost more than the drawing does.
-          const path = lassoRef.current;
-          if (!lasso || path.length === 0) return;
-          const r = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - r.left, y = e.clientY - r.top;
-          const last = path[path.length - 1];
-          // Thin the path: every retained point is another side in the
-          // point-in-polygon test that runs for each pixel of the pick buffer.
-          if (Math.hypot(x - last[0], y - last[1]) < 4) return;
-          path.push([x, y]);
-          drawLasso();
-        }}
-        onPointerUp={(e) => {
-          if (!lasso) return;
-          const path = lassoRef.current;
-          lassoRef.current = [];
-          drawLasso();
-          e.currentTarget.releasePointerCapture?.(e.pointerId);
-          if (path.length < 3 || !pickerRef.current) return;
+    <div className="relative flex h-full w-full flex-col bg-ink-950 text-white">
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+      <ShortcutSheet open={helpOpen} onClose={() => setHelpOpen(false)} bindings={bindings} />
 
-          const picked = pickerRef.current.pick(path).filter((r) => r.body === "metal");
-          if (!picked.length) { setLassoMiss(true); return; }
-          setLassoMiss(false);
+      {/* Header. The close button used to be pinned at right-[276px] — the
+          parameter panel's width, written as a magic number — so it drifted off
+          the panel the moment that width changed and had nowhere to go at all
+          once the panel could be hidden. It lives in a bar now. */}
+      <header className="z-30 flex h-12 shrink-0 items-center gap-2 border-b border-white/8 bg-ink-950/90 px-3 backdrop-blur-xl">
+        <span className="mono-label !text-[0.44rem] !text-metal-400">Studio</span>
+        <span className="h-3 w-px bg-white/10" />
+        <h2 className="min-w-0 flex-1 truncate text-[0.85rem] capitalize tracking-tight text-white/85">
+          {title}
+        </h2>
 
-          setSpec((prev) => {
-            const next = [...prev.regions, ...picked.map((r) => ({ start: r.start, end: r.end }))];
-            setActiveRegion(next.length - 1);
-            return { ...prev, regions: next };
-          });
-          setLasso(false);
-        }}
-      />
+        <StatusPill
+          building={isGenerating} resolving={isResolving}
+          errors={errorCount} ready={!!metrics} progress={progress} stage={stage}
+        />
 
-      {/* The lasso itself. An SVG overlay rather than anything in the 3D scene:
-          it is a gesture on the screen, not an object in the world, and it must
-          not appear in the very buffer it is about to read. */}
-      {lasso && (
-        <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 20 }}>
-          <polygon ref={polyRef} points=""
-            fill="rgba(79,183,221,0.14)"
-            stroke="#4fb7dd" strokeWidth="1.5" strokeDasharray="5 4" />
-        </svg>
-      )}
+        <button onClick={() => { setToolsOpen((v) => !v); if (!isWide) setPanelOpen(false); }}
+                title={`Tools · ${chord("backslash")}`}
+                aria-label="Toggle tools" aria-pressed={toolsOpen}
+                className={"grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-white/8 " + (toolsOpen ? "text-white" : "text-white/40")}>
+          <SlidersHorizontal className="h-4 w-4" />
+        </button>
+        <button onClick={() => setPaletteOpen(true)} title={`Commands · ${chord("mod+k")}`}
+                aria-label="Command palette"
+                className="grid h-8 w-8 place-items-center rounded-lg text-white/45 transition-colors hover:bg-white/8 hover:text-white">
+          <CommandIcon className="h-4 w-4" />
+        </button>
+        <button onClick={() => setHelpOpen(true)} title="Keyboard shortcuts · ?"
+                aria-label="Keyboard shortcuts"
+                className="hidden h-8 w-8 place-items-center rounded-lg text-white/45 transition-colors hover:bg-white/8 hover:text-white sm:grid">
+          <Keyboard className="h-4 w-4" />
+        </button>
+        <button onClick={onClose} title="Close · Esc" aria-label="Close the Studio"
+                className="grid h-8 w-8 place-items-center rounded-lg text-white/45 transition-colors hover:bg-white/8 hover:text-white">
+          <X className="h-4 w-4" />
+        </button>
+      </header>
 
-      {lasso && (
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-6 z-20 pointer-events-none
-                        px-3 py-1.5 rounded-full border border-white/10 bg-black/70 backdrop-blur
-                        text-[11px] text-white/70">
-          {lassoMiss
-            ? "Nothing metal in that loop \u2014 draw around part of the band"
-            : "Draw around a part of the band \u00b7 Esc to cancel"}
-        </div>
-      )}
+      <div className="relative flex min-h-0 flex-1">
+        {/* ------------------------------------------------------ viewport -- */}
+        <div className="relative min-w-0 flex-1">
+          <div
+            ref={mountRef}
+            className={"h-full w-full " + (lasso ? "cursor-crosshair" : "cursor-move")}
+            onPointerDown={(e) => {
+              if (!lasso) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              lassoRef.current = [[e.clientX - r.left, e.clientY - r.top]];
+              drawLasso();
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              // The path lives in a ref, not in state. A pointer emits ~60 moves
+              // a second and this component owns the renderer; re-rendering it
+              // that often to redraw one polygon would cost more than the
+              // drawing does.
+              const path = lassoRef.current;
+              if (!lasso || path.length === 0) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              const x = e.clientX - r.left, y = e.clientY - r.top;
+              const last = path[path.length - 1];
+              // Thin the path: every retained point is another side in the
+              // point-in-polygon test that runs for each pixel of the buffer.
+              if (Math.hypot(x - last[0], y - last[1]) < 4) return;
+              path.push([x, y]);
+              drawLasso();
+            }}
+            onPointerUp={(e) => {
+              if (!lasso) return;
+              const path = lassoRef.current;
+              lassoRef.current = [];
+              drawLasso();
+              e.currentTarget.releasePointerCapture?.(e.pointerId);
+              if (path.length < 3 || !pickerRef.current) return;
 
-      {/* Designer toolbar. Floating over the viewport rather than buried in the
-          parameter panel: these change how you LOOK at the piece, and you reach
-          for them while your eye is on the model, not on a form. */}
-      <div className="absolute top-4 left-4 w-[186px] space-y-2 text-white select-none">
-        <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
-          <div className="text-[9px] uppercase tracking-widest text-white/35 px-0.5">Display</div>
-          <div className="grid grid-cols-2 gap-1">
-            {DISPLAY_MODES.map((m) => (
-              <button key={m} onClick={() => setDisplay(m)}
-                className={"text-[10px] px-1.5 py-1 rounded border transition-colors " +
-                  (display === m
-                    ? "bg-[var(--gold-500)]/15 border-[var(--gold-500)]/50 text-[var(--gold-500)]"
-                    : "bg-white/5 border-white/10 text-white/55 hover:text-white/90")}>
-                {DISPLAY_LABELS[m]}
-              </button>
-            ))}
-          </div>
-        </div>
+              const picked = pickerRef.current.pick(path).filter((r) => r.body === "metal");
+              if (!picked.length) { setLassoMiss(true); return; }
+              setLassoMiss(false);
 
-        <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
-          <Toggle label="Section cut" on={sectionOn} onChange={setSectionOn} />
-          {sectionOn && (
-            <>
-              <div className="grid grid-cols-3 gap-1">
-                {(["x", "y", "z"] as SectionAxis[]).map((a) => (
-                  <button key={a} onClick={() => setSectionAxis(a)}
-                    className={"text-[10px] py-1 rounded border uppercase transition-colors " +
-                      (sectionAxis === a
-                        ? "bg-white/15 border-white/30 text-white"
-                        : "bg-white/5 border-white/10 text-white/50 hover:text-white/80")}>
-                    {a}
-                  </button>
-                ))}
-              </div>
-              <input type="range" min={-cutRange} max={cutRange} step={0.1}
-                value={sectionOffset}
-                onChange={(e) => setSectionOffset(parseFloat(e.target.value))}
-                className="w-full accent-[var(--gold-500)]" />
-            </>
+              setSpec((prev) => {
+                const next = [...prev.regions, ...picked.map((r) => ({ start: r.start, end: r.end }))];
+                setActiveRegion(next.length - 1);
+                return { ...prev, regions: next };
+              });
+              setLasso(false);
+            }}
+          />
+
+          {/* The lasso itself. An SVG overlay rather than anything in the 3D
+              scene: it is a gesture on the screen, not an object in the world,
+              and it must not appear in the very buffer it is about to read. */}
+          {lasso && (
+            <svg className="pointer-events-none absolute inset-0 z-20">
+              <polygon ref={polyRef} points=""
+                fill="rgba(225,40,130,0.12)" stroke="var(--accent-400)"
+                strokeWidth="1.5" strokeDasharray="5 4" />
+            </svg>
           )}
-          <Toggle label="Dimensions" on={dimsOn} onChange={setDimsOn} />
-          <Toggle
-            label={lasso ? "Drawing… (Esc)" : "Select a section"}
-            on={lasso}
-            onChange={(v) => { setLasso(v); lassoRef.current = []; setLassoMiss(false); }} />
-          <Toggle label="Turntable" on={turntable} onChange={setTurntable} />
-        </div>
 
-        {spec.regions.length > 0 && (
-          <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
-            <div className="text-[9px] uppercase tracking-widest text-white/35 px-0.5">
-              Sections ({spec.regions.length})
+          {lasso && (
+            <div className="pointer-events-none absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/12 bg-ink-950/85 px-3.5 py-2 text-[0.75rem] text-white/75 backdrop-blur">
+              {lassoMiss
+                ? "Nothing metal in that loop — draw around part of the band"
+                : "Draw around part of the band · Esc to cancel"}
             </div>
-            {spec.regions.map((r, i) => {
-              const deg = (a: number) => Math.round(((a * 180) / Math.PI + 360) % 360);
-              return (
-                <button key={i} onClick={() => setActiveRegion(activeRegion === i ? null : i)}
-                  className={"w-full text-left text-[10px] px-2 py-1 rounded border transition-colors " +
-                    (activeRegion === i
-                      ? "bg-[var(--gold-500)]/15 border-[var(--gold-500)]/50 text-[var(--gold-500)]"
-                      : "bg-white/5 border-white/10 text-white/55 hover:text-white/90")}>
-                  {deg(r.start)}° – {deg(r.end)}°
-                </button>
-              );
-            })}
+          )}
 
-            {activeRegion !== null && spec.regions[activeRegion] && (
-              <div className="pt-1 space-y-1.5 border-t border-white/10">
-                <RegionSlider label="Width" value={spec.regions[activeRegion].widthScale ?? 1}
-                  onChange={(v) => editRegion(activeRegion, { widthScale: v })} />
-                <RegionSlider label="Thickness" value={spec.regions[activeRegion].thicknessScale ?? 1}
-                  onChange={(v) => editRegion(activeRegion, { thicknessScale: v })} />
-                <button
-                  onClick={() => {
-                    setSpec((p) => ({ ...p, regions: p.regions.filter((_, i) => i !== activeRegion) }));
-                    setActiveRegion(null);
-                  }}
-                  className="w-full text-[10px] px-2 py-1 rounded border border-red-500/30
-                             bg-red-900/15 text-red-300/80 hover:text-red-200">
-                  Remove section
-                </button>
-              </div>
+          {/* Tools. Floating over the viewport rather than buried in the
+              parameter panel: these change how you LOOK at the piece, and you
+              reach for them while your eye is on the model, not on a form. */}
+          <AnimatePresence>
+            {toolsOpen && (
+              <motion.div
+                initial={isWide ? { opacity: 0, x: -12 } : { opacity: 0, y: 28 }}
+                animate={isWide ? { opacity: 1, x: 0 } : { opacity: 1, y: 0 }}
+                exit={isWide ? { opacity: 0, x: -12 } : { opacity: 0, y: 28 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                aria-label="Tools"
+                className={isWide
+                  ? "absolute left-3 top-3 z-20 w-[13.5rem] space-y-2 select-none"
+                  : "absolute inset-x-0 bottom-0 z-30 max-h-[70%] select-none space-y-2 overflow-y-auto overscroll-contain rounded-t-2xl border-t border-white/10 bg-ink-950/96 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl"}
+              >
+                {/* A sheet needs a head you can aim a thumb at. The column does
+                    not: its dismiss lives in the header bar, where it is always
+                    in the same place. */}
+                {!isWide && (
+                  <div className="sticky top-0 z-10 -mx-3 mb-1 flex items-center justify-between border-b border-white/8 bg-ink-950/96 px-3 py-2.5 backdrop-blur-xl">
+                    <h3 className="mono-label !text-[0.46rem]">Tools</h3>
+                    <button onClick={() => setToolsOpen(false)} aria-label="Hide tools"
+                            className="grid h-7 w-7 place-items-center rounded text-white/40 hover:text-white">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                <Panel>
+                  <PanelHead>Display</PanelHead>
+                  <div className="space-y-1">
+                    {DISPLAY_MODES.map((m, i) => (
+                      <Chip key={m} full on={display === m} onClick={() => setDisplay(m)} hint={String(i + 1)}>
+                        {DISPLAY_LABELS[m]}
+                      </Chip>
+                    ))}
+                  </div>
+                </Panel>
+
+                <Panel>
+                  <ToolRow icon={Scissors} label="Section cut" hint="S"
+                           on={sectionOn} onClick={() => setSectionOn((v) => !v)} />
+                  {sectionOn && (
+                    <div className="space-y-1.5 pt-0.5">
+                      <div className="grid grid-cols-3 gap-1">
+                        {(["x", "y", "z"] as SectionAxis[]).map((a) => (
+                          <Chip key={a} on={sectionAxis === a} onClick={() => setSectionAxis(a)}>
+                            {a.toUpperCase()}
+                          </Chip>
+                        ))}
+                      </div>
+                      <input type="range" min={-cutRange} max={cutRange} step={0.1}
+                             value={sectionOffset} aria-label="Section position"
+                             onChange={(e) => setSectionOffset(parseFloat(e.target.value))}
+                             className="slider-metal" />
+                    </div>
+                  )}
+                  <ToolRow icon={Ruler} label="Dimensions" hint="D"
+                           on={dimsOn} onClick={() => setDimsOn((v) => !v)} />
+                  <ToolRow icon={Lasso} label={lasso ? "Drawing…" : "Select a section"} hint="L"
+                           on={lasso}
+                           onClick={() => { setLasso((v) => !v); lassoRef.current = []; setLassoMiss(false); }} />
+                  <ToolRow icon={RotateCw} label="Turntable" hint="T"
+                           on={turntable} onClick={() => setTurntable((v) => !v)} />
+                </Panel>
+
+                {spec.regions.length > 0 && (
+                  <Panel>
+                    <PanelHead>Sections · {spec.regions.length}</PanelHead>
+                    <div className="space-y-1">
+                      {spec.regions.map((r, i) => {
+                        const deg = (a: number) => Math.round(((a * 180) / Math.PI + 360) % 360);
+                        return (
+                          <Chip key={i} full on={activeRegion === i}
+                                onClick={() => setActiveRegion(activeRegion === i ? null : i)}>
+                            {deg(r.start)}° – {deg(r.end)}°
+                          </Chip>
+                        );
+                      })}
+                    </div>
+                    {activeRegion !== null && spec.regions[activeRegion] && (
+                      <div className="space-y-1.5 border-t border-white/8 pt-2">
+                        <RegionSlider label="Width" value={spec.regions[activeRegion].widthScale ?? 1}
+                          onChange={(v) => editRegion(activeRegion, { widthScale: v })} />
+                        <RegionSlider label="Thickness" value={spec.regions[activeRegion].thicknessScale ?? 1}
+                          onChange={(v) => editRegion(activeRegion, { thicknessScale: v })} />
+                        <button
+                          onClick={() => {
+                            setSpec((p) => ({ ...p, regions: p.regions.filter((_, i) => i !== activeRegion) }));
+                            setActiveRegion(null);
+                          }}
+                          className="w-full rounded-md border border-red-500/25 bg-red-500/10 px-2 py-1.5 text-[0.72rem] text-red-300/85 transition-colors hover:text-red-200"
+                        >
+                          Remove section
+                        </button>
+                      </div>
+                    )}
+                  </Panel>
+                )}
+
+                <Panel>
+                  <ToolRow icon={Pin} label={pinned ? "Re-pin this version" : "Pin for compare"} hint="P"
+                           on={false} onClick={() => { setPinned(spec); setShowPinned(false); say("Pinned for compare"); }} />
+                  {pinned && (
+                    <>
+                      <ToolRow icon={GitCompare} label={showPinned ? "Showing: pinned" : "Showing: current"}
+                               hint="C" on={showPinned} onClick={() => setShowPinned((v) => !v)} />
+                      {changed.length > 0 && (
+                        <p className="px-1 pt-0.5 text-[0.64rem] leading-snug text-white/40">
+                          {changed.join(", ")} changed
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <ToolRow icon={Camera} label="Save render" hint="G" on={false}
+                           onClick={() => { shotRef.current?.(); say("Render saved"); }} />
+                </Panel>
+              </motion.div>
             )}
-          </div>
-        )}
+          </AnimatePresence>
 
-        <div className="rounded-lg border border-white/10 bg-[#0c0710]/90 backdrop-blur p-2 space-y-1.5">
-          <Toggle
-            label={pinned ? "Re-pin this version" : "Pin for compare"}
-            on={false}
-            onChange={() => { setPinned(spec); setShowPinned(false); }} />
-          {pinned && (
-            <>
-              <Toggle
-                label={showPinned ? "Showing: pinned" : "Showing: current"}
-                on={showPinned}
-                onChange={setShowPinned} />
-              {changed.length > 0 && (
-                <div className="text-[9px] text-white/40 leading-snug px-0.5 pt-0.5">
-                  {changed.join(", ")} changed
-                </div>
+          {/* Build status, centred over the model where the eye already is. */}
+          <AnimatePresence>
+            {isGenerating && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                className="pointer-events-none absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-white/12 bg-ink-950/85 px-3.5 py-2 backdrop-blur"
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-metal-300" />
+                <span className="text-[0.75rem] text-white/80">{stage || "Building"}</span>
+                <span className="tabular text-[0.72rem] text-white/45">{progress}%</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {toast && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                role="status"
+                className="pointer-events-none absolute bottom-5 right-5 z-30 rounded-lg border border-white/12 bg-ink-950/90 px-3.5 py-2 text-[0.78rem] text-white/85 backdrop-blur"
+              >
+                {toast}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {error && (
+            <div className="absolute left-1/2 top-1/2 z-30 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-red-500/35 bg-ink-950/95 p-6 text-center backdrop-blur">
+              <XCircle className="mx-auto h-6 w-6 text-red-400" />
+              <h3 className="mt-3 text-[1rem] font-medium text-white">That build did not finish</h3>
+              <p className="mt-1.5 text-[0.82rem] leading-relaxed text-white/55">{error}</p>
+              {jobSpec && (
+                <button onClick={() => setSpec(jobSpec)}
+                        className="mt-4 rounded-full border border-white/15 px-4 py-2 text-[0.8rem] text-white/80 hover:text-white">
+                  Back to the generated design
+                </button>
               )}
-            </>
+            </div>
           )}
-          <button onClick={() => shotRef.current?.()}
-            className="w-full text-[11px] px-2 py-1.5 rounded border border-white/10
-                       bg-white/5 text-white/60 hover:text-white/90 transition-colors">
-            Save render (PNG)
-          </button>
+
+          {/* On a phone both panels are sheets, and this is what calls them
+              back. It is the whole of the Studio's chrome at that size, so it
+              carries both doors rather than only the one: a phone that can
+              change the metal but never section the band is a demo, not a tool. */}
+          <AnimatePresence>
+            {!isWide && !panelOpen && !toolsOpen && !lasso && (
+              <motion.div
+                initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="absolute bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/12 bg-ink-950/90 p-1 shadow-[0_18px_50px_-12px_rgba(0,0,0,0.9)] backdrop-blur"
+              >
+                <button onClick={() => setToolsOpen(true)}
+                        className="flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.8rem] text-white/70 transition-colors active:bg-white/10">
+                  <Layers className="h-3.5 w-3.5" /> Tools
+                </button>
+                <span className="h-4 w-px bg-white/10" />
+                <button onClick={() => setPanelOpen(true)}
+                        className="flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.8rem] text-white/85 transition-colors active:bg-white/10">
+                  <SlidersHorizontal className="h-3.5 w-3.5" /> Parameters
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* ------------------------------------------------------- panel -- */}
+        <AnimatePresence>
+          {panelOpen && (
+            <motion.aside
+              initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+              aria-label="Parameters"
+              className="absolute inset-y-0 right-0 z-30 w-full max-w-sm overflow-y-auto border-l border-white/8 bg-ink-950/97 backdrop-blur-xl lg:static lg:z-auto lg:w-[19rem] lg:max-w-none lg:shrink-0 lg:bg-ink-950/95"
+            >
+              <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+                <h3 className="mono-label !text-[0.46rem]">Parameters</h3>
+                <div className="flex items-center gap-1">
+                  {jobSpec && (
+                    <button onClick={() => { setSpec(jobSpec); say("Reset to the generated design"); }}
+                            title={`Reset · ${chord("r")}`} aria-label="Reset to the generated design"
+                            className="grid h-7 w-7 place-items-center rounded text-white/40 hover:text-white">
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <button onClick={() => setPanelOpen(false)} aria-label="Hide parameters"
+                          className="grid h-7 w-7 place-items-center rounded text-white/40 hover:text-white lg:hidden">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-4">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Choice label="Stone cut" value={spec.gemShape} options={GEM_CUTS}
+                    onChange={(v) => set("gemShape", v as any)} />
+                  <Choice label="Setting" value={spec.setting} options={SETTINGS} labels={SETTING_LABELS}
+                    onChange={(v) => set("setting", v as any)} />
+                  <Choice label="Band profile" value={spec.bandProfile} options={BAND_PROFILES}
+                    onChange={(v) => set("bandProfile", v as any)} />
+                  <Choice label="Shank shape" value={spec.shankStyle} options={SHANK_STYLES}
+                    labels={SHANK_STYLE_LABELS} onChange={(v) => set("shankStyle", v as any)} />
+                  <Choice label="Shank stones" value={spec.shankStones} options={SHANK_STONES}
+                    labels={SHANK_STONE_LABELS} onChange={(v) => set("shankStones", v as any)} />
+                  <Choice label="Metal" value={spec.metalType} options={METALS}
+                    labels={METAL_LABELS} onChange={(v) => set("metalType", v as any)} />
+                  <Choice label="Finish" value={spec.finish} options={FINISHES}
+                    labels={FINISH_LABELS} onChange={(v) => set("finish", v as any)} />
+                </div>
+
+                <hr className="hairline" />
+
+                <Slider label="Ring size (US)" value={spec.ringSize} min={3} max={16} step={0.5}
+                  onChange={(v) => set("ringSize", v)} />
+                <Slider label="Carat" value={spec.gemSize} min={0.1} max={6} step={0.05} unit=" ct"
+                  onChange={(v) => set("gemSize", v)} />
+                <Slider label="Band width" value={spec.bandWidth} min={1.2} max={8} step={0.1} unit=" mm"
+                  onChange={(v) => set("bandWidth", v)} />
+                {spec.setting !== "bezel" && (
+                  <Slider label="Prongs" value={spec.prongCount} min={3} max={8} step={1}
+                    onChange={(v) => set("prongCount", v)} />
+                )}
+
+                <hr className="hairline" />
+
+                <div>
+                  <h3 className="mono-label !text-[0.46rem]">Measurements</h3>
+                  {isResolving && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[0.7rem] text-white/45">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Merging solids — measurements follow
+                    </div>
+                  )}
+                  <dl className="mt-2.5 space-y-1">
+                    <Metric label="Inner Ø" value={metrics ? `${metrics.innerDiameter} mm` : "—"} />
+                    <Metric label="Outer Ø" value={metrics ? `${metrics.outerDiameter} mm` : "—"} />
+                    <Metric label="Band" value={metrics ? `${metrics.bandWidth} × ${metrics.bandThickness} mm` : "—"} />
+                    <Metric
+                      label={metrics && metrics.stoneLength !== metrics.stoneWidth ? "Stone" : "Stone Ø"}
+                      value={!metrics ? "—"
+                        : metrics.stoneLength === metrics.stoneWidth
+                          ? `${metrics.stoneLength} mm`
+                          : `${metrics.stoneLength} × ${metrics.stoneWidth} mm`} />
+                    <Metric label="Stone height" value={metrics ? `${metrics.stoneHeight} mm` : "—"} />
+                    <Metric label="Stone weight" stale={isResolving}
+                      value={metrics?.caratActual ? `${metrics.caratActual.toFixed(2)} ct` : "—"} />
+                    {/* These three are the merge's output, and nothing else here
+                        is. While a merge is in flight the rest of the panel is
+                        still true of the design on screen, but these belong to
+                        the previous one — so they are marked stale rather than
+                        left looking authoritative. A quoted weight that is one
+                        edit out of date is a real invoice, wrong. */}
+                    <Metric label="Metal volume" stale={isResolving}
+                      value={metrics ? `${metrics.volumeMm3} mm³` : "—"} />
+                    <Metric label="Stones" stale={isResolving}
+                      value={metrics ? `${metrics.stoneCount} · ${metrics.stoneVolumeMm3} mm³` : "—"} />
+                    <Metric label="Est. weight" stale={isResolving}
+                      value={weightG ? `${weightG.toFixed(2)} g` : "—"} highlight />
+                  </dl>
+                  <p className="mt-2 text-[0.64rem] leading-relaxed text-white/32">
+                    Metal only, in {METAL_LABELS[spec.metalType]}, assuming a solid
+                    casting. Stones are excluded — they are a separate body.
+                  </p>
+                </div>
+
+                <hr className="hairline" />
+
+                {/* Manufacturability is only meaningful once the piece is one
+                    solid, and that is what the merge decides. Showing the last
+                    design's verdict beside this design's geometry would be worse
+                    than showing none. */}
+                <div>
+                  <h3 className="mono-label !text-[0.46rem]">Manufacturability</h3>
+                  {issues.length === 0 ? (
+                    <div className="mt-2.5 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.07] px-3 py-2.5 text-[0.78rem] text-emerald-300/90">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>Castable in {METAL_LABELS[spec.metalType]}</span>
+                    </div>
+                  ) : (
+                    <ul className="mt-2.5 space-y-1.5">
+                      {issues.map((i: any) => (
+                        <li key={i.code}
+                            className={"flex gap-2 rounded-lg border px-3 py-2.5 text-[0.75rem] leading-relaxed " +
+                              (i.severity === "error"
+                                ? "border-red-500/25 bg-red-500/[0.07] text-red-300/90"
+                                : "border-amber-500/25 bg-amber-500/[0.06] text-amber-200/85")}>
+                          {i.severity === "error"
+                            ? <XCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+                            : <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />}
+                          <span>{i.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <hr className="hairline" />
+
+                <div className="space-y-2">
+                  <button onClick={() => download("step")} disabled={!exportable}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[0.82rem] font-medium text-ink-900 transition-colors hover:bg-metal-200 disabled:bg-white/10 disabled:text-white/30">
+                    {exporting === "step"
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Writing STEP…</>
+                      : <><Download className="h-3.5 w-3.5" /> Download STEP
+                          <kbd className="mono-label !text-[0.42rem] !text-ink-900/45">{chord("e")}</kbd></>}
+                  </button>
+                  <button onClick={() => download("stl")} disabled={!exportable}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/12 px-4 py-2.5 text-[0.82rem] text-white/80 transition-colors hover:border-white/25 hover:text-white disabled:opacity-40">
+                    {exporting === "stl"
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Writing STL…</>
+                      : <><Download className="h-3.5 w-3.5" /> Download STL
+                          <kbd className="mono-label !text-[0.42rem] !text-white/30">{chord("shift+e")}</kbd></>}
+                  </button>
+                  <p className="text-[0.64rem] leading-relaxed text-white/32">
+                    {isResolving
+                      ? "Merging solids — export unlocks when the piece is one body."
+                      : "STEP carries editable surfaces for a CAD package. STL is metal only, tessellated for printing."}
+                  </p>
+                  {exportError && <p className="text-[0.72rem] text-red-300/90">{exportError}</p>}
+                </div>
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
       </div>
-
-      {/* Parameter panel */}
-      <aside className="w-[260px] shrink-0 h-full overflow-y-auto border-l border-white/10 bg-[#0c0710]/95 backdrop-blur p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs uppercase tracking-widest text-white/50 font-semibold">Parameters</h3>
-          {jobSpec && (
-            <button onClick={() => setSpec(jobSpec)} title="Reset to the generated design"
-              className="text-white/40 hover:text-white/80"><RotateCcw className="h-3.5 w-3.5" /></button>
-          )}
-        </div>
-
-        <Choice label="Stone cut" value={spec.gemShape} options={GEM_CUTS}
-          onChange={(v) => set("gemShape", v as any)} />
-        <Choice label="Setting" value={spec.setting} options={SETTINGS} labels={SETTING_LABELS}
-          onChange={(v) => set("setting", v as any)} />
-        <Choice label="Band profile" value={spec.bandProfile} options={BAND_PROFILES}
-          onChange={(v) => set("bandProfile", v as any)} />
-        <Choice label="Shank shape" value={spec.shankStyle} options={SHANK_STYLES}
-          labels={SHANK_STYLE_LABELS} onChange={(v) => set("shankStyle", v as any)} />
-        <Choice label="Shank stones" value={spec.shankStones} options={SHANK_STONES}
-          labels={SHANK_STONE_LABELS} onChange={(v) => set("shankStones", v as any)} />
-        <Choice label="Metal" value={spec.metalType} options={METALS}
-          labels={METAL_LABELS} onChange={(v) => set("metalType", v as any)} />
-        <Choice label="Finish" value={spec.finish} options={FINISHES}
-          labels={FINISH_LABELS} onChange={(v) => set("finish", v as any)} />
-
-        <Slider label="Ring size (US)" value={spec.ringSize} min={3} max={16} step={0.5}
-          onChange={(v) => set("ringSize", v)} />
-        <Slider label="Carat" value={spec.gemSize} min={0.1} max={6} step={0.05} unit=" ct"
-          onChange={(v) => set("gemSize", v)} />
-        <Slider label="Band width" value={spec.bandWidth} min={1.2} max={8} step={0.1} unit=" mm"
-          onChange={(v) => set("bandWidth", v)} />
-        {spec.setting !== "bezel" && (
-          <Slider label="Prongs" value={spec.prongCount} min={3} max={8} step={1}
-            onChange={(v) => set("prongCount", v)} />
-        )}
-
-        <div className="pt-2 border-t border-white/10 space-y-1.5">
-          <h3 className="text-xs uppercase tracking-widest text-white/50 font-semibold mb-2">Measurements</h3>
-          {isResolving && (
-            <div className="flex items-center gap-1.5 text-[10px] text-white/45 pb-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Merging solids — measurements follow
-            </div>
-          )}
-          <Metric label="Inner Ø" value={metrics ? `${metrics.innerDiameter} mm` : "—"} />
-          <Metric label="Outer Ø" value={metrics ? `${metrics.outerDiameter} mm` : "—"} />
-          <Metric label="Band" value={metrics ? `${metrics.bandWidth} × ${metrics.bandThickness} mm` : "—"} />
-          <Metric
-            label={metrics && metrics.stoneLength !== metrics.stoneWidth ? "Stone" : "Stone Ø"}
-            value={!metrics ? "—"
-              : metrics.stoneLength === metrics.stoneWidth
-                ? `${metrics.stoneLength} mm`
-                : `${metrics.stoneLength} × ${metrics.stoneWidth} mm`} />
-          <Metric label="Stone height" value={metrics ? `${metrics.stoneHeight} mm` : "—"} />
-          <Metric label="Stone weight" stale={isResolving}
-            value={metrics?.caratActual ? `${metrics.caratActual.toFixed(2)} ct` : "—"} />
-          {/* These three are the merge's output, and nothing else here is. While
-              a merge is in flight the rest of the panel is still true of the
-              design on screen, but these belong to the previous one — so they
-              are marked stale rather than left looking authoritative. A quoted
-              weight that is one edit out of date is a real invoice, wrong. */}
-          <Metric label="Metal volume" stale={isResolving}
-            value={metrics ? `${metrics.volumeMm3} mm³` : "—"} />
-          <Metric label="Stones" stale={isResolving}
-            value={metrics ? `${metrics.stoneCount} · ${metrics.stoneVolumeMm3} mm³` : "—"} />
-          <Metric label="Est. weight" stale={isResolving}
-            value={weightG ? `${weightG.toFixed(2)} g` : "—"} highlight />
-          <p className="text-[9px] text-white/30 pt-1 leading-relaxed">
-            Metal only, in {METAL_LABELS[spec.metalType]}, assuming a solid casting.
-            Stones are excluded — they are a separate body.
-          </p>
-        </div>
-
-        {/* Manufacturability is only meaningful once the piece is one solid, and
-            that is what the merge decides. Showing last design's verdict beside
-            this design's geometry would be worse than showing none. */}
-        <div className="pt-2 border-t border-white/10">
-          <h3 className="text-xs uppercase tracking-widest text-white/50 font-semibold mb-2">
-            Manufacturability
-          </h3>
-          {issues.length === 0 ? (
-            <div className="flex items-center gap-2 text-[11px] text-green-400">
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              <span>Castable in {METAL_LABELS[spec.metalType]}</span>
-            </div>
-          ) : (
-            <ul className="space-y-1.5">
-              {issues.map((i: any) => (
-                <li key={i.code} className="flex gap-2 text-[10px] leading-relaxed">
-                  {i.severity === "error"
-                    ? <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400 mt-px" />
-                    : <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400 mt-px" />}
-                  <span className={i.severity === "error" ? "text-red-300" : "text-amber-200/80"}>
-                    {i.message}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Button onClick={() => download("step")} disabled={!!exporting || isResolving || !metrics}
-            className="w-full bg-[var(--gold-500)]/15 border border-[var(--gold-500)]/40
-                       hover:bg-[var(--gold-500)]/25 text-[var(--gold-500)] text-xs h-9">
-            {exporting === "step"
-              ? <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> Writing STEP…</>
-              : <><Download className="h-3.5 w-3.5 mr-2" /> Download STEP</>}
-          </Button>
-          <Button onClick={() => download("stl")} disabled={!!exporting || isResolving || !metrics}
-            className="w-full bg-white/10 hover:bg-white/20 text-white text-xs h-9">
-            {exporting === "stl"
-              ? <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> Writing STL…</>
-              : <><Download className="h-3.5 w-3.5 mr-2" /> Download STL</>}
-          </Button>
-          <p className="text-[9px] text-white/30 leading-snug">
-            {isResolving
-              ? "Merging solids — export unlocks when the piece is one body."
-              : "STEP carries editable surfaces for a CAD package. STL is metal only, tessellated for printing."}
-          </p>
-          {exportError && (
-            <p className="text-[10px] text-red-300/90">{exportError}</p>
-          )}
-        </div>
-      </aside>
-
-      {isGenerating && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-zinc-900/85 text-white px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md border border-white/10">
-          <Loader2 className="animate-spin h-4 w-4 text-yellow-500" />
-          <span className="text-xs font-medium">{stage || "Generating"} · {progress}%</span>
-        </div>
-      )}
-
-      {error && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-900/90 text-white p-6 rounded-xl border border-red-500/50 max-w-md text-center">
-          <h3 className="font-bold mb-2">Generation Failed</h3>
-          <p className="text-sm opacity-80">{error}</p>
-        </div>
-      )}
-
-      <Button
-        className="absolute top-4 right-[276px] bg-zinc-800 hover:bg-zinc-700 text-white rounded-full h-8 w-8 p-0 flex items-center justify-center"
-        onClick={onClose}
-      >
-        <X className="h-4 w-4" />
-      </Button>
     </div>
   );
 }
+
+/* --------------------------------------------------------------- chrome -- */
+
+function Panel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5 rounded-xl border border-white/10 bg-ink-950/85 p-2 backdrop-blur-xl">
+      {children}
+    </div>
+  );
+}
+
+function PanelHead({ children }: { children: React.ReactNode }) {
+  return <div className="mono-label px-0.5 !text-[0.44rem]">{children}</div>;
+}
+
+function Chip({
+  children, on, onClick, hint, full,
+}: { children: React.ReactNode; on: boolean; onClick: () => void; hint?: string; full?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      className={"flex items-center justify-between gap-1 rounded-md border px-2 py-1.5 text-[0.72rem] capitalize transition-colors max-lg:px-3 max-lg:py-2.5 max-lg:text-[0.82rem] " +
+        (full ? "w-full " : "") +
+        (on
+          ? "border-metal-400/45 bg-metal-400/12 text-metal-200"
+          : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white/90")}
+    >
+      <span className="truncate">{children}</span>
+      {hint && <kbd className="mono-label shrink-0 !text-[0.4rem] !text-white/25 max-lg:hidden">{hint}</kbd>}
+    </button>
+  );
+}
+
+function ToolRow({
+  icon: Icon, label, hint, on, onClick,
+}: { icon: any; label: string; hint?: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      className={"flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-[0.76rem] transition-colors max-lg:gap-3 max-lg:px-3 max-lg:py-2.5 max-lg:text-[0.86rem] " +
+        (on ? "bg-metal-400/12 text-metal-200" : "text-white/60 hover:bg-white/5 hover:text-white")}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0 max-lg:h-4 max-lg:w-4" />
+      <span className="flex-1 truncate text-left">{label}</span>
+      {hint && <kbd className="mono-label !text-[0.4rem] !text-white/25 max-lg:hidden">{hint}</kbd>}
+    </button>
+  );
+}
+
+function StatusPill({
+  building, resolving, errors, ready, progress, stage,
+}: { building: boolean; resolving: boolean; errors: number; ready: boolean; progress: number; stage?: string }) {
+  const [dot, text] =
+    building ? ["bg-metal-300 animate-pulse", `${stage || "Building"} ${progress}%`]
+    : resolving ? ["bg-amber-400 animate-pulse", "Merging"]
+    : errors > 0 ? ["bg-red-400", `${errors} issue${errors === 1 ? "" : "s"}`]
+    : ready ? ["bg-emerald-400", "Ready"]
+    : ["bg-white/25", "Idle"];
+
+  return (
+    <span className="mono-label hidden items-center gap-2 rounded-full border border-white/10 px-2.5 py-1 !text-[0.44rem] sm:flex">
+      <span className={"h-1.5 w-1.5 rounded-full " + dot} />
+      {text}
+    </span>
+  );
+}
+
 
 function Choice({ label, value, options, labels, onChange }: {
   label: string; value: string; options: readonly string[];
@@ -973,11 +1384,12 @@ function Choice({ label, value, options, labels, onChange }: {
 }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</span>
+      <span className="mb-1 block text-[10px] uppercase tracking-wider text-white/40">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white/90 capitalize focus:outline-none focus:border-[var(--gold-500)]"
+        aria-label={label}
+        className="w-full cursor-pointer rounded-lg border border-white/10 bg-white/[0.04] px-2 py-2 text-[0.78rem] capitalize text-white/90 transition-colors hover:border-white/20 focus:border-[var(--gold-500)] focus:outline-none"
       >
         {options.map((o) => (
           <option key={o} value={o} className="bg-[#160c1c]">{labels?.[o] || o}</option>
@@ -1009,8 +1421,8 @@ function Slider({ label, value, min, max, step, unit = "", onChange }: {
     if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
   };
   return (
-    <label className="block">
-      <span className="flex items-baseline justify-between text-[10px] uppercase tracking-wider text-white/40 mb-1">
+    <div className="block">
+      <span className="mb-1 flex items-baseline justify-between text-[10px] uppercase tracking-wider text-white/40">
         {label}
         <span className="flex items-baseline gap-0.5">
           <input
@@ -1019,6 +1431,7 @@ function Slider({ label, value, min, max, step, unit = "", onChange }: {
             onBlur={commit}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
             inputMode="decimal"
+            aria-label={`${label}${unit ? ` (${unit.trim()})` : ""}`}
             className="w-12 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-right
                        text-white/80 font-mono text-[11px] normal-case focus:outline-none
                        focus:border-[var(--gold-500)]"
@@ -1029,9 +1442,10 @@ function Slider({ label, value, min, max, step, unit = "", onChange }: {
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full accent-[var(--gold-500)]"
+        aria-label={label}
+        className="slider-metal"
       />
-    </label>
+    </div>
   );
 }
 
@@ -1047,7 +1461,7 @@ function RegionSlider({ label, value, onChange }: {
       </span>
       <input type="range" min={0.5} max={2} step={0.05} value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full accent-[var(--gold-500)]" />
+        className="slider-metal" />
     </label>
   );
 }

@@ -65,3 +65,7 @@ src/leak-test.ts
 
 # FUSE mount artifact from the Claude device bridge.
 .fuse_hidden*
+/chat-only.html
+src/chat-only.tsx
+vite.harness.config.ts
+dist-harness/
