@@ -1134,12 +1134,12 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
               >
                 <button onClick={() => setToolsOpen(true)}
                         className="flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.8rem] text-white/70 transition-colors active:bg-white/10">
-                  <Layers className="h-3.5 w-3.5" /> Tools
+                  <Layers className="h-4 w-4 shrink-0" /> Tools
                 </button>
                 <span className="h-4 w-px bg-white/10" />
                 <button onClick={() => setPanelOpen(true)}
                         className="flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.8rem] text-white/85 transition-colors active:bg-white/10">
-                  <SlidersHorizontal className="h-3.5 w-3.5" /> Parameters
+                  <SlidersHorizontal className="h-4 w-4 shrink-0" /> Parameters
                 </button>
               </motion.div>
             )}
@@ -1153,7 +1153,7 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
               initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}
               transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
               aria-label="Parameters"
-              className="absolute inset-y-0 right-0 z-30 w-full max-w-sm overflow-y-auto border-l border-white/8 bg-ink-950/97 backdrop-blur-xl lg:static lg:z-auto lg:w-[19rem] lg:max-w-none lg:shrink-0 lg:bg-ink-950/95"
+              className="absolute inset-y-0 right-0 z-30 w-full overflow-y-auto sm:max-w-sm border-l border-white/8 bg-ink-950/97 backdrop-blur-xl lg:static lg:z-auto lg:w-[19rem] lg:max-w-none lg:shrink-0 lg:bg-ink-950/95"
             >
               <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
                 <h3 className="mono-label !text-[0.46rem]">Parameters</h3>
