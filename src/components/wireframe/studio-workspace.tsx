@@ -26,9 +26,8 @@ import { useMediaQuery } from "../../lib/use-media-query";
 import { CommandPalette, ShortcutSheet, type Command } from "../ui/command-center";
 import { Button } from "../ui/button";
 import { useBrepWorker, type RingMesh } from "../../hooks/useBrepWorker";
-import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
 import {
-  DEFAULT_SPEC, RingSpec, parseSpecFromPrompt, withDefaults,
+  DEFAULT_SPEC, RingSpec, withDefaults,
   GEM_CUTS, SETTINGS, BAND_PROFILES, METALS, METAL_LABELS,
   METAL_APPEARANCE, METAL_DENSITY, SHANK_STONES, SHANK_STONE_LABELS, SETTING_LABELS,
   SHANK_STYLES, SHANK_STYLE_LABELS,
@@ -36,7 +35,16 @@ import {
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
-export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: () => void }) {
+/**
+ * The Studio.
+ *
+ * `spec` is the design the chat extracted, and it is optional on purpose. The
+ * Studio used to take a `designJobs` id and open a Firestore listener on it,
+ * which meant the viewport's first frame depended on a server round trip; the
+ * kernel is in the browser and has never needed one. With no spec it opens on
+ * the schema defaults and draws a real ring immediately.
+ */
+export function StudioWorkspace({ spec: incomingSpec, onClose }: { spec?: RingSpec | null; onClose: () => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [spec, setSpec] = useState<RingSpec>(DEFAULT_SPEC);
   const [jobSpec, setJobSpec] = useState<RingSpec | null>(null);
@@ -113,17 +121,19 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   // lands.
   const centreRef = useRef<THREE.Vector3 | null>(null);
 
-  // --- job -> spec ---------------------------------------------------------
+  // --- incoming design -> spec ---------------------------------------------
+  //
+  // A spec may arrive after the Studio is already open: the chat posts the
+  // card first and fills the spec in when the model answers. Keyed on the
+  // value rather than the reference, so a re-render of the chat does not throw
+  // away edits made here.
+  const incomingKey = incomingSpec ? JSON.stringify(incomingSpec) : null;
   useEffect(() => {
-    if (!jobId) return;
-    const unsubscribe = subscribeDesignJob(jobId, (job: DesignJob) => {
-      if (!job) return;
-      const incoming = withDefaults(job.spec ?? parseSpecFromPrompt(job.prompt));
-      setJobSpec(incoming);
-      setSpec(incoming);
-    });
-    return () => unsubscribe();
-  }, [jobId]);
+    if (!incomingKey) return;
+    const incoming = withDefaults(JSON.parse(incomingKey) as RingSpec);
+    setJobSpec(incoming);
+    setSpec(incoming);
+  }, [incomingKey]);
 
   // Section slider bounds follow the piece, so the cut always sweeps the whole
   // of it whatever size the ring is.
