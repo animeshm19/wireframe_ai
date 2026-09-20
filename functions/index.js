@@ -96,7 +96,7 @@ exports.extractRingSpec = onCall(
 
     let model;
     try {
-      model = await pickModel(ai, logger);
+      model = await pickModel(ai, logger, "extract");
     } catch (err) {
       logger.error("Model discovery failed", { message: err.message });
       throw new HttpsError("unavailable", "Design interpretation is temporarily unavailable.");
