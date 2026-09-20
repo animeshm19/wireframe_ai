@@ -193,10 +193,28 @@ export function ChatShell() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ chats, activeChatId, isSidebarCollapsed: collapsed })
-    );
+    const write = (list: ChatSession[]) =>
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ chats: list, activeChatId, isSidebarCollapsed: collapsed })
+      );
+    try {
+      write(chats);
+    } catch (err) {
+      // This throws on a full store, and in Safari private browsing it throws
+      // always. Unguarded it threw out of an effect, which on this route has
+      // no boundary above it, and then threw again on every state change —
+      // a blank screen that only clearing site data recovers, taking the
+      // history with it. A message also costs far more than it used to: a
+      // whole RingSpec and the model's sentence, not a 20-character job id.
+      // So drop the oldest unpinned collections rather than the newest edit.
+      console.warn("Chat history did not fit in localStorage; trimming.", err);
+      try {
+        write(chats.filter((c, i) => c.isPinned || c.id === activeChatId || i < 5));
+      } catch {
+        // Nothing more to give back. The session stays alive in memory.
+      }
+    }
   }, [chats, activeChatId, collapsed]);
 
   /* --------------------------------------------------------- attachments -- */
@@ -260,10 +278,21 @@ export function ChatShell() {
       if (set.has(activeChatId)) setActiveChatId(next[0].id);
       return next;
     });
+    // The open Studio belongs to a design inside one of these chats. If that
+    // chat is going, the Studio goes with it — otherwise it stays mounted over
+    // a design that exists nowhere, editing a ring that can never be saved.
+    setStudioDesignId((current) => {
+      if (!current) return current;
+      const survives = chats.some(
+        (c) => !set.has(c.id) && c.messages?.some((m) => m.design?.id === current)
+      );
+      return survives ? current : null;
+    });
+
     // Nothing server-side to clean up: A7 stopped writing `designJobs`, and the
     // documents that predate it are swept once, by hand. B1 owns the durable
     // record and the deletion that goes with it.
-  }, [activeChatId]);
+  }, [activeChatId, chats]);
 
   const askDelete = (chat: ChatSession) =>
     setConfirm({
@@ -277,6 +306,12 @@ export function ChatShell() {
 
   const send = useCallback(async (text: string, attach: File[]) => {
     const now = Date.now();
+    // Every id in this send carries a nonce, the way createEmptyChat does.
+    // A timestamp alone is not unique: Cmd+Enter currently reaches submit()
+    // twice in one tick, and two sends in the same millisecond used to mint
+    // the same `sys-` id — after which the patch below matched both messages
+    // and overwrote each with the other's spec.
+    const nonce = Math.random().toString(36).slice(2, 7);
     let uploaded: ChatAttachment[] = [];
     let uploadFailed = false;
 
@@ -294,7 +329,7 @@ export function ChatShell() {
     }
 
     const userMsg: ChatMessage = {
-      id: `msg-${now}`, role: "user", content: text, createdAt: now, attachments: uploaded,
+      id: `msg-${now}-${nonce}`, role: "user", content: text, createdAt: now, attachments: uploaded,
     };
     setChats((prev) => prev.map((c) =>
       c.id !== activeChatId ? c
@@ -313,8 +348,8 @@ export function ChatShell() {
 
     // The card appears before the model answers. It draws from the local
     // parser meanwhile, so there is never a wait with nothing on screen.
-    const designId = `design-${now}`;
-    const replyId = `sys-${now}`;
+    const designId = `design-${now}-${nonce}`;
+    const replyId = `sys-${now}-${nonce}`;
     setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
       id: replyId, role: "assistant", createdAt: Date.now(),
       content: "Building the solid.",
@@ -822,6 +857,9 @@ export function ChatShell() {
         <AnimatePresence>
           {studioDesignId && (
             <motion.section
+              // Keyed on the design, so opening a different one remounts the
+              // Studio instead of leaving the previous design's edits in it.
+              key={studioDesignId}
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 40 }}
@@ -829,7 +867,11 @@ export function ChatShell() {
               aria-label="Studio"
               className="absolute inset-0 z-30 bg-ink-950 lg:static lg:flex-1"
             >
-              <StudioWorkspace spec={studioDesign?.spec} onClose={() => setStudioDesignId(null)} />
+              <StudioWorkspace
+                spec={studioDesign?.spec}
+                prompt={studioDesign?.prompt}
+                onClose={() => setStudioDesignId(null)}
+              />
             </motion.section>
           )}
         </AnimatePresence>
