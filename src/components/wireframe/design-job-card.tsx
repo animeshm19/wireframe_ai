@@ -95,9 +95,13 @@ export function DesignJobCard({ design }: { design: ChatDesign }) {
 
         {!design.spec && !failed && (
           <p className="text-[10px] text-white/35 leading-relaxed">
-            {usedPrompt
-              ? "Read directly from your prompt. Interpreting the rest…"
-              : "Showing standard parameters while your description is interpreted."}
+            {design.status === "extracting"
+              ? (usedPrompt
+                  ? "Read directly from your prompt. Interpreting the rest…"
+                  : "Showing standard parameters while your description is interpreted.")
+              : (usedPrompt
+                  ? "Read directly from your prompt. The model did not answer, so the rest are standard parameters."
+                  : "The model did not answer. These are standard parameters, not your description.")}
           </p>
         )}
 

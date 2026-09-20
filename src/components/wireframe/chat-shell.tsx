@@ -104,6 +104,12 @@ function loadPersisted(): PersistedState | null {
  * design's id so nothing renders twice, and the spec is left undefined — the
  * card and the Studio derive one from the prompt, which is what they already
  * did whenever the document had not been filled in.
+ *
+ * It also settles every design's status honestly. A design carrying no spec
+ * is `stalled`, not `extracting`: nothing is running, and a pre-A7 design has
+ * nothing that ever will. The same downgrade catches a design whose
+ * extraction was still in flight when the tab was closed — that promise died
+ * with the page, so the card must stop saying it is waiting on one.
  */
 function migrate(state: PersistedState): PersistedState {
   let touched = false;
@@ -111,10 +117,18 @@ function migrate(state: PersistedState): PersistedState {
     let lastUserPrompt = "";
     const messages = c.messages?.map((m) => {
       if (m.role === "user") lastUserPrompt = m.content;
-      if (!m.designJobId || m.design) return m;
+      if (m.design) {
+        if (m.design.status !== "extracting") return m;
+        touched = true;
+        return { ...m, design: { ...m.design, status: "stalled" as const } };
+      }
+      if (!m.designJobId) return m;
       touched = true;
       const { designJobId, ...rest } = m;
-      return { ...rest, design: { id: designJobId, prompt: lastUserPrompt } };
+      return {
+        ...rest,
+        design: { id: designJobId, prompt: lastUserPrompt, status: "stalled" as const },
+      };
     });
     return messages === c.messages ? c : { ...c, messages };
   });
@@ -353,7 +367,7 @@ export function ChatShell() {
     setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
       id: replyId, role: "assistant", createdAt: Date.now(),
       content: "Building the solid.",
-      design: { id: designId, prompt: text },
+      design: { id: designId, prompt: text, status: "extracting" },
     }]}));
 
     // The spec used to travel out to a `designJobs` document and come back
@@ -374,12 +388,20 @@ export function ChatShell() {
             source: result.source,
             model: result.model,
             interpretation: result.interpretation,
+            status: "ready" as const,
           },
         }),
       }));
     } catch (err) {
-      // Nothing to recover: the card keeps drawing from the prompt.
+      // Nothing to recover: the card keeps drawing from the prompt. Mark it
+      // so the card says that plainly instead of claiming to still be working.
       console.error("Spec extraction failed", err);
+      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : {
+        ...c,
+        messages: c.messages.map((m) => (m.id !== replyId || !m.design) ? m : {
+          ...m, design: { ...m.design, status: "stalled" as const },
+        }),
+      }));
     } finally {
       setGenerating(false);
     }

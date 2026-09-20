@@ -36,6 +36,18 @@ export type ChatDesign = {
   model?: string;
   /** The model's sentence back, shown under the card. */
   interpretation?: string;
+  /**
+   * Where the extraction got to. The card says different things depending on
+   * it, and all of them have to be true.
+   *
+   * `extracting` is only ever true within the session that started the call —
+   * a reload is downgraded to `stalled` on load, because nothing survives it.
+   * `stalled` means no spec is coming and nothing is trying to get one: the
+   * call never answered, or the tab was navigated away from mid-flight, or
+   * the design predates A7. There is no retry path, so the card must not
+   * imply one.
+   */
+  status?: "extracting" | "ready" | "stalled";
 };
 
 export type ChatMessage = {
