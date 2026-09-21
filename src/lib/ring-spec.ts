@@ -68,10 +68,25 @@ export const SHANK_STONE_LABELS: Record<string, string> = {
 
 export type MetalType = "18k_gold" | "14k_rose" | "white_gold" | "platinum" | "silver";
 
-// Dev harness only: lets a render be requested by URL, so metals and finishes
-// can be compared without clicking through a native select for each one.
+// Dev harness: lets a render be requested by URL, so metals and finishes can
+// be compared without clicking through a native select for each one. It is not
+// gated behind import.meta.env.DEV because the harnesses are *built*
+// (vite.harness.config.ts -> dist-harness/), where DEV is false and the gate
+// would switch the whole matrix off.
+//
+// Two things it must therefore never do on a deployed page. It must not
+// outrank a real spec - see withDefaults, which now spreads it beneath one
+// rather than on top - and a junk value must not reach the kernel: `?carat=abc`
+// used to put NaN into gemSize, which then poisoned every spec derived from
+// DEFAULT_SPEC for the life of the page.
 const _q = typeof location !== "undefined" ? new URLSearchParams(location.search) : null;
 const _override: Partial<RingSpec> = {};
+const _num = (key: string): number | null => {
+  const raw = _q?.get(key);
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+};
 if (_q?.get("metal")) _override.metalType = _q.get("metal") as MetalType;
 if (_q?.get("finish")) _override.finish = _q.get("finish") as Finish;
 if (_q?.get("shank")) _override.shankStones = _q.get("shank") as ShankStones;
@@ -79,8 +94,12 @@ if (_q?.get("style")) _override.shankStyle = _q.get("style") as ShankStyle;
 if (_q?.get("setting")) _override.setting = _q.get("setting") as SettingStyle;
 if (_q?.get("cut")) _override.gemShape = _q.get("cut") as GemCut;
 if (_q?.get("profile")) _override.bandProfile = _q.get("profile") as BandProfile;
-if (_q?.get("carat")) _override.gemSize = Number(_q.get("carat"));
-if (_q?.get("width")) _override.bandWidth = Number(_q.get("width"));
+{
+  const carat = _num("carat");
+  if (carat !== null) _override.gemSize = carat;
+  const width = _num("width");
+  if (width !== null) _override.bandWidth = width;
+}
 
 const _BASE_SPEC: RingSpec = {
   ringSize: 6.0,
@@ -187,8 +206,18 @@ export const METAL_DENSITY: Record<MetalType, number> = {
   silver: 10.49,
 };
 
+/**
+ * Fills a partial spec out to a whole one.
+ *
+ * The URL override reaches this through DEFAULT_SPEC, which means it still
+ * decides any field the caller did not set - what the harness matrix needs -
+ * but no longer overrides a field the caller did. It used to be spread last,
+ * so `?carat=2` silently rewrote every extracted spec on a deployed page, the
+ * value was persisted to localStorage, and it outlived the query string that
+ * created it.
+ */
 export function withDefaults(spec?: Partial<RingSpec> | null): RingSpec {
-  return { ...DEFAULT_SPEC, ...(spec || {}), ..._override };
+  return { ...DEFAULT_SPEC, ...(spec || {}) };
 }
 
 /**

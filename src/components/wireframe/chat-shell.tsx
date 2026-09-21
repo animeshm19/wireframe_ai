@@ -285,13 +285,15 @@ export function ChatShell() {
   }, []);
 
   const reallyDelete = useCallback((ids: string[]) => {
+    // Computed out here, not inside the updater. React invokes updaters twice
+    // under StrictMode and they must be pure: minting a chat and calling
+    // setActiveChatId inside one produced two different ids, kept the second
+    // and left activeChatId pointing at the first.
     const set = new Set(ids);
-    setChats((prev) => {
-      const next = prev.filter((c) => !set.has(c.id));
-      if (next.length === 0) next.push(createEmptyChat());
-      if (set.has(activeChatId)) setActiveChatId(next[0].id);
-      return next;
-    });
+    const remaining = chats.filter((c) => !set.has(c.id));
+    const next = remaining.length === 0 ? [createEmptyChat()] : remaining;
+    setChats(next);
+    if (set.has(activeChatId)) setActiveChatId(next[0].id);
     // The open Studio belongs to a design inside one of these chats. If that
     // chat is going, the Studio goes with it — otherwise it stays mounted over
     // a design that exists nowhere, editing a ring that can never be saved.

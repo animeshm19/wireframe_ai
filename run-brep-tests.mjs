@@ -46,13 +46,20 @@ function build() {
   // extensionless — which the bundler resolves and Node's ESM loader does not.
   // The suite ran green until MANUFACTURING_LIMITS moved into ring-spec
   // (b26df53) and gave the compiled engine its first runtime relative import.
-  for (const f of readdirSync(OUT).filter((n) => n.endsWith(".js"))) {
-    const src = readFileSync(`${OUT}/${f}`, "utf8");
+  // Walks, because tsc emits subdirectories as soon as SRC spans two of them
+  // and infers a rootDir a level up. Matches `import "./x"` and `import("./x")`
+  // as well as `from "./x"`. Leaves anything already carrying an extension
+  // alone, so `./limits.json` does not become `./limits.json.js`.
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]);
+
+  for (const f of walk(OUT).filter((n) => n.endsWith(".js"))) {
+    const src = readFileSync(f, "utf8");
     const fixed = src.replace(
-      /(\bfrom\s*)(["'])(\.\.?\/[^"']+?)\2/g,
-      (m, kw, q, spec) => (/\.[cm]?js$/.test(spec) ? m : `${kw}${q}${spec}.js${q}`)
+      /((?:from|import)\s*\(?\s*)(["'])(\.\.?\/[^"']+?)\2/g,
+      (m, kw, q, spec) => (/\.[a-z0-9]+$/i.test(spec) ? m : `${kw}${q}${spec}.js${q}`)
     );
-    if (fixed !== src) writeFileSync(`${OUT}/${f}`, fixed);
+    if (fixed !== src) writeFileSync(f, fixed);
   }
 }
 build();
