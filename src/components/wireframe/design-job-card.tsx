@@ -81,9 +81,19 @@ export function DesignJobCard({ design }: { design: ChatDesign }) {
           </div>
         )}
 
+        {/*
+          "as drawn", not "as specified". The checker verifies the solid that
+          was built; it has no idea whether that solid is what was asked for.
+          Those are the same claim only when every value came from the prompt,
+          and they routinely are not: "18k rose gold" parses to 14k_rose, and
+          anything the prompt did not mention is a schema default. Saying
+          "as specified" over a substituted value is a false statement about
+          the customer's own words, on the one line a jeweller would take at
+          face value. "As drawn" is true in every case.
+        */}
         {ready && issues.length === 0 && (
           <div className="flex items-center gap-1.5 text-[10px] text-green-400/80">
-            <CheckCircle2 className="h-3 w-3" /> Castable as specified
+            <CheckCircle2 className="h-3 w-3" /> Castable as drawn
           </div>
         )}
 
