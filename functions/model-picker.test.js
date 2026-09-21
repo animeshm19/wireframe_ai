@@ -21,6 +21,7 @@ const {
   UNSTABLE_MARKERS,
   ROLES,
   _resetCache,
+  pickModelChain,
 } = require("./model-picker");
 
 const MODELS = [
@@ -311,4 +312,71 @@ test("a divergence from the model policy is warned about, never silent", async (
   assert.match(warnings[0][0], /differs from the model policy/);
   assert.equal(warnings[0][1].selected, "gemini-3.7-flash");
   assert.equal(warnings[0][1].policyModel, "gemini-3.8-flash");
+});
+
+// ------------------------------------------------------------------- A8 ---
+//
+// The ranked list was always computed and always thrown away. A8 keeps it as
+// a failover chain, and the rule that matters is that using the chain must
+// never change it: one 503 on gemini-3.8-flash is a fact about one request,
+// not a verdict on every future design.
+
+test("the chain is the whole ranked list, in the order production logs", async () => {
+  const chain = await pickModelChain(fakeAi(), quietLogger, "extract");
+  assert.deepEqual(chain, [
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+  ]);
+});
+
+test("pickModel is still exactly the head of the chain", async () => {
+  const ai = fakeAi();
+  const chain = await pickModelChain(ai, quietLogger, "extract");
+  assert.equal(await pickModel(ai, quietLogger, "extract"), chain[0]);
+  assert.equal(chain[0], "gemini-3.8-flash");
+});
+
+test("after a failover, the NEXT call still gets 3.8 first", async () => {
+  const ai = fakeAi();
+  const first = await pickModelChain(ai, quietLogger, "extract");
+
+  // Simulate the worst thing a caller could do: consume the chain
+  // destructively, exactly as a failover walk that mutated it would.
+  first.shift();
+  first.shift();
+  first.reverse();
+  first.length = 1;
+
+  const second = await pickModelChain(ai, quietLogger, "extract");
+  assert.equal(second[0], "gemini-3.8-flash", "a 503 must not demote the policy model");
+  assert.equal(second.length, 6);
+  assert.equal(await pickModel(ai, quietLogger, "extract"), "gemini-3.8-flash");
+});
+
+test("the chain is discovered once per role and then served from cache", async () => {
+  let listCalls = 0;
+  const base = fakeAi();
+  const ai = {
+    models: {
+      list: (...args) => {
+        listCalls += 1;
+        return base.models.list(...args);
+      },
+    },
+  };
+
+  await pickModelChain(ai, quietLogger, "extract");
+  await pickModelChain(ai, quietLogger, "extract");
+  await pickModel(ai, quietLogger, "extract");
+  assert.equal(listCalls, 1, "discovery must not run per request");
+});
+
+test("a pinned role gets a chain of exactly one — a pin is not failed over", async () => {
+  process.env.GEMINI_MODEL_EXTRACT = "gemini-3.6-flash";
+  const chain = await pickModelChain(fakeAi(), quietLogger, "extract");
+  assert.deepEqual(chain, ["gemini-3.6-flash"]);
 });
