@@ -18,7 +18,9 @@ const {
   extractWithFailover,
   describeAttempts,
   isRetryable,
+  statusOf,
   DEADLINE_MS,
+  DISCOVERY_TIMEOUT_MS,
 } = require("./resilient-extract");
 
 /** The chain pickModel logs on every call in production today, in rank order. */
@@ -59,11 +61,11 @@ const parse = (response) => JSON.parse(response.text);
  * A fake model call plus a fake clock the call advances, so "3.1 seconds per
  * refusal" is something the test states rather than waits for.
  */
-function harness(script, perCallMs = 3100) {
+function harness(script, perCallMs = 3100, startAt = 0) {
   const queue = [...script];
   const calls = [];
   const sleeps = [];
-  let t = 0;
+  let t = startAt;
 
   return {
     calls,
@@ -215,6 +217,39 @@ test("500 INTERNAL is deliberately NOT retried", () => {
   assert.equal(isRetryable(apiError(500, "INTERNAL")), false);
 });
 
+test("a numeric code beside a string status still decides — {status:UNAVAILABLE, code:400}", async () => {
+  // The hole an adversarial pass found: preferring `status` merely because it
+  // was defined made statusOf return null here, so the text "UNAVAILABLE" was
+  // matched and a 400 of ours got retried across all six models.
+  const err = new Error("bad request");
+  err.name = "ApiError";
+  err.status = "UNAVAILABLE";
+  err.code = 400;
+
+  assert.equal(statusOf(err), 400);
+  assert.equal(isRetryable(err), false);
+
+  const h = harness([err]);
+  const result = await extractWithFailover({ chain: CHAIN, ...h.opts });
+  assert.equal(result.outcome, "fatal");
+  assert.equal(result.attempts, 1);
+});
+
+test("502 and 504 are retried — a busy Google frontend is not our bug", () => {
+  // Reporting these as fatal told the customer "could not interpret that
+  // description" over what was purely someone else's queue.
+  assert.equal(isRetryable(apiError(502, "UNAVAILABLE")), true);
+  assert.equal(isRetryable(apiError(504, "DEADLINE_EXCEEDED")), true);
+});
+
+test("a gRPC-shaped error is classified by its status NAME, not its number", () => {
+  // gRPC 14 is UNAVAILABLE and 8 is RESOURCE_EXHAUSTED. An unclassified
+  // number falls through to the name rather than being guessed at.
+  assert.equal(isRetryable({ code: 14, message: "14 UNAVAILABLE: the service is busy" }), true);
+  assert.equal(isRetryable({ code: 8, status: "RESOURCE_EXHAUSTED" }), true);
+  assert.equal(isRetryable({ code: 3, status: "INVALID_ARGUMENT" }), false);
+});
+
 // --------------------------------------------- retryable classification ---
 
 test("429 RESOURCE_EXHAUSTED is retried", async () => {
@@ -242,18 +277,41 @@ test("a network-level failure is retried", async () => {
 // ------------------------------------------------------------- budget ---
 
 test("no attempt is started that cannot finish before the deadline", async () => {
-  // 20s per refusal — pathologically slow, unlike the real 3.1s.
-  const h = harness(new Array(7).fill(null).map(() => apiError(503)), 20000);
+  // 11s per refusal: pathologically slow next to the real 3.1s, but still
+  // inside the 12s per-attempt cap, so this measures the budget arithmetic
+  // rather than the attempt timeout (which has its own test below).
+  const h = harness(new Array(7).fill(null).map(() => apiError(503)), 11000);
   const result = await extractWithFailover({ chain: CHAIN, ...h.opts });
 
   assert.equal(result.ok, false);
   assert.equal(result.outcome, "budget");
+  assert.equal(result.attempts, 3, "stopped rather than starting a 4th");
   assert.ok(
     h.elapsed() < DEADLINE_MS,
     `finished at ${h.elapsed()}ms, budget is ${DEADLINE_MS}ms`,
   );
-  // And the budget itself is well inside the 60s function timeout.
-  assert.ok(DEADLINE_MS <= 45000);
+  // The claim that actually matters: budget + a bounded discovery still
+  // leaves headroom inside the function's own 60s timeout.
+  assert.ok(
+    DEADLINE_MS + DISCOVERY_TIMEOUT_MS < 60000,
+    `${DEADLINE_MS} + ${DISCOVERY_TIMEOUT_MS} must stay under the 60s timeout`,
+  );
+});
+
+test("time already spent on discovery is deducted from the budget", async () => {
+  // A cold start where models.list() took 25 seconds. The budget runs from
+  // the start of the REQUEST, so only one attempt can be afforded — and the
+  // whole thing still lands inside 45s rather than 25s + 45s.
+  const h = harness(new Array(7).fill(null).map(() => apiError(503)), 11000, 25000);
+  const result = await extractWithFailover({
+    chain: CHAIN,
+    ...h.opts,
+    startedAt: 0,
+  });
+
+  assert.equal(result.outcome, "budget");
+  assert.equal(result.attempts, 1);
+  assert.ok(h.elapsed() < DEADLINE_MS, `finished at ${h.elapsed()}ms`);
 });
 
 test("the fast real-world case stays far inside the function timeout", async () => {

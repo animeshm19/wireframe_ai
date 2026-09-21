@@ -8,6 +8,9 @@ const { pickModelChain } = require("./model-picker");
 const {
   extractWithFailover,
   describeAttempts,
+  withTimeout,
+  DISCOVERY_TIMEOUT_MS,
+  MAX_MODELS,
 } = require("./resilient-extract");
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
@@ -83,8 +86,10 @@ exports.requestDemo = onCall(async (request) => {
  * is the most contended model on the platform and refuses work under load in
  * about three seconds; before A8 that single refusal dropped the customer to a
  * regex parser. The request is now retried once and then walked down the
- * ranked chain the picker already computes. What comes back says which model
- * actually answered, so the card cannot claim 3.8 over a spec 3.6 produced.
+ * ranked chain the picker already computes. What comes back names the model
+ * that actually answered rather than the one we asked first, so the design
+ * record stops recording 3.8 over a spec that 3.6 produced. (Nothing renders
+ * that field today; B1 is what persists it.)
  */
 exports.extractRingSpec = onCall(
   { secrets: [geminiApiKey], timeoutSeconds: 60, memory: "256MiB" },
@@ -110,7 +115,17 @@ exports.extractRingSpec = onCall(
     // because that list is a failover chain we were already paying for.
     let chain;
     try {
-      chain = await pickModelChain(ai, logger, "extract");
+      // Bounded: discovery is a network call of its own and is charged to the
+      // same 60s timeout as everything below it. An unbounded models.list()
+      // on a cold start is how a request dies without us logging a reason.
+      chain = await withTimeout(
+        pickModelChain(ai, logger, "extract"),
+        DISCOVERY_TIMEOUT_MS,
+        "model discovery",
+      );
+      if (!Array.isArray(chain) || chain.length === 0) {
+        throw new Error("Model discovery returned an empty chain.");
+      }
     } catch (err) {
       logger.error("Model discovery failed", {
         metric: "spec_extraction_outcome",
@@ -141,6 +156,9 @@ exports.extractRingSpec = onCall(
           },
         }),
       parse: (response) => sanitiseSpec(JSON.parse(response.text)),
+      // The budget runs from the start of the REQUEST, so the time discovery
+      // just spent is deducted from it rather than added on top.
+      startedAt: started,
     });
 
     const durationMs = Date.now() - started;
@@ -191,8 +209,18 @@ exports.extractRingSpec = onCall(
     // parser-fallback rate is now a log query, not something discovered in
     // nine months.
     //
-    //   metric="spec_extraction_outcome"
-    //   parser-fallback rate = count(outcome="parser_fallback") / count(all)
+    //   rate = count(outcome="parser_fallback") / count(metric present)
+    //
+    // Be precise about the denominator, because a metric nobody can state the
+    // denominator of is how the last set of numbers went wrong. It counts
+    // AUTHENTICATED requests carrying a 1-2000 character prompt that reached
+    // the model layer. It deliberately excludes the argument-validation
+    // throws above — those are rejected requests, not extraction attempts —
+    // and it cannot see a client that never reached the function at all
+    // (offline, CORS, not deployed), which also ends on the parser. So this
+    // is a floor on the customer-visible parser rate, not the whole of it.
+    // It is exactly the denominator the pre-A8 baseline was counted over,
+    // which is what makes before and after comparable.
     //
     // `fatal` is counted as a fallback too, because that is what the customer
     // gets. `reason` is what separates our bug from Google's queue.
@@ -203,7 +231,7 @@ exports.extractRingSpec = onCall(
       reason: result.outcome,
       uid: request.auth.uid,
       firstChoice,
-      chain: chain.slice(0, 8),
+      chain: chain.slice(0, MAX_MODELS),
       attempts: result.attempts,
       attemptChain: describeAttempts(result.attemptLog),
       durationMs,

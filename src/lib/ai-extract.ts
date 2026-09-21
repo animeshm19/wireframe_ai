@@ -11,8 +11,8 @@ export type ExtractResult = {
    * The model that actually produced the spec — not the one we asked first.
    * A8: the function retries and then walks down a ranked chain, so a spec
    * can legitimately come from gemini-3.6-flash while the policy's first
-   * choice is 3.8. This field is what the card reports, so it has to be the
-   * answering model or the card is lying.
+   * choice is 3.8. Before A8 this said 3.8 whatever answered. Nothing
+   * displays it yet; it rides on the design record and B1 persists it.
    */
   model?: string;
   interpretation?: string;

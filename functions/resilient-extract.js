@@ -29,8 +29,11 @@
  *      picker's cache, so a 503 on one request says nothing about the next.
  *      gemini-3.8-flash is first choice again on the following call.
  *   3. The whole budget stays well inside the 60s function timeout. Every
- *      attempt is individually bounded, and no attempt is STARTED unless it
- *      could finish before the deadline.
+ *      attempt is individually bounded, no attempt is STARTED unless it could
+ *      finish before the deadline, and the deadline is measured from when the
+ *      REQUEST started, not from when this module was entered — model
+ *      discovery on a cold start is charged to the same 60 seconds and is
+ *      bounded separately (DISCOVERY_TIMEOUT_MS).
  *
  * Nothing here talks to the network, imports firebase-functions or reads the
  * clock directly on a path a test cannot control: `generate`, `parse`, `now`,
@@ -43,9 +46,11 @@ const ATTEMPT_TIMEOUT_MS = 12000;
 
 /**
  * Wall-clock budget for the whole chain. The function's own timeout is 60s
- * (see `timeoutSeconds` in index.js); 45s leaves room for model discovery on
- * a cold start, the JSON parse, the log write and the callable wrapper, so a
- * caller never sees Cloud Run terminate the request instead of us answering.
+ * (see `timeoutSeconds` in index.js), and this is measured from the start of
+ * the REQUEST (see `startedAt`), so discovery is inside it rather than free.
+ * 15s of headroom covers the JSON parse, the log write and the callable
+ * wrapper, so a caller never sees Cloud Run terminate the request instead of
+ * us answering.
  */
 const DEADLINE_MS = 45000;
 
@@ -57,12 +62,26 @@ const BACKOFF_BASE_MS = 250;
 const BACKOFF_JITTER_MS = 250;
 
 /**
- * HTTP statuses that mean "the model is busy, ask again".
- * Deliberately narrow. 500 INTERNAL is NOT here: it is as likely to be a
- * malformed request of ours as a transient fault on their side, and retrying
- * it is exactly how a bug of ours would get laundered into an intermittent.
+ * Longest model discovery may take before we give up on it. Discovery is a
+ * network call of its own (`models.list()`), it happens on a cold start, and
+ * it is charged to the same 60s function timeout, so it has to be bounded or
+ * the budget below is a wish rather than a guarantee.
  */
-const RETRYABLE_STATUS = new Set([429, 503]);
+const DISCOVERY_TIMEOUT_MS = 10000;
+
+/**
+ * HTTP statuses that mean "the fleet is busy, ask again".
+ *
+ * 502 and 504 are here alongside 503 because a Google frontend under load
+ * returns all three for the same condition, and none of them is a statement
+ * about our request. Treating 502/504 as fatal was worse than not retrying:
+ * it reported Google's queue to the customer as our bug.
+ *
+ * 500 INTERNAL is deliberately NOT here. It is as likely to be a malformed
+ * request of ours as a transient fault on their side, and retrying it is
+ * exactly how a bug of ours gets laundered into an intermittent.
+ */
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
 
 /** Statuses that are decisively ours. Retrying any of these hides a bug. */
 const FATAL_STATUS = new Set([400, 401, 403, 404, 422]);
@@ -83,11 +102,21 @@ const NETWORK_MARKERS = [
   "NETWORK ERROR",
 ];
 
-/** The numeric status on an error, or null when it does not carry one. */
+/**
+ * The numeric status on an error, or null when it does not carry one.
+ *
+ * Both `status` and `code` are examined, and the first NUMERIC one wins.
+ * Preferring `status` merely because it is defined was a real hole: an error
+ * shaped `{ status: "UNAVAILABLE", code: 400 }` returned null, fell through
+ * to text matching and got retried, which is precisely the bug-hiding this
+ * module exists to prevent.
+ */
 function statusOf(err) {
-  const raw = err && (err.status !== undefined ? err.status : err.code);
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "string" && /^\d+$/.test(raw)) return parseInt(raw, 10);
+  if (!err) return null;
+  for (const raw of [err.status, err.code]) {
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+    if (typeof raw === "string" && /^\d+$/.test(raw)) return parseInt(raw, 10);
+  }
   return null;
 }
 
@@ -106,8 +135,13 @@ function isRetryable(err) {
   const status = statusOf(err);
   if (status !== null) {
     if (RETRYABLE_STATUS.has(status)) return true;
+    // A status we have decided is ours is decisive, and is checked before any
+    // text matching, so a 400 whose payload happens to contain the word
+    // "UNAVAILABLE" can never be promoted into a retry.
     if (FATAL_STATUS.has(status)) return false;
-    return false;
+    // Anything else numeric is unclassified — a gRPC code (14 UNAVAILABLE,
+    // 8 RESOURCE_EXHAUSTED), a 500, some future shape. Fall through and let
+    // the status NAME decide rather than guessing from a number.
   }
 
   const text = [err.status, err.code, err.name, err.message]
@@ -170,6 +204,11 @@ async function extractWithFailover(opts) {
     maxModels = MAX_MODELS,
     backoffBaseMs = BACKOFF_BASE_MS,
     backoffJitterMs = BACKOFF_JITTER_MS,
+    // When the caller has already spent time (model discovery on a cold
+    // start), it passes the moment the REQUEST started. The budget is the
+    // whole request's, not this module's share of it — otherwise discovery
+    // is free, and "well inside the 60s timeout" stops being true.
+    startedAt: callerStartedAt,
   } = opts;
 
   if (!Array.isArray(chain) || chain.length === 0) {
@@ -181,7 +220,7 @@ async function extractWithFailover(opts) {
   // it would turn one 503 into a permanent downgrade of every future design.
   const models = chain.slice(0, maxModels);
 
-  const startedAt = now();
+  const startedAt = callerStartedAt === undefined ? now() : callerStartedAt;
   const attemptLog = [];
   let lastError = null;
   let outcome = "exhausted";
@@ -284,7 +323,9 @@ module.exports = {
   describeAttempts,
   isRetryable,
   statusOf,
+  withTimeout,
   ATTEMPT_TIMEOUT_MS,
+  DISCOVERY_TIMEOUT_MS,
   DEADLINE_MS,
   MAX_MODELS,
   BACKOFF_BASE_MS,
