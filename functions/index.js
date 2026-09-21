@@ -129,7 +129,15 @@ exports.extractRingSpec = onCall(
         uid: request.auth.uid,
         model,
         durationMs: Date.now() - started,
-        message: err?.message,
+        // NOT `message`. firebase-functions' logger takes its own message as
+        // the first argument and writes it to that key, so a structured field
+        // called `message` is overwritten by "Ring spec extraction failed" and
+        // the real reason never reaches Cloud Logging. Every one of these
+        // failures has been opaque for that reason alone: what lands in the
+        // log is the logger's own stack, at entryFromArgs (logger/index.js).
+        error: err?.message,
+        errorName: err?.name,
+        errorStatus: err?.status ?? err?.code ?? null,
       });
       // The client falls back to its own parser, so fail explicitly rather than
       // returning silent defaults that look like a successful interpretation.
