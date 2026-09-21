@@ -35,10 +35,11 @@ import {
   Cpu, ArrowUp, Box, Paperclip, File as FileIcon, Loader2, LogOut, LogIn,
   Check, Search, Copy, RefreshCw, Maximize2, ArrowDown, Command as CommandIcon,
 } from "lucide-react";
-import type { ChatSession, ChatMessage, ChatAttachment } from "./chat-types";
+import type { ChatSession, ChatMessage, ChatAttachment, ChatDesign } from "./chat-types";
 import { AuthDialog } from "./auth-dialog";
 import { useAuth } from "../../auth/auth-context";
-import { createDesignJob, uploadJobAttachment, deleteChatFromBackend } from "@/lib/design-jobs";
+import { uploadJobAttachment } from "@/lib/design-jobs";
+import { extractRingSpec } from "@/lib/ai-extract";
 import { DesignJobCard } from "./design-job-card";
 import { StudioWorkspace } from "./studio-workspace";
 import { attachShortcuts, chord, type Binding } from "../../lib/keyboard";
@@ -88,10 +89,50 @@ function loadPersisted(): PersistedState | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedState) : null;
+    if (!raw) return null;
+    return migrate(JSON.parse(raw) as PersistedState);
   } catch {
     return null;
   }
+}
+
+/**
+ * Brings pre-A7 sessions forward.
+ *
+ * Before A7 an assistant message carried `designJobId`, and the spec lived in
+ * a `designJobs` document that is no longer read. The id is kept as the
+ * design's id so nothing renders twice, and the spec is left undefined — the
+ * card and the Studio derive one from the prompt, which is what they already
+ * did whenever the document had not been filled in.
+ *
+ * It also settles every design's status honestly. A design carrying no spec
+ * is `stalled`, not `extracting`: nothing is running, and a pre-A7 design has
+ * nothing that ever will. The same downgrade catches a design whose
+ * extraction was still in flight when the tab was closed — that promise died
+ * with the page, so the card must stop saying it is waiting on one.
+ */
+function migrate(state: PersistedState): PersistedState {
+  let touched = false;
+  const chats = state.chats?.map((c) => {
+    let lastUserPrompt = "";
+    const messages = c.messages?.map((m) => {
+      if (m.role === "user") lastUserPrompt = m.content;
+      if (m.design) {
+        if (m.design.status !== "extracting") return m;
+        touched = true;
+        return { ...m, design: { ...m.design, status: "stalled" as const } };
+      }
+      if (!m.designJobId) return m;
+      touched = true;
+      const { designJobId, ...rest } = m;
+      return {
+        ...rest,
+        design: { id: designJobId, prompt: lastUserPrompt, status: "stalled" as const },
+      };
+    });
+    return messages === c.messages ? c : { ...c, messages };
+  });
+  return touched ? { ...state, chats } : state;
 }
 
 function initials(s?: string | null) {
@@ -131,7 +172,7 @@ export function ChatShell() {
   const [authOpen, setAuthOpen] = useState(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [studioJobId, setStudioJobId] = useState<string | null>(null);
+  const [studioDesignId, setStudioDesignId] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -150,6 +191,13 @@ export function ChatShell() {
 
   const active = chats.find((c) => c.id === activeChatId) ?? chats[0];
 
+  // The Studio reads the design off the message rather than holding its own
+  // copy, so a spec that arrives while the Studio is open lands in it.
+  const studioDesign: ChatDesign | null = useMemo(
+    () => active?.messages.find((m) => m.design?.id === studioDesignId)?.design ?? null,
+    [active, studioDesignId]
+  );
+
   // Keep activeChatId honest: a stale id from storage, or a deleted chat,
   // would otherwise leave `active` pointing at chats[0] while the sidebar
   // highlighted nothing.
@@ -159,10 +207,28 @@ export function ChatShell() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ chats, activeChatId, isSidebarCollapsed: collapsed })
-    );
+    const write = (list: ChatSession[]) =>
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ chats: list, activeChatId, isSidebarCollapsed: collapsed })
+      );
+    try {
+      write(chats);
+    } catch (err) {
+      // This throws on a full store, and in Safari private browsing it throws
+      // always. Unguarded it threw out of an effect, which on this route has
+      // no boundary above it, and then threw again on every state change —
+      // a blank screen that only clearing site data recovers, taking the
+      // history with it. A message also costs far more than it used to: a
+      // whole RingSpec and the model's sentence, not a 20-character job id.
+      // So drop the oldest unpinned collections rather than the newest edit.
+      console.warn("Chat history did not fit in localStorage; trimming.", err);
+      try {
+        write(chats.filter((c, i) => c.isPinned || c.id === activeChatId || i < 5));
+      } catch {
+        // Nothing more to give back. The session stays alive in memory.
+      }
+    }
   }, [chats, activeChatId, collapsed]);
 
   /* --------------------------------------------------------- attachments -- */
@@ -212,13 +278,13 @@ export function ChatShell() {
     setChats((prev) => [c, ...prev]);
     setActiveChatId(c.id);
     setDrawerOpen(false);
-    setStudioJobId(null);
+    setStudioDesignId(null);
     setInput("");
     setFiles([]);
     requestAnimationFrame(() => composerRef.current?.focus());
   }, []);
 
-  const reallyDelete = useCallback(async (ids: string[]) => {
+  const reallyDelete = useCallback((ids: string[]) => {
     const set = new Set(ids);
     setChats((prev) => {
       const next = prev.filter((c) => !set.has(c.id));
@@ -226,11 +292,21 @@ export function ChatShell() {
       if (set.has(activeChatId)) setActiveChatId(next[0].id);
       return next;
     });
-    if (user) {
-      try { await Promise.all(ids.map((id) => deleteChatFromBackend(id))); }
-      catch (err) { console.error("Backend cleanup failed:", err); }
-    }
-  }, [activeChatId, user]);
+    // The open Studio belongs to a design inside one of these chats. If that
+    // chat is going, the Studio goes with it — otherwise it stays mounted over
+    // a design that exists nowhere, editing a ring that can never be saved.
+    setStudioDesignId((current) => {
+      if (!current) return current;
+      const survives = chats.some(
+        (c) => !set.has(c.id) && c.messages?.some((m) => m.design?.id === current)
+      );
+      return survives ? current : null;
+    });
+
+    // Nothing server-side to clean up: A7 stopped writing `designJobs`, and the
+    // documents that predate it are swept once, by hand. B1 owns the durable
+    // record and the deletion that goes with it.
+  }, [activeChatId, chats]);
 
   const askDelete = (chat: ChatSession) =>
     setConfirm({
@@ -244,6 +320,12 @@ export function ChatShell() {
 
   const send = useCallback(async (text: string, attach: File[]) => {
     const now = Date.now();
+    // Every id in this send carries a nonce, the way createEmptyChat does.
+    // A timestamp alone is not unique: Cmd+Enter currently reaches submit()
+    // twice in one tick, and two sends in the same millisecond used to mint
+    // the same `sys-` id — after which the patch below matched both messages
+    // and overwrote each with the other's spec.
+    const nonce = Math.random().toString(36).slice(2, 7);
     let uploaded: ChatAttachment[] = [];
     let uploadFailed = false;
 
@@ -261,7 +343,7 @@ export function ChatShell() {
     }
 
     const userMsg: ChatMessage = {
-      id: `msg-${now}`, role: "user", content: text, createdAt: now, attachments: uploaded,
+      id: `msg-${now}-${nonce}`, role: "user", content: text, createdAt: now, attachments: uploaded,
     };
     setChats((prev) => prev.map((c) =>
       c.id !== activeChatId ? c
@@ -278,18 +360,48 @@ export function ChatShell() {
       }]}));
     }
 
+    // The card appears before the model answers. It draws from the local
+    // parser meanwhile, so there is never a wait with nothing on screen.
+    const designId = `design-${now}-${nonce}`;
+    const replyId = `sys-${now}-${nonce}`;
+    setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
+      id: replyId, role: "assistant", createdAt: Date.now(),
+      content: "Building the solid.",
+      design: { id: designId, prompt: text, status: "extracting" },
+    }]}));
+
+    // The spec used to travel out to a `designJobs` document and come back
+    // through an onSnapshot — a server round trip between two components in
+    // the same tab, on a collection nothing consumes. It is called directly
+    // now and kept on the message. `extractRingSpec` falls back to the local
+    // parser on any failure, so this cannot leave a design without a spec.
     setGenerating(true);
     try {
-      const { jobId } = await createDesignJob(text, activeChatId, uploaded.map((a) => a.url));
-      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
-        id: `sys-${Date.now()}`, role: "assistant", createdAt: Date.now(),
-        content: "Building the solid.", designJobId: jobId,
-      }]}));
-    } catch (err: any) {
-      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, {
-        id: `err-${Date.now()}`, role: "assistant", createdAt: Date.now(),
-        content: `Could not start that build — ${err?.message ?? "unknown error"}`,
-      }]}));
+      const result = await extractRingSpec(text);
+      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : {
+        ...c,
+        messages: c.messages.map((m) => (m.id !== replyId || !m.design) ? m : {
+          ...m,
+          design: {
+            ...m.design,
+            spec: result.spec,
+            source: result.source,
+            model: result.model,
+            interpretation: result.interpretation,
+            status: "ready" as const,
+          },
+        }),
+      }));
+    } catch (err) {
+      // Nothing to recover: the card keeps drawing from the prompt. Mark it
+      // so the card says that plainly instead of claiming to still be working.
+      console.error("Spec extraction failed", err);
+      setChats((prev) => prev.map((c) => c.id !== activeChatId ? c : {
+        ...c,
+        messages: c.messages.map((m) => (m.id !== replyId || !m.design) ? m : {
+          ...m, design: { ...m.design, status: "stalled" as const },
+        }),
+      }));
     } finally {
       setGenerating(false);
     }
@@ -345,11 +457,11 @@ export function ChatShell() {
         if (paletteOpen) return setPaletteOpen(false);
         if (helpOpen) return setHelpOpen(false);
         if (searching) { setSearching(false); setQuery(""); return; }
-        if (studioJobId) return setStudioJobId(null);
+        if (studioDesignId) return setStudioDesignId(null);
         if (drawerOpen) return setDrawerOpen(false);
         composerRef.current?.blur();
       } },
-  ], [newChat, submit, paletteOpen, helpOpen, searching, studioJobId, drawerOpen]);
+  ], [newChat, submit, paletteOpen, helpOpen, searching, studioDesignId, drawerOpen]);
 
   useEffect(() => attachShortcuts(bindings), [bindings]);
 
@@ -377,12 +489,12 @@ export function ChatShell() {
     { id: "sidebar", label: collapsed ? "Show the sidebar" : "Hide the sidebar",
       group: "View", keys: "mod+b", run: () => setCollapsed((v) => !v) },
     { id: "studio", label: "Close the Studio", group: "View",
-      disabled: !studioJobId, run: () => setStudioJobId(null) },
+      disabled: !studioDesignId, run: () => setStudioDesignId(null) },
     { id: "keys", label: "Keyboard shortcuts", group: "View", keys: "?", run: () => setHelpOpen(true) },
     { id: "settings", label: "Studio settings", group: "Account", run: () => navigate("/settings") },
     { id: "auth", label: user ? "Sign out" : "Sign in", group: "Account",
       run: () => (user ? signOut().catch(console.error) : setAuthOpen(true)) },
-  ], [active, collapsed, studioJobId, lastPrompt, newChat, navigate, user, signOut]);
+  ], [active, collapsed, studioDesignId, lastPrompt, newChat, navigate, user, signOut]);
 
   /* ------------------------------------------------------------ sidebar -- */
 
@@ -527,7 +639,7 @@ export function ChatShell() {
                 return (
                   <div key={c.id} className="group relative">
                     <button
-                      onClick={() => { setActiveChatId(c.id); setDrawerOpen(false); setStudioJobId(null); }}
+                      onClick={() => { setActiveChatId(c.id); setDrawerOpen(false); setStudioDesignId(null); }}
                       title={c.title}
                       aria-current={on ? "true" : undefined}
                       className={"flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[0.85rem] transition-colors " +
@@ -598,7 +710,7 @@ export function ChatShell() {
       <div className="relative flex min-w-0 flex-1">
         <main
           className={"relative flex min-w-0 flex-col " +
-            (studioJobId ? "hidden lg:flex lg:w-[420px] lg:shrink-0 lg:border-r lg:border-white/8" : "flex-1")}
+            (studioDesignId ? "hidden lg:flex lg:w-[420px] lg:shrink-0 lg:border-r lg:border-white/8" : "flex-1")}
         >
           {/* Top bar */}
           <header className="z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/6 bg-ink-900/85 px-3 backdrop-blur-xl">
@@ -649,7 +761,7 @@ export function ChatShell() {
                       copied={copiedId === m.id}
                       onCopy={() => copy(m.id, m.content)}
                       onRetry={() => retry(m.content)}
-                      onOpenStudio={() => m.designJobId && setStudioJobId(m.designJobId)}
+                      onOpenStudio={() => m.design && setStudioDesignId(m.design.id)}
                     />
                   ))}
                 </ol>
@@ -765,8 +877,11 @@ export function ChatShell() {
 
         {/* --------------------------------------------------------- studio -- */}
         <AnimatePresence>
-          {studioJobId && (
+          {studioDesignId && (
             <motion.section
+              // Keyed on the design, so opening a different one remounts the
+              // Studio instead of leaving the previous design's edits in it.
+              key={studioDesignId}
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 40 }}
@@ -774,7 +889,11 @@ export function ChatShell() {
               aria-label="Studio"
               className="absolute inset-0 z-30 bg-ink-950 lg:static lg:flex-1"
             >
-              <StudioWorkspace jobId={studioJobId} onClose={() => setStudioJobId(null)} />
+              <StudioWorkspace
+                spec={studioDesign?.spec}
+                prompt={studioDesign?.prompt}
+                onClose={() => setStudioDesignId(null)}
+              />
             </motion.section>
           )}
         </AnimatePresence>
@@ -911,9 +1030,9 @@ function Message({
         </ul>
       )}
 
-      {msg.designJobId && (
+      {msg.design && (
         <div className="mt-3 max-w-md">
-          <DesignJobCard jobId={msg.designJobId} />
+          <DesignJobCard design={msg.design} />
           <button
             onClick={onOpenStudio}
             className="group/s mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] py-2.5 text-[0.8rem] text-white/70 transition-colors hover:border-metal-400/40 hover:text-white"

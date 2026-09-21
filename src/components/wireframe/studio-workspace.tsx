@@ -26,9 +26,8 @@ import { useMediaQuery } from "../../lib/use-media-query";
 import { CommandPalette, ShortcutSheet, type Command } from "../ui/command-center";
 import { Button } from "../ui/button";
 import { useBrepWorker, type RingMesh } from "../../hooks/useBrepWorker";
-import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
 import {
-  DEFAULT_SPEC, RingSpec, parseSpecFromPrompt, withDefaults,
+  RingSpec, parseSpecFromPrompt, withDefaults,
   GEM_CUTS, SETTINGS, BAND_PROFILES, METALS, METAL_LABELS,
   METAL_APPEARANCE, METAL_DENSITY, SHANK_STONES, SHANK_STONE_LABELS, SETTING_LABELS,
   SHANK_STYLES, SHANK_STYLE_LABELS,
@@ -36,10 +35,41 @@ import {
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
-export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: () => void }) {
+/**
+ * The Studio.
+ *
+ * `spec` is the design the chat extracted and `prompt` is what was typed to
+ * get it. Both are optional on purpose. The Studio used to take a `designJobs`
+ * id and open a Firestore listener on it, which meant the viewport's first
+ * frame depended on a server round trip; the kernel is in the browser and has
+ * never needed one.
+ *
+ * It seeds exactly the way the chat card seeds itself — extracted spec if it
+ * has arrived, the prompt read locally if it has not, schema defaults if there
+ * is neither — so the two can never disagree about the same design. Taking
+ * only the spec was a regression: for the seconds extraction takes, the card
+ * showed the rose gold half-eternity you asked for and the Studio beside it
+ * showed a platinum solitaire.
+ */
+export function StudioWorkspace(
+  { spec: incomingSpec, prompt, onClose }:
+  { spec?: RingSpec | null; prompt?: string; onClose: () => void }
+) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [spec, setSpec] = useState<RingSpec>(DEFAULT_SPEC);
-  const [jobSpec, setJobSpec] = useState<RingSpec | null>(null);
+  const [spec, setSpec] = useState<RingSpec>(
+    () => withDefaults(incomingSpec ?? parseSpecFromPrompt(prompt))
+  );
+  const [jobSpec, setJobSpec] = useState<RingSpec | null>(
+    () => (incomingSpec ? withDefaults(incomingSpec) : null)
+  );
+
+  // What was last put into the viewport from outside, and what is in it now.
+  // While the two match, nothing has been touched and a late spec may take the
+  // viewport. Once a control has moved it may not: a designer's work outranks
+  // a slow model, and `jobSpec` behind "Reset to the generated design" is how
+  // they take it when they want it.
+  const appliedRef = useRef<string>(JSON.stringify(spec));
+  const specRef = useRef<RingSpec>(spec);
 
   const {
     generate, exportFile, mesh: ringMesh, resolvedMetal, metrics, issues,
@@ -113,17 +143,29 @@ export function StudioWorkspace({ jobId, onClose }: { jobId: string; onClose: ()
   // lands.
   const centreRef = useRef<THREE.Vector3 | null>(null);
 
-  // --- job -> spec ---------------------------------------------------------
+  // --- incoming design -> spec ---------------------------------------------
+  //
+  useEffect(() => { specRef.current = spec; }, [spec]);
+
+  // A spec may arrive after the Studio is already open: the chat posts the
+  // card first and fills the spec in when the model answers.
+  //
+  // Note what keys this and what does not. The value keys it, so a re-render
+  // of the chat cannot re-fire it. *Identity* is handled a level up, by a
+  // `key` on the Studio panel in chat-shell, because keying this on the value
+  // alone meant two designs that extracted to the same spec never swapped —
+  // you opened the second and saw your edits to the first.
+  const incomingKey = incomingSpec ? JSON.stringify(incomingSpec) : null;
   useEffect(() => {
-    if (!jobId) return;
-    const unsubscribe = subscribeDesignJob(jobId, (job: DesignJob) => {
-      if (!job) return;
-      const incoming = withDefaults(job.spec ?? parseSpecFromPrompt(job.prompt));
-      setJobSpec(incoming);
-      setSpec(incoming);
-    });
-    return () => unsubscribe();
-  }, [jobId]);
+    if (!incomingKey) return;
+    const incoming = withDefaults(JSON.parse(incomingKey) as RingSpec);
+    // Always worth having as the reset target, even when it may not take the
+    // viewport.
+    setJobSpec(incoming);
+    if (JSON.stringify(specRef.current) !== appliedRef.current) return;
+    appliedRef.current = JSON.stringify(incoming);
+    setSpec(incoming);
+  }, [incomingKey]);
 
   // Section slider bounds follow the piece, so the cut always sweeps the whole
   // of it whatever size the ring is.

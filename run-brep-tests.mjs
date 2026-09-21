@@ -12,7 +12,7 @@
  * recycling the worker that holds the kernel. Here each test gets a fresh
  * process, so peak memory is one test's worth rather than the whole suite's.
  */
-import { readFileSync, writeFileSync, statSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, statSync, mkdirSync, readdirSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 
 const FILE = "cad-engine-brep.test.mjs";
@@ -41,6 +41,19 @@ function build() {
   if (r.status !== 0) { console.error("compile failed"); process.exit(1); }
   mkdirSync(OUT, { recursive: true });
   writeFileSync(`${OUT}/package.json`, '{"type":"module"}');
+
+  // tsc emits specifiers verbatim, so `import "./ring-spec"` stays
+  // extensionless — which the bundler resolves and Node's ESM loader does not.
+  // The suite ran green until MANUFACTURING_LIMITS moved into ring-spec
+  // (b26df53) and gave the compiled engine its first runtime relative import.
+  for (const f of readdirSync(OUT).filter((n) => n.endsWith(".js"))) {
+    const src = readFileSync(`${OUT}/${f}`, "utf8");
+    const fixed = src.replace(
+      /(\bfrom\s*)(["'])(\.\.?\/[^"']+?)\2/g,
+      (m, kw, q, spec) => (/\.[cm]?js$/.test(spec) ? m : `${kw}${q}${spec}.js${q}`)
+    );
+    if (fixed !== src) writeFileSync(`${OUT}/${f}`, fixed);
+  }
 }
 build();
 let names = [...readFileSync(FILE, "utf8").matchAll(/^test\(\s*"([^"]+)"/gm)].map((m) => m[1]);

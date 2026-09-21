@@ -1,38 +1,26 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Card, CardContent } from "../ui/card";
-import { subscribeDesignJob, DesignJob } from "../../lib/design-jobs";
+import type { ChatDesign } from "./chat-types";
 import { Loader2, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
 import { StlPreview } from "./stl-preview";
 import { useBrepWorker } from "../../hooks/useBrepWorker";
 import { withDefaults, METAL_LABELS, parseSpecFromPrompt, RingSpec } from "../../lib/ring-spec";
 
-export function DesignJobCard({ jobId }: { jobId: string }) {
-  const [job, setJob] = useState<DesignJob | null>(null);
-  const [subscribeError, setSubscribeError] = useState<string | null>(null);
-
-  // Geometry is produced in the browser. The Firestore job is only a source of
-  // the extracted spec -- the preview no longer waits on a server pipeline.
+export function DesignJobCard({ design }: { design: ChatDesign }) {
+  // Geometry is produced in the browser, from a spec that arrives on the
+  // message. There is no job document and nothing to wait on: this card used
+  // to subscribe to a `designJobs` record that no worker could ever advance.
   const {
     generate, mesh: ringMesh, isBuilding: isGenerating, error: genError,
     progress, stage, issues,
   } = useBrepWorker();
 
-  useEffect(() => {
-    if (!jobId) return;
-    const unsub = subscribeDesignJob(
-      jobId,
-      (j) => setJob(j),
-      (err) => setSubscribeError(err?.message || "Error subscribing to job")
-    );
-    return () => unsub && unsub();
-  }, [jobId]);
-
   // Fall back to the schema defaults until (or unless) a spec is extracted.
-  const parsed = useMemo(() => parseSpecFromPrompt(job?.prompt), [job?.prompt]);
-  const usedPrompt = !job?.spec && Object.keys(parsed).length > 0;
+  const parsed = useMemo(() => parseSpecFromPrompt(design.prompt), [design.prompt]);
+  const usedPrompt = !design.spec && Object.keys(parsed).length > 0;
   const spec: RingSpec = useMemo(
-    () => withDefaults(job?.spec ?? parsed),
-    [job?.spec, parsed]
+    () => withDefaults(design.spec ?? parsed),
+    [design.spec, parsed]
   );
   const specKey = JSON.stringify(spec);
 
@@ -42,7 +30,7 @@ export function DesignJobCard({ jobId }: { jobId: string }) {
   // through as typed arrays and goes straight into a BufferGeometry, which is
   // what removed the "STL Load Error: Failed to fetch" class of bug rather than
   // delaying it by thirty seconds.
-  const failed = genError || job?.status === "error";
+  const failed = !!genError;
   const ready = !!ringMesh && !isGenerating && !failed;
   const pct = failed ? 0 : ready ? 100 : progress;
 
@@ -93,29 +81,43 @@ export function DesignJobCard({ jobId }: { jobId: string }) {
           </div>
         )}
 
+        {/*
+          "as drawn", not "as specified". The checker verifies the solid that
+          was built; it has no idea whether that solid is what was asked for.
+          Those are the same claim only when every value came from the prompt,
+          and they routinely are not: "18k rose gold" parses to 14k_rose, and
+          anything the prompt did not mention is a schema default. Saying
+          "as specified" over a substituted value is a false statement about
+          the customer's own words, on the one line a jeweller would take at
+          face value. "As drawn" is true in every case.
+        */}
         {ready && issues.length === 0 && (
           <div className="flex items-center gap-1.5 text-[10px] text-green-400/80">
-            <CheckCircle2 className="h-3 w-3" /> Castable as specified
+            <CheckCircle2 className="h-3 w-3" /> Castable as drawn
           </div>
         )}
 
-        {(job as any)?.interpretation && (
+        {design.interpretation && (
           <p className="text-[11px] text-white/60 leading-relaxed italic">
-            {(job as any).interpretation}
+            {design.interpretation}
           </p>
         )}
 
-        {!job?.spec && !failed && (
+        {!design.spec && !failed && (
           <p className="text-[10px] text-white/35 leading-relaxed">
-            {usedPrompt
-              ? "Read directly from your prompt. Interpreting the rest…"
-              : "Showing standard parameters while your description is interpreted."}
+            {design.status === "extracting"
+              ? (usedPrompt
+                  ? "Read directly from your prompt. Interpreting the rest…"
+                  : "Showing standard parameters while your description is interpreted.")
+              : (usedPrompt
+                  ? "Read directly from your prompt. The model did not answer, so the rest are standard parameters."
+                  : "The model did not answer. These are standard parameters, not your description.")}
           </p>
         )}
 
         {failed && (
           <div className="text-xs text-red-300 bg-red-900/20 p-2 rounded border border-red-500/20">
-            {genError || job?.error || subscribeError || "Generation failed"}
+            {genError || "Generation failed"}
           </div>
         )}
       </CardContent>
