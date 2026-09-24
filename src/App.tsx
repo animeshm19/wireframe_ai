@@ -17,7 +17,7 @@ import { ChatPage } from "./pages/ChatPage";
 import GenericComingSoonPage from "./components/GenericComingSoonPage"; 
 import { ChatComingSoonPage } from "./pages/ChatComingSoonPage"; 
 import { AboutPage } from "./pages/AboutPage";
-import { MeshPage } from "./pages/MeshPage";
+import { TechnologyPage } from "./pages/TechnologyPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { DocsPage } from "./pages/DocsPage";
 import { PartnersPage } from "./pages/PartnersPage";
@@ -129,7 +129,8 @@ export default function App() {
             <Route path="/chat" element={<PageWrapper><ChatGate /></PageWrapper>} />
             
             <Route path="/settings" element={<PageWrapper><SettingsPage /></PageWrapper>} />
-            <Route path="/mesh" element={<PageWrapper><MeshPage /></PageWrapper>} />
+            <Route path="/technology" element={<PageWrapper><TechnologyPage /></PageWrapper>} />
+            <Route path="/mesh" element={<PageWrapper><TechnologyPage /></PageWrapper>} />
             
             <Route path="/about" element={<PageWrapper><AboutPage /></PageWrapper>} />
             <Route path="/blog" element={<PageWrapper><BlogPage /></PageWrapper>} />

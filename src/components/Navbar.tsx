@@ -34,7 +34,7 @@ const LINKS: NavLink[] = [
   { kind: "section", label: "Features", id: "features" },
   { kind: "section", label: "Capabilities", id: "capabilities" },
   { kind: "section", label: "Pricing", id: "pricing" },
-  { kind: "route", label: "Mesh", to: "/mesh" },
+  { kind: "route", label: "Technology", to: "/technology" },
   { kind: "route", label: "Blog", to: "/blog" },
 ];
 

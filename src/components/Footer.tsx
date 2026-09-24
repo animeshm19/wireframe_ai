@@ -26,7 +26,7 @@ const COLUMNS: Array<{ heading: string; items: Item[] }> = [
       { label: "Capabilities", anchor: "features" },
       { label: "On the bench", anchor: "capabilities" },
       { label: "Plans", anchor: "pricing" },
-      { label: "Mesh", to: "/mesh" },
+      { label: "Technology", to: "/technology" },
       { label: "Changelog", to: "/changelog" },
       { label: "Docs", to: "/docs" },
     ],
