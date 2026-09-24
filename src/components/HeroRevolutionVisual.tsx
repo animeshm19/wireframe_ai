@@ -2,10 +2,6 @@ import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { createJewelleryEnvironment } from "../lib/studio-env";
 import { finishMaps, applyTriplanar } from "../lib/finishes";
 import {
@@ -79,12 +75,11 @@ export function HeroRevolutionVisual({
       antialias: true,
       alpha: true,
       powerPreference: "high-performance",
-      stencil: true,
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.22;
+    renderer.toneMappingExposure = 1.10;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.localClippingEnabled = true;
     mount.appendChild(renderer.domElement);
@@ -92,7 +87,7 @@ export function HeroRevolutionVisual({
     const scene = new THREE.Scene();
 
     const camera = new THREE.PerspectiveCamera(34, width / height, 0.1, 200);
-    camera.position.set(0, 3.4, 18);
+    camera.position.set(0, 3.2, 17.5);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -104,49 +99,17 @@ export function HeroRevolutionVisual({
     controls.maxDistance = 30;
     controls.target.set(0, 1.2, 0);
 
-    // ---------------------- GIA Diamond & Fine Jewelry Atelier Environment --
+    // -------------------------------------------------- Balanced Studio Rig --
+    // Fine jewelry diffusion tent with softbox, side cards, and hard specular points
     const envScene = createJewelleryEnvironment();
 
-    const panel = (
-      w: number,
-      h: number,
-      intensity: number,
-      pos: [number, number, number],
-      rot: [number, number, number],
-      color = 0xffffff
-    ) => {
-      const m = new THREE.Mesh(
-        new THREE.PlaneGeometry(w, h),
-        new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide })
-      );
-      (m.material as THREE.MeshBasicMaterial).color.multiplyScalar(intensity);
-      m.position.set(...pos);
-      m.rotation.set(...rot);
-      envScene.add(m);
-      return m;
-    };
-
-    // 1. Front Slotted Diffuser & Dark Contrast Baffles
-    // Diamonds require zebra-like alternation between bright light and dark absorption cards.
-    // When adjacent facets mirror contrasting values, it yields maximum scintillation.
-    panel(32, 26, 1.8, [0, 4, 25], [0, 0, 0], 0xf5f8ff);
-    panel(7, 30, 0.02, [-18, 4, 22], [0, 0.28, 0], 0x020204);
-    panel(7, 30, 0.02, [18, 4, 22], [0, -0.28, 0], 0x020204);
-
-    // 2. High-Intensity Pinpoint LED Sparkle Array (The Diamond "Starfield")
-    // High-energy pinpoint sources ignite individual kite, star, and bezel facets into fire.
-    panel(1.4, 1.4, 65, [0, 22, 6], [-Math.PI / 2.2, 0, 0], 0xffffff); // Table overhead star
-    panel(1.2, 1.2, 55, [-11, 17, 11], [-Math.PI / 2.6, 0.25, 0], 0xf4f9ff); // Left crown daylight star
-    panel(1.2, 1.2, 50, [11, 16, 10], [-Math.PI / 2.5, -0.25, 0], 0xfff6ee); // Right crown star
-    panel(1.0, 1.0, 45, [-7, 19, -11], [Math.PI / 2.4, 0, 0], 0xedf4ff); // Rear crown star
-    panel(1.0, 1.0, 40, [8, 18, -10], [Math.PI / 2.5, 0, 0], 0xf2f8ff); // Rear right star
-    panel(1.1, 1.1, 35, [0, 6, 22], [0, 0, 0], 0xf8fbff); // Front chest sparkle
-
-    // 3. Pavilion Heart Uplight Reflector
-    // Placed directly beneath the ring setting inside the environment to bounce crisp light
-    // upward into the culet and pavilion facets (Total Internal Reflection), giving the stone
-    // an ignited, fiery heart rather than a dark center.
-    panel(10, 10, 3.8, [0, -9, 2], [Math.PI / 2.1, 0, 0], 0xf0f7ff);
+    const frontFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(58, 42),
+      new THREE.MeshBasicMaterial({ color: 0xfff6fa, side: THREE.DoubleSide })
+    );
+    (frontFill.material as THREE.MeshBasicMaterial).color.multiplyScalar(1.5);
+    frontFill.position.set(-3, 3, 26);
+    envScene.add(frontFill);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTexture = pmrem.fromScene(envScene, 0.02).texture;
@@ -158,19 +121,17 @@ export function HeroRevolutionVisual({
     scene.environment = envTexture;
 
     // ------------------------------------------------------------- Backdrop --
-    // Neutral luxury obsidian/slate backdrop:
-    // Pure D-color diamonds must refract a neutral, non-tinted background so the crystal
-    // body color reads as 100% icy water without reddish or magenta contamination.
+    // Graded dark velvet sweep for crisp contrast against metal and diamond
     const backdropCanvas = document.createElement("canvas");
     backdropCanvas.width = 4;
     backdropCanvas.height = 512;
     {
       const g = backdropCanvas.getContext("2d")!;
       const grad = g.createLinearGradient(0, 0, 0, 512);
-      grad.addColorStop(0, "#191c24");    // Deep cool graphite
-      grad.addColorStop(0.35, "#0f1116"); // Midnight slate
-      grad.addColorStop(0.70, "#08090d"); // Obsidian
-      grad.addColorStop(1, "#030406");    // Pure black floor
+      grad.addColorStop(0, "#221c26");
+      grad.addColorStop(0.38, "#140f18");
+      grad.addColorStop(0.72, "#0b070e");
+      grad.addColorStop(1, "#050307");
       g.fillStyle = grad;
       g.fillRect(0, 0, 4, 512);
     }
@@ -188,44 +149,29 @@ export function HeroRevolutionVisual({
     scene.add(backdrop);
 
     // --------------------------------------------------------- Scene Lights --
-    // Dedicated 5-point daylight atelier lighting rig
-    // Specifically tuned to strike diamond crown facets and produce dynamic scintillation.
-    const key = new THREE.DirectionalLight(0xffffff, 2.2);
-    key.position.set(7, 14, 9);
+    // Clean key and subtle rim: crisp, defined highlights without blowing out the piece
+    const key = new THREE.DirectionalLight(0xffffff, 1.5);
+    key.position.set(6, 10, 8);
     scene.add(key);
 
-    const sparkleLeft = new THREE.DirectionalLight(0xf2f8ff, 1.7);
-    sparkleLeft.position.set(-8, 12, 8);
-    scene.add(sparkleLeft);
-
-    const sparkleOverhead = new THREE.DirectionalLight(0xffffff, 1.8);
-    sparkleOverhead.position.set(0, 18, 1);
-    scene.add(sparkleOverhead);
-
-    const rim = new THREE.DirectionalLight(0xedf4ff, 1.4);
-    rim.position.set(-5, 7, -10);
+    const rim = new THREE.DirectionalLight(0xfff5ea, 0.7);
+    rim.position.set(-6, -4, -6);
     scene.add(rim);
-
-    // Pavilion uplight: points directly upward at the diamond culet from below the shank
-    const pavilionUplight = new THREE.DirectionalLight(0xf4faff, 1.3);
-    pavilionUplight.position.set(0, -9, 4);
-    pavilionUplight.target.position.set(0, 2.5, 0);
-    scene.add(pavilionUplight);
-    scene.add(pavilionUplight.target);
 
     // Section Clipping Plane (cuts X axis cleanly)
     const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
 
-    // --------------------------------------------------------- materials --
+    // --------------------------------------------------------- Materials --
     const polish = finishMaps("polished");
 
+    const appearance = METAL_APPEARANCE[specRef.current.metalType];
     const metalMat = new THREE.MeshPhysicalMaterial({
-      color: METAL_APPEARANCE[specRef.current.metalType].color,
+      color: appearance.color,
       metalness: 1,
-      roughness: METAL_APPEARANCE[specRef.current.metalType].roughness,
+      roughness: Math.min(1, polish.roughness + (appearance.roughness - 0.16) * 0.5),
       normalMap: polish.normalMap,
       roughnessMap: polish.roughnessMap,
-      envMapIntensity: 2.7,
+      envMapIntensity: 2.2,
       side: THREE.DoubleSide,
     });
     metalMat.normalScale.set(polish.normalScale, polish.normalScale);
@@ -237,28 +183,23 @@ export function HeroRevolutionVisual({
       opacity: 0.85,
     });
 
-    // Diamond Material: Strict VVS1 Clarity, D Color Specification
-    // - D Color: 100% colorless, icy water clarity, pure white light return with spectral fire.
-    // - VVS1 Clarity: Zero internal inclusions, roughness 0, transmission 1.0, crystal pure.
-    // - Optics: IOR 2.417 (real diamond constant), dispersion 3.5 (prismatic fire),
-    //   specularIntensity 1.8 (adamantine luster).
+    // Diamond Material: Crystal-clear VVS1 D-Color with clean facet contrast
     const gemMat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0xffffff),
+      color: 0xffffff,
       metalness: 0,
       roughness: 0,
       transmission: 1.0,
-      thickness: 2.1,
-      attenuationDistance: 55.0,
-      attenuationColor: new THREE.Color(0xf6faff), // Pure icy D-color water tint
-      ior: 2.417,                                  // GIA diamond refractive index
-      dispersion: 3.5,                             // Rich spectral fire & chromatic flashes
-      specularIntensity: 1.8,                      // Adamantine luster
-      specularColor: new THREE.Color(0xffffff),
-      envMapIntensity: 4.2,                        // Brilliant environment reflections
+      thickness: 1.5,
+      attenuationDistance: 45,
+      attenuationColor: new THREE.Color(0xffffff),
+      ior: 2.417,
+      dispersion: 2.4,
+      specularIntensity: 1.0,
+      envMapIntensity: 2.5,
       side: THREE.DoubleSide,
     });
 
-    // ---------------------------------------------------------- geometry --
+    // ---------------------------------------------------------- Geometry --
     const ringGroup = new THREE.Group();
     scene.add(ringGroup);
 
@@ -531,11 +472,11 @@ export function HeroRevolutionVisual({
 
     const updateMaterial = () => {
       const currentSpec = specRef.current;
-      const appearance = METAL_APPEARANCE[currentSpec.metalType];
-      metalMat.color.set(appearance.color);
+      const app = METAL_APPEARANCE[currentSpec.metalType];
+      metalMat.color.set(app.color);
       metalMat.roughness = Math.min(
         1,
-        polish.roughness + (appearance.roughness - 0.16) * 0.5
+        polish.roughness + (app.roughness - 0.16) * 0.5
       );
       metalMat.needsUpdate = true;
 
@@ -566,34 +507,6 @@ export function HeroRevolutionVisual({
     };
     updateDisplayModeRef.current = updateDisplayMode;
 
-    // Post-processing for authentic diamond sparkle glints and scintillation halos
-    const composer = new EffectComposer(
-      renderer,
-      new THREE.WebGLRenderTarget(width, height, {
-        stencilBuffer: true,
-        samples: 4,
-        type: THREE.HalfFloatType,
-      })
-    );
-    composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    composer.setSize(width, height);
-
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    // UnrealBloomPass tuned specifically for diamond fire:
-    // Threshold 0.88 ensures only intense specular reflections on diamond facets bloom
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(width, height),
-      0.30, // Strength: delicate, photographic sparkle
-      0.38, // Radius: tight, star-like dispersion
-      0.88  // Threshold: triggers strictly on diamond facet glints
-    );
-    composer.addPass(bloomPass);
-
-    const outputPass = new OutputPass();
-    composer.addPass(outputPass);
-
     // Initial build
     rebuildGeometry();
     updateDisplayMode();
@@ -604,7 +517,7 @@ export function HeroRevolutionVisual({
 
     const render = () => {
       controls.update();
-      composer.render();
+      renderer.render(scene, camera);
     };
 
     const tick = () => {
@@ -634,8 +547,6 @@ export function HeroRevolutionVisual({
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
-      composer.setSize(width, height);
-      bloomPass.setSize(width, height);
     });
     ro.observe(mount);
 
@@ -662,7 +573,6 @@ export function HeroRevolutionVisual({
       gemMat.dispose();
       envTexture.dispose();
       pmrem.dispose();
-      composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
 
