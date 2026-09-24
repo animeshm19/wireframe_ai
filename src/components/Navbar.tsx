@@ -150,11 +150,11 @@ export function Navbar() {
               maxWidth: condensed ? 680 : 1100,
               marginTop: condensed ? 10 : 20,
               backgroundColor: condensed
-                ? "rgba(19,1,12,0.72)"
-                : "rgba(255,255,255,0.02)",
+                ? "rgba(19,1,12,0.85)"
+                : "rgba(255,255,255,0.03)",
               borderColor: condensed
-                ? "rgba(255,255,255,0.10)"
-                : "rgba(255,255,255,0.05)",
+                ? "rgba(255,255,255,0.15)"
+                : "rgba(255,255,255,0.08)",
             }}
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
             className="mx-auto flex h-14 items-center justify-between rounded-full border px-3 backdrop-blur-xl"
@@ -165,7 +165,7 @@ export function Navbar() {
               aria-label="wireframe — home"
             >
               <img src={logoUrl} alt="" className="h-6 w-auto" />
-              <span className="text-sm font-medium tracking-tight text-white/90">
+              <span className="text-sm font-semibold tracking-tight text-white">
                 wireframe
               </span>
             </Link>
@@ -177,7 +177,7 @@ export function Navbar() {
                   <button
                     key={l.label}
                     onClick={() => goToSection(l.id)}
-                    className="group relative rounded-full px-3 py-2 text-sm text-white/65 transition-colors duration-300 hover:text-white"
+                    className="group relative rounded-full px-3.5 py-2 text-sm font-medium text-white/85 transition-colors duration-300 hover:text-white"
                   >
                     {l.label}
                     {active === l.id && pathname === "/" && (
@@ -192,7 +192,7 @@ export function Navbar() {
                   <Link
                     key={l.label}
                     to={l.to}
-                    className="group relative rounded-full px-3 py-2 text-sm text-white/65 transition-colors duration-300 hover:text-white"
+                    className="group relative rounded-full px-3.5 py-2 text-sm font-medium text-white/85 transition-colors duration-300 hover:text-white"
                   >
                     {l.label}
                     {pathname === l.to && (
@@ -210,10 +210,10 @@ export function Navbar() {
             <div className="flex shrink-0 items-center gap-1.5">
               <button
                 onClick={() => goToSection("contact")}
-                className="group relative hidden overflow-hidden rounded-full border border-white/12 px-4 py-2 text-sm text-white/85 transition-colors duration-300 hover:border-metal-400/60 hover:text-white sm:inline-flex"
+                className="group relative hidden overflow-hidden rounded-full border border-white/20 bg-white/[0.05] px-4 py-2 text-sm font-medium text-white transition-colors duration-300 hover:border-metal-400/60 hover:text-white sm:inline-flex"
               >
                 <span className="absolute inset-0 -translate-y-full bg-gradient-to-b from-metal-400/25 to-transparent transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-y-0" />
-                <span className="relative">Book a demo</span>
+                <span className="relative font-medium">Book a demo</span>
               </button>
 
               {/* Menu toggle — the whole reason a phone can reach the site. */}
@@ -222,7 +222,7 @@ export function Navbar() {
                 aria-expanded={menuOpen}
                 aria-controls="mobile-menu"
                 aria-label={menuOpen ? "Close menu" : "Open menu"}
-                className="relative grid h-10 w-10 place-items-center rounded-full border border-white/12 md:hidden"
+                className="relative grid h-10 w-10 place-items-center rounded-full border border-white/15 md:hidden"
               >
                 <span className="relative block h-3 w-4">
                   <motion.span
@@ -298,7 +298,7 @@ function MobileMenu({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-40 flex flex-col bg-ink-950/96 backdrop-blur-2xl outline-none md:hidden"
+          className="fixed inset-0 z-40 flex flex-col bg-ink-950/98 backdrop-blur-2xl outline-none md:hidden"
         >
           <div className="flex-1 overflow-y-auto px-6 pb-10 pt-28">
             <ul className="space-y-1">
@@ -313,17 +313,17 @@ function MobileMenu({
                     delay: 0.06 + i * 0.055,
                     ease: [0.16, 1, 0.3, 1],
                   }}
-                  className="border-b border-white/6"
+                  className="border-b border-white/8"
                 >
                   {l.kind === "section" ? (
                     <button
                       onClick={() => onSection(l.id)}
                       className="flex w-full items-baseline justify-between py-4 text-left"
                     >
-                      <span className="text-2xl tracking-tight text-white">
+                      <span className="text-2xl font-medium tracking-tight text-white">
                         {l.label}
                       </span>
-                      <span className="mono-label !text-[0.55rem]">
+                      <span className="mono-label !text-[0.6rem] !text-white/80">
                         {String(i + 1).padStart(2, "0")}
                       </span>
                     </button>
@@ -335,13 +335,13 @@ function MobileMenu({
                     >
                       <span
                         className={
-                          "text-2xl tracking-tight " +
-                          (pathname === l.to ? "text-metal-300" : "text-white")
+                          "text-2xl font-medium tracking-tight " +
+                          (pathname === l.to ? "text-metal-300 font-semibold" : "text-white")
                         }
                       >
                         {l.label}
                       </span>
-                      <span className="mono-label !text-[0.55rem]">
+                      <span className="mono-label !text-[0.6rem] !text-white/80">
                         {String(i + 1).padStart(2, "0")}
                       </span>
                     </Link>
@@ -359,19 +359,19 @@ function MobileMenu({
               <Link
                 to="/chat"
                 onClick={onClose}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-sm font-medium text-ink-900"
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-sm font-semibold text-ink-900 shadow-md"
               >
                 Start designing →
               </Link>
               <button
                 onClick={() => onSection("contact")}
-                className="flex w-full items-center justify-center rounded-full border border-white/15 px-6 py-3.5 text-sm text-white/80"
+                className="flex w-full items-center justify-center rounded-full border border-white/20 bg-white/[0.04] px-6 py-3.5 text-sm font-medium text-white hover:bg-white/[0.08]"
               >
                 Book a demo
               </button>
             </motion.div>
 
-            <p className="mono-label mt-10 !text-[0.55rem]">
+            <p className="mono-label mt-10 !text-[0.6rem] !text-white/80">
               B-rep kernel · STEP &amp; STL export
             </p>
           </div>
@@ -381,3 +381,4 @@ function MobileMenu({
     document.body
   );
 }
+export default Navbar;

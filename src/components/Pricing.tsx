@@ -163,14 +163,14 @@ export function Pricing() {
                         className="absolute inset-0 rounded-full bg-white"
                       />
                     )}
-                    <span className={"relative " + (on ? "text-ink-900" : "text-white/60")}>
+                    <span className={"relative " + (on ? "text-ink-900 font-semibold" : "text-white/80")}>
                       {term}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <span className="mono-label !text-[0.52rem] !text-metal-400">
+            <span className="mono-label !text-[0.55rem] !text-metal-400">
               Two months on us, yearly
             </span>
           </motion.div>
@@ -182,7 +182,7 @@ export function Pricing() {
           ))}
         </div>
 
-        <p className="mono-label mx-auto mt-10 max-w-2xl text-center !text-[0.52rem] !normal-case !tracking-[0.1em] !text-white/35">
+        <p className="mono-label mx-auto mt-10 max-w-2xl text-center !text-[0.55rem] !normal-case !tracking-[0.1em] !text-white/75">
           Prices in USD, per seat. Items marked planned are not built yet and
           are not what you are paying for today.
         </p>
@@ -221,16 +221,16 @@ function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) 
       {/* An assay mark, the way a piece carries one. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full border border-white/10"
+        className="pointer-events-none absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full border border-white/15"
       >
-        <span className="mono-label !text-[0.5rem] !tracking-[0.08em] !text-white/30">
+        <span className="mono-label !text-[0.55rem] !tracking-[0.08em] !text-white/75 font-semibold">
           {tier.hallmark}
         </span>
       </span>
 
       <div className="relative z-10 flex flex-1 flex-col">
-        <div className="mono-label !text-[0.55rem] !text-metal-400">{tier.name}</div>
-        <p className="mt-1.5 text-[0.9rem] text-white/55">{tier.blurb}</p>
+        <div className="mono-label !text-[0.58rem] !text-metal-400 font-semibold">{tier.name}</div>
+        <p className="mt-1.5 text-[0.92rem] text-white/85">{tier.blurb}</p>
 
         {/* "Let's talk" is a step down from the numerals: a word set at the
             same size as a two-digit price reads larger than one. */}
@@ -241,9 +241,9 @@ function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) 
             </span>
           ) : (
             <>
-              <span className="text-[1.3rem] font-medium leading-none text-white/50">$</span>
+              <span className="text-[1.3rem] font-semibold leading-none text-white/75">$</span>
               <Rolling value={price} />
-              <span className="mono-label pb-1 !text-[0.5rem]">
+              <span className="mono-label pb-1 !text-[0.55rem] !text-white/80">
                 / seat / mo
               </span>
             </>
@@ -251,7 +251,7 @@ function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) 
         </div>
 
         {price !== null && (
-          <div className="mono-label mt-2 !text-[0.5rem] !text-white/35">
+          <div className="mono-label mt-2 !text-[0.55rem] !text-white/75">
             {yearly
               ? `billed yearly · $${price * 12} per seat`
               : `billed monthly · $${(tier.yearly ?? 0) * 12} yearly`}
@@ -266,19 +266,19 @@ function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) 
               <span
                 aria-hidden="true"
                 className={
-                  "mt-[7px] h-1 w-1 shrink-0 rounded-full " +
-                  (f.planned ? "bg-white/20" : "bg-metal-300")
+                  "mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full " +
+                  (f.planned ? "bg-white/30" : "bg-metal-300")
                 }
               />
               <span
                 className={
-                  "text-[0.85rem] leading-relaxed " +
-                  (f.planned ? "text-white/32" : "text-white/70")
+                  "text-[0.88rem] leading-relaxed " +
+                  (f.planned ? "text-white/60" : "text-white/90")
                 }
               >
                 {f.text}
                 {f.planned && (
-                  <span className="mono-label ml-2 rounded border border-white/10 px-1 py-px !text-[0.42rem] !text-white/35">
+                  <span className="mono-label ml-2 rounded border border-white/15 px-1 py-px !text-[0.45rem] !text-white/70">
                     planned
                   </span>
                 )}
@@ -292,10 +292,10 @@ function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) 
             <Link
               to={tier.cta.to}
               className={
-                "group flex w-full items-center justify-center gap-2 overflow-hidden rounded-full px-5 py-3 text-sm font-medium transition-colors duration-300 " +
+                "group flex w-full items-center justify-center gap-2 overflow-hidden rounded-full px-5 py-3 text-sm font-semibold transition-colors duration-300 " +
                 (tier.featured
-                  ? "bg-white text-ink-900"
-                  : "border border-white/15 text-white/85 hover:border-white/30 hover:text-white")
+                  ? "bg-white text-ink-900 shadow-md hover:bg-metal-200"
+                  : "border border-white/20 text-white hover:border-white/40 hover:bg-white/[0.05]")
               }
             >
               {tier.cta.label}
@@ -308,7 +308,7 @@ function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) 
                   .getElementById(tier.cta.anchor!)
                   ?.scrollIntoView({ behavior: "smooth", block: "start" })
               }
-              className="group flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 text-sm font-medium text-white/85 transition-colors duration-300 hover:border-white/30 hover:text-white"
+              className="group flex w-full items-center justify-center gap-2 rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white transition-colors duration-300 hover:border-white/40 hover:bg-white/[0.05]"
             >
               {tier.cta.label}
               <span className="transition-transform duration-500 group-hover:translate-x-1">→</span>

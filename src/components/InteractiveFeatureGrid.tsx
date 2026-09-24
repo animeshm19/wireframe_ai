@@ -124,7 +124,7 @@ function SectionHead() {
       <motion.p
         {...rise}
         transition={{ duration: 0.75, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-        className="max-w-sm text-[0.92rem] leading-relaxed text-white/50 lg:pb-1.5"
+        className="max-w-sm text-[0.92rem] leading-relaxed text-white/80 lg:pb-1.5"
       >
         Every panel is running the real thing — the same parser, the same trade
         limits, the same arithmetic as the engine. Move something and watch it
@@ -202,7 +202,7 @@ function Panel({
               {title}
             </h3>
           </div>
-          <p className="mt-1.5 max-w-[48ch] text-[0.85rem] leading-relaxed text-white/50">
+          <p className="mt-1.5 max-w-[48ch] text-[0.85rem] leading-relaxed text-white/80">
             {body}
           </p>
         </div>
@@ -355,8 +355,8 @@ function PromptDemo() {
               className={
                 "rounded-full border px-2.5 py-1 text-[0.68rem] transition-colors duration-300 " +
                 (text === ex
-                  ? "border-metal-400/50 bg-metal-400/10 text-metal-200"
-                  : "border-white/10 text-white/45 hover:border-white/25 hover:text-white/75")
+                  ? "border-metal-400/50 bg-metal-400/15 text-metal-200 font-medium"
+                  : "border-white/12 text-white/80 hover:border-white/25 hover:text-white")
               }
             >
               Example {i + 1}
@@ -364,7 +364,7 @@ function PromptDemo() {
           ))}
         </div>
         {!taken && !reduced && (
-          <span className="mono-label hidden shrink-0 !text-[0.48rem] !text-white/25 sm:inline">
+          <span className="mono-label hidden shrink-0 !text-[0.52rem] !text-white/70 sm:inline">
             demo · type to take over
           </span>
         )}
@@ -424,7 +424,7 @@ function PromptDemo() {
                 <span
                   className={
                     "text-[0.78rem] " + (f.cap ? "capitalize " : "") +
-                    (has ? "text-white" : "text-white/20")
+                    (has ? "text-white font-medium" : "text-white/55")
                   }
                 >
                   {has ? (f.fmt ? f.fmt(v) : String(v)) : "—"}
@@ -443,7 +443,7 @@ function PromptDemo() {
           <span>Partial&lt;RingSpec&gt;</span>
           <span className="h-px flex-1 bg-white/10" />
         </div>
-        <pre className="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/8 bg-black/45 px-3 py-2.5 font-mono text-[0.7rem] leading-[1.6] text-white/70">
+        <pre className="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/8 bg-black/45 px-3 py-2.5 font-mono text-[0.7rem] leading-[1.6] text-white/90">
 {hits === 0 ? "{}" : JSON.stringify(spec, null, 2)}
         </pre>
       </div>
@@ -496,8 +496,8 @@ function SectionDemo() {
             className={
               "rounded-full border px-2.5 py-1 text-[0.66rem] transition-colors duration-300 " +
               (profile === p
-                ? "border-metal-400/50 bg-metal-400/10 text-metal-200"
-                : "border-white/10 text-white/45 hover:border-white/25 hover:text-white/75")
+                ? "border-metal-400/50 bg-metal-400/15 text-metal-200 font-medium"
+                : "border-white/12 text-white/80 hover:border-white/25 hover:text-white")
             }
           >
             {PROFILE_LABELS[p]}
@@ -516,12 +516,12 @@ function SectionDemo() {
           </pattern>
           <marker id="arrow" viewBox="0 0 8 8" refX="4" refY="4"
                   markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-            <path d="M 0 1 L 8 4 L 0 7 z" fill="rgba(255,255,255,0.45)" />
+            <path d="M 0 1 L 8 4 L 0 7 z" fill="rgba(255,255,255,0.75)" />
           </marker>
         </defs>
 
         {/* Centre line, as a drawing has. */}
-        <line x1={cx} y1={18} x2={cx} y2={118} stroke="rgba(255,255,255,0.16)"
+        <line x1={cx} y1={18} x2={cx} y2={118} stroke="rgba(255,255,255,0.25)"
               strokeWidth="1" strokeDasharray="7 3 2 3" />
 
         <motion.path
@@ -536,7 +536,7 @@ function SectionDemo() {
         />
 
         {/* Witness lines and dimensions. */}
-        <g stroke="rgba(255,255,255,0.25)" strokeWidth="0.9">
+        <g stroke="rgba(255,255,255,0.4)" strokeWidth="0.9">
           <line x1={cx - w / 2} y1={cy + h / 2 + 3} x2={cx - w / 2} y2={cy + h / 2 + 20} />
           <line x1={cx + w / 2} y1={cy + h / 2 + 3} x2={cx + w / 2} y2={cy + h / 2 + 20} />
           <line x1={cx - w / 2} y1={cy + h / 2 + 15} x2={cx + w / 2} y2={cy + h / 2 + 15}
@@ -546,20 +546,20 @@ function SectionDemo() {
           <line x1={cx + w / 2 + 21} y1={cy - h / 2} x2={cx + w / 2 + 21} y2={cy + h / 2}
                 markerStart="url(#arrow)" markerEnd="url(#arrow)" />
         </g>
-        <text x={cx} y={cy + h / 2 + 31} textAnchor="middle" className="fill-white/60"
-              style={{ font: "500 9px ui-monospace, monospace" }}>
+        <text x={cx} y={cy + h / 2 + 31} textAnchor="middle" className="fill-white/90"
+              style={{ font: "600 9.5px ui-monospace, monospace" }}>
           {width.toFixed(1)}
         </text>
-        <text x={cx + w / 2 + 30} y={cy + 3} className="fill-white/60"
-              style={{ font: "500 9px ui-monospace, monospace" }}>
+        <text x={cx + w / 2 + 30} y={cy + 3} className="fill-white/90"
+              style={{ font: "600 9.5px ui-monospace, monospace" }}>
           {t.toFixed(2)}
         </text>
       </svg>
 
       <div className="mt-1">
         <div className="mb-1.5 flex items-baseline justify-between">
-          <span className="mono-label !text-[0.52rem]">Band width</span>
-          <span className="tabular text-[0.78rem] text-white/75">{width.toFixed(1)} mm</span>
+          <span className="mono-label !text-[0.55rem] !text-white/80">Band width</span>
+          <span className="tabular text-[0.82rem] font-semibold text-white">{width.toFixed(1)} mm</span>
         </div>
         <input type="range" min={1.4} max={6} step={0.1} value={width}
                onChange={(e) => setWidth(Number(e.target.value))}
@@ -594,8 +594,8 @@ function CastDemo() {
             className={
               "rounded-full border px-2.5 py-1 text-[0.66rem] transition-colors duration-300 " +
               (metal === m
-                ? "border-metal-400/50 bg-metal-400/10 text-metal-200"
-                : "border-white/10 text-white/45 hover:border-white/25 hover:text-white/75")
+                ? "border-metal-400/50 bg-metal-400/15 text-metal-200 font-medium"
+                : "border-white/12 text-white/80 hover:border-white/25 hover:text-white")
             }
           >
             {MANUFACTURING_LIMITS[m].label}
@@ -615,25 +615,25 @@ function CastDemo() {
             return (
               <>
                 <line x1="12" y1={base} x2="208" y2={base}
-                      stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+                      stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
                 <line x1="12" y1={yMin} x2="208" y2={yMin}
-                      stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeDasharray="4 4" />
-                <text x="12" y={yMin - 5} className="fill-white/55"
-                      style={{ font: "500 8px ui-monospace, monospace" }}>
+                      stroke="rgba(255,255,255,0.6)" strokeWidth="1" strokeDasharray="4 4" />
+                <text x="12" y={yMin - 5} className="fill-white/85"
+                      style={{ font: "600 8.5px ui-monospace, monospace" }}>
                   min {lim.minBandThickness.toFixed(2)} mm
                 </text>
                 <motion.rect
                   x="80" width="100" rx="3"
                   animate={{ y: yTop, height: base - yTop }}
                   transition={{ type: "spring", stiffness: 300, damping: 32 }}
-                  fill={ok ? "rgba(52,211,153,0.16)" : "rgba(248,113,113,0.16)"}
-                  stroke={ok ? "rgba(52,211,153,0.85)" : "rgba(248,113,113,0.9)"}
+                  fill={ok ? "rgba(52,211,153,0.22)" : "rgba(248,113,113,0.22)"}
+                  stroke={ok ? "rgba(52,211,153,0.95)" : "rgba(248,113,113,0.95)"}
                   strokeWidth="1.2"
                 />
                 <motion.text
                   x="188" animate={{ y: yTop + (base - yTop) / 2 + 3 }}
                   transition={{ type: "spring", stiffness: 300, damping: 32 }}
-                  className="fill-white/70" style={{ font: "500 9px ui-monospace, monospace" }}
+                  className="fill-white" style={{ font: "600 9.5px ui-monospace, monospace" }}
                 >
                   {thick.toFixed(2)}
                 </motion.text>
@@ -651,8 +651,8 @@ function CastDemo() {
           ["Min band", lim.minBandThickness],
         ].map(([label, v]) => (
           <div key={label as string} className="bg-ink-900/70 px-2.5 py-2">
-            <div className="mono-label !text-[0.46rem]">{label as string}</div>
-            <div className="tabular mt-0.5 text-[0.8rem] text-white/85">
+            <div className="mono-label !text-[0.48rem] !text-white/80">{label as string}</div>
+            <div className="tabular mt-0.5 text-[0.82rem] font-semibold text-white">
               {(v as number).toFixed(2)} mm
             </div>
           </div>
@@ -661,8 +661,8 @@ function CastDemo() {
 
       <div className="mt-3">
         <div className="mb-1.5 flex items-baseline justify-between">
-          <span className="mono-label !text-[0.52rem]">Band thickness</span>
-          <span className="tabular text-[0.78rem] text-white/75">{thick.toFixed(2)} mm</span>
+          <span className="mono-label !text-[0.55rem] !text-white/80">Band thickness</span>
+          <span className="tabular text-[0.82rem] font-semibold text-white">{thick.toFixed(2)} mm</span>
         </div>
         <input type="range" min={0.5} max={3} step={0.01} value={thick}
                onChange={(e) => setThick(Number(e.target.value))}
@@ -758,16 +758,16 @@ function BrepDemo() {
       <div className="mt-5 min-w-0 flex-1 sm:mt-0 sm:pl-6">
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/8 bg-white/8">
           <div className="bg-ink-900/70 px-3 py-2.5">
-            <div className="mono-label !text-[0.5rem]">STL · triangles</div>
-            <div className="tabular mt-0.5 text-[1rem] text-white">
+            <div className="mono-label !text-[0.52rem] !text-white/80">STL · triangles</div>
+            <div className="tabular mt-0.5 text-[1rem] font-semibold text-white">
               {error < 0.0005 ? "< 0.001" : error.toFixed(3)} mm
             </div>
-            <div className="mt-0.5 text-[0.66rem] text-white/40">out of round</div>
+            <div className="mt-0.5 text-[0.68rem] text-white/75 font-medium">out of round</div>
           </div>
           <div className="bg-ink-900/70 px-3 py-2.5">
-            <div className="mono-label !text-[0.5rem]">STEP · B-rep</div>
-            <div className="tabular mt-0.5 text-[1rem] text-emerald-300">0.000 mm</div>
-            <div className="mt-0.5 text-[0.66rem] text-white/40">it is the cylinder</div>
+            <div className="mono-label !text-[0.52rem] !text-white/80">STEP · B-rep</div>
+            <div className="tabular mt-0.5 text-[1rem] font-semibold text-emerald-300">0.000 mm</div>
+            <div className="mt-0.5 text-[0.68rem] text-emerald-400/90 font-medium">it is the cylinder</div>
           </div>
         </div>
 
@@ -781,9 +781,9 @@ function BrepDemo() {
                  className="slider-metal" aria-label="Number of facets approximating the circle" />
         </div>
 
-        <p className="mt-2.5 text-[0.76rem] leading-relaxed text-white/45">
+        <p className="mt-2.5 text-[0.78rem] leading-relaxed text-white/80">
           A size 6.5 band is {RING_R} mm in radius. At {facets} facets its hole is{" "}
-          <span className="tabular text-white/75">{error.toFixed(3)} mm</span> out of
+          <span className="tabular text-white font-medium">{error.toFixed(3)} mm</span> out of
           round. Raising the count shrinks that but never reaches zero, and every
           extra facet is more file — which is the trade a mesh format makes and a
           B-rep does not have to.

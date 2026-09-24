@@ -73,23 +73,23 @@ export function Footer() {
           <div>
             <Link to="/" className="inline-flex items-center gap-2.5">
               <img src={logoUrl} alt="" className="h-7 w-auto" />
-              <span className="text-[0.95rem] font-medium tracking-tight text-white/90">
+              <span className="text-[0.95rem] font-semibold tracking-tight text-white">
                 wireframe
               </span>
             </Link>
 
-            <p className="mt-5 max-w-sm text-[0.9rem] leading-relaxed text-white/50">
+            <p className="mt-5 max-w-sm text-[0.92rem] leading-relaxed text-white/85">
               Describe a piece in plain language and get a parametric B-rep
               solid — measured, checked against real casting limits, and
               exported as STEP or STL.
             </p>
 
-            <div className="mt-6 inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5">
+            <div className="mt-6 inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-white/[0.05] px-3.5 py-1.5">
               <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
               </span>
-              <span className="mono-label !text-[0.5rem] !text-white/55">
+              <span className="mono-label !text-[0.55rem] !text-white/85">
                 Onboarding select studios
               </span>
             </div>
@@ -98,28 +98,28 @@ export function Footer() {
           <div className="grid gap-8 sm:grid-cols-3">
             {COLUMNS.map((col) => (
               <nav key={col.heading} aria-label={col.heading}>
-                <h3 className="mono-label !text-[0.5rem]">{col.heading}</h3>
+                <h3 className="mono-label !text-[0.55rem] !text-white/90 font-semibold">{col.heading}</h3>
                 <ul className="mt-4 space-y-2.5">
                   {col.items.map((item) => (
                     <li key={item.label}>
                       {"to" in item ? (
                         <Link
                           to={item.to}
-                          className="text-[0.88rem] text-white/55 transition-colors duration-300 hover:text-white"
+                          className="text-[0.88rem] font-medium text-white/80 transition-colors duration-300 hover:text-white"
                         >
                           {item.label}
                         </Link>
                       ) : "anchor" in item ? (
                         <button
                           onClick={() => goTo(item.anchor)}
-                          className="text-left text-[0.88rem] text-white/55 transition-colors duration-300 hover:text-white"
+                          className="text-left text-[0.88rem] font-medium text-white/80 transition-colors duration-300 hover:text-white"
                         >
                           {item.label}
                         </button>
                       ) : (
                         <a
                           href={item.href}
-                          className="text-[0.88rem] text-white/55 transition-colors duration-300 hover:text-white"
+                          className="text-[0.88rem] font-medium text-white/80 transition-colors duration-300 hover:text-white"
                         >
                           {item.label}
                         </a>
@@ -147,11 +147,11 @@ export function Footer() {
           </span>
         </motion.div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-white/6 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="mono-label !text-[0.48rem] !text-white/35">
+        <div className="mt-12 flex flex-col gap-4 border-t border-white/8 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="mono-label !text-[0.52rem] !text-white/75">
             © {year} wireframe · Built in Canada
           </p>
-          <p className="mono-label !text-[0.48rem] !text-white/35">
+          <p className="mono-label !text-[0.52rem] !text-white/75">
             B-rep kernel · OCCT · STEP AP214 &amp; binary STL
           </p>
         </div>

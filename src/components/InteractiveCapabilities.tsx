@@ -190,14 +190,14 @@ export function InteractiveCapabilities() {
                     <span
                       className={
                         "text-[1.02rem] font-medium tracking-tight transition-colors duration-300 " +
-                        (active ? "text-white" : "text-white/55")
+                        (active ? "text-white font-semibold" : "text-white/80")
                       }
                     >
                       {c.title}
                     </span>
                   </div>
 
-                  <div className="mono-label mt-1 !text-[0.48rem] !tracking-[0.14em]">
+                  <div className="mono-label mt-1 !text-[0.5rem] !tracking-[0.14em]">
                     {c.kicker}
                   </div>
 
@@ -211,7 +211,7 @@ export function InteractiveCapabilities() {
                   <p
                     className={
                       "mt-2.5 hidden text-[0.85rem] leading-relaxed transition-colors duration-300 lg:block " +
-                      (active ? "text-white/60" : "text-white/30")
+                      (active ? "text-white/90" : "text-white/65")
                     }
                   >
                     {c.desc}
@@ -235,7 +235,7 @@ export function InteractiveCapabilities() {
             />
 
             <div className="relative flex h-full flex-col p-5 sm:p-7">
-              <p className="mb-4 text-[0.85rem] leading-relaxed text-white/55 lg:hidden">
+              <p className="mb-4 text-[0.88rem] leading-relaxed text-white/85 lg:hidden">
                 {CAPS.find((c) => c.id === mode)!.desc}
               </p>
 
@@ -317,10 +317,10 @@ function VocabularySheet() {
         {right.map((r) => (
           <g key={r.label}>
             <line x1="284" y1={r.y} x2="322" y2={r.y}
-                  stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
+                  stroke="rgba(255,255,255,0.38)" strokeWidth="1" />
             <circle cx="284" cy={r.y} r="2" fill="var(--metal-300)" />
-            <text x="332" y={r.y + 3} className="fill-white/70"
-                  style={{ font: "500 9px ui-monospace, monospace" }}>
+            <text x="332" y={r.y + 3} className="fill-white font-medium"
+                  style={{ font: "600 9.5px ui-monospace, monospace" }}>
               {r.label}
             </text>
           </g>
@@ -328,16 +328,16 @@ function VocabularySheet() {
 
         <g>
           <line x1="104" y1="196" x2="140" y2="196"
-                stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
+                stroke="rgba(255,255,255,0.38)" strokeWidth="1" />
           <circle cx="140" cy="196" r="2" fill="var(--accent-400)" />
-          <text x="96" y="199" textAnchor="end" className="fill-white/70"
-                style={{ font: "500 9px ui-monospace, monospace" }}>
+          <text x="96" y="199" textAnchor="end" className="fill-white font-medium"
+                style={{ font: "600 9.5px ui-monospace, monospace" }}>
             Pavé · 13 stones
           </text>
         </g>
       </svg>
 
-      <p className="mt-3 text-[0.78rem] leading-relaxed text-white/45">
+      <p className="mt-3 text-[0.8rem] leading-relaxed text-white/80">
         Pavé sets 13 stones, half eternity 21, full eternity 42 — counts the
         engine derives from the band, not numbers typed into a caption.
       </p>
@@ -378,9 +378,9 @@ function SizeSheet() {
           />
         </g>
 
-        <g className="fill-white/60" style={{ font: "500 9px ui-monospace, monospace" }}>
+        <g className="fill-white/90" style={{ font: "600 9.5px ui-monospace, monospace" }}>
           <text x="330" y="96">stone · 7.40 mm · 1.50 ct</text>
-          <text x="330" y="112" className="fill-accent-400">if scaled · {scaled.toFixed(2)} ct</text>
+          <text x="330" y="112" className="fill-accent-400 font-bold">if scaled · {scaled.toFixed(2)} ct</text>
           <text x="330" y="150">inner Ø · {dia.toFixed(2)} mm</text>
           <text x="330" y="166">band · 2.40 mm, unchanged</text>
         </g>
@@ -388,8 +388,8 @@ function SizeSheet() {
 
       <div className="mt-2">
         <div className="mb-1.5 flex items-baseline justify-between">
-          <span className="mono-label !text-[0.52rem]">US ring size</span>
-          <span className="tabular text-[0.78rem] text-white/75">{size.toFixed(1)}</span>
+          <span className="mono-label !text-[0.55rem] !text-white/80">US ring size</span>
+          <span className="tabular text-[0.82rem] font-semibold text-white">{size.toFixed(1)}</span>
         </div>
         <input type="range" min={3} max={13} step={0.5} value={size}
                onChange={(e) => setSize(Number(e.target.value))}
@@ -418,8 +418,8 @@ function WeightSheet() {
             className={
               "rounded-full border px-2.5 py-1 text-[0.66rem] transition-colors duration-300 " +
               (metal === m
-                ? "border-metal-400/50 bg-metal-400/10 text-metal-200"
-                : "border-white/10 text-white/45 hover:border-white/25 hover:text-white/75")
+                ? "border-metal-400/50 bg-metal-400/15 text-metal-200 font-medium"
+                : "border-white/12 text-white/80 hover:border-white/25 hover:text-white")
             }
           >
             {METAL_LABELS[m]}
@@ -438,7 +438,7 @@ function WeightSheet() {
           >
             {grams.toFixed(2)}
           </motion.span>
-          <span className="mono-label !text-[0.6rem]">grams</span>
+          <span className="mono-label !text-[0.65rem] !text-white/80">grams</span>
         </div>
 
         <div className="mt-5 space-y-2">
@@ -450,18 +450,18 @@ function WeightSheet() {
                 onClick={() => setMetal(m)}
                 className="flex w-full items-center gap-3 text-left"
               >
-                <span className={"mono-label w-32 shrink-0 !text-[0.5rem] " + (m === metal ? "!text-metal-300" : "")}>
+                <span className={"mono-label w-32 shrink-0 !text-[0.52rem] " + (m === metal ? "!text-metal-300" : "!text-white/75")}>
                   {METAL_LABELS[m]}
                 </span>
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                   <motion.span
-                    className={"block h-full rounded-full " + (m === metal ? "bg-metal-300" : "bg-white/20")}
+                    className={"block h-full rounded-full " + (m === metal ? "bg-metal-300" : "bg-white/30")}
                     initial={false}
                     animate={{ width: `${(g / max) * 100}%` }}
                     transition={{ type: "spring", stiffness: 260, damping: 30 }}
                   />
                 </span>
-                <span className={"tabular w-16 shrink-0 text-right text-[0.76rem] " + (m === metal ? "text-white" : "text-white/40")}>
+                <span className={"tabular w-16 shrink-0 text-right text-[0.78rem] font-medium " + (m === metal ? "text-white font-semibold" : "text-white/70")}>
                   {g.toFixed(2)} g
                 </span>
               </button>
@@ -470,7 +470,7 @@ function WeightSheet() {
         </div>
       </div>
 
-      <p className="mt-4 text-[0.78rem] leading-relaxed text-white/45">
+      <p className="mt-4 text-[0.8rem] leading-relaxed text-white/80">
         {VOLUME_CM3.toFixed(2)} cm³ of metal, measured off the closed solid,
         times {METAL_DENSITY[metal]} g/cm³ for {METAL_LABELS[metal].toLowerCase()}.
       </p>
@@ -540,15 +540,15 @@ function RegionSheet() {
           fill="none" stroke="var(--accent-400)" strokeWidth="1.2"
         />
 
-        <g className="fill-white/60" style={{ font: "500 9px ui-monospace, monospace" }}>
+        <g className="fill-white/90" style={{ font: "600 9.5px ui-monospace, monospace" }}>
           <text x="20" y="34">region · {FROM}° – {TO}°</text>
-          <text x="20" y="50" className="fill-accent-400">unchanged</text>
+          <text x="20" y="50" className="fill-accent-400 font-bold">unchanged</text>
           <text x="20" y="206">US size · {size.toFixed(1)}</text>
           <text x="20" y="222">inner Ø · {dia.toFixed(2)} mm</text>
         </g>
       </svg>
 
-      <p className="mt-3 text-[0.78rem] leading-relaxed text-white/45">
+      <p className="mt-3 text-[0.8rem] leading-relaxed text-white/80">
         The ring is rebuilt each time the size changes, so the faces it is made
         of are new objects with new numbers. The edit is stored as an angle
         around the finger, which is a property of the design rather than of any

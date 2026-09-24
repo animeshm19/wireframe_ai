@@ -199,18 +199,18 @@ export function HeroRevolution() {
         className="pointer-events-none absolute inset-0 z-0"
         style={{
           background:
-            "radial-gradient(110% 75% at 50% -10%, rgba(212,170,92,0.08), transparent 60%)," +
-            "radial-gradient(90% 60% at 75% 105%, rgba(198,155,178,0.07), transparent 65%)",
+            "radial-gradient(110% 75% at 50% -10%, rgba(212,170,92,0.12), transparent 60%)," +
+            "radial-gradient(90% 60% at 75% 105%, rgba(198,155,178,0.10), transparent 65%)",
         }}
       />
 
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[50%] opacity-[0.16] z-0"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[50%] opacity-[0.20] z-0"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)",
+            "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
           backgroundSize: "60px 60px",
           transform: "perspective(480px) rotateX(64deg)",
           transformOrigin: "bottom center",
@@ -230,13 +230,13 @@ export function HeroRevolution() {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="inline-flex w-fit items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 backdrop-blur-md"
+              className="inline-flex w-fit items-center gap-2.5 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 backdrop-blur-md"
             >
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
-              <span className="mono-label !text-[0.65rem] !tracking-[0.18em] !text-white/70">
+              <span className="mono-label !text-[0.68rem] !tracking-[0.18em] !text-white/90">
                 Interactive Atelier Bench · Live B-Rep Solid
               </span>
             </motion.div>
@@ -246,7 +246,7 @@ export function HeroRevolution() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.1 }}
-              className="mt-4 text-3xl font-medium tracking-tight sm:text-4xl lg:text-5xl"
+              className="mt-4 text-3xl font-medium tracking-tight text-white sm:text-4xl lg:text-5xl"
             >
               Design fine jewelry with{" "}
               <span className="bg-gradient-to-r from-white via-white/95 to-metal-300 bg-clip-text text-transparent">
@@ -258,7 +258,7 @@ export function HeroRevolution() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.2 }}
-              className="mt-3 max-w-xl text-sm leading-relaxed text-white/60 sm:text-base"
+              className="mt-3 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base"
             >
               Type your design intent, customize every facet live in 3D, and
               export exact, watertight STEP and STL files calibrated for
@@ -270,7 +270,7 @@ export function HeroRevolution() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.3 }}
-              className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-xl shadow-2xl sm:p-5"
+              className="mt-6 rounded-2xl border border-white/12 bg-black/50 p-4 backdrop-blur-xl shadow-2xl sm:p-5"
             >
               {/* Natural Language Prompt Input Bar */}
               <form onSubmit={handlePromptSubmit} className="relative flex items-center">
@@ -279,7 +279,7 @@ export function HeroRevolution() {
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
                   placeholder="Describe your piece (e.g. 18k yellow gold solitaire, 2ct oval, size 6)..."
-                  className="w-full rounded-xl border border-white/12 bg-white/[0.05] py-2.5 pl-3.5 pr-24 text-xs text-white placeholder-white/30 transition-all focus:border-metal-400 focus:bg-white/[0.08] focus:outline-none sm:text-sm"
+                  className="w-full rounded-xl border border-white/15 bg-white/[0.07] py-2.5 pl-3.5 pr-24 text-xs text-white placeholder-white/60 transition-all focus:border-metal-400 focus:bg-white/[0.10] focus:outline-none sm:text-sm"
                 />
                 <button
                   type="submit"
@@ -299,10 +299,10 @@ export function HeroRevolution() {
                       key={p.label}
                       type="button"
                       onClick={() => handlePresetSelect(p)}
-                      className={`rounded-full px-2.5 py-1 text-[0.68rem] transition-colors sm:text-xs ${
+                      className={`rounded-full px-2.5 py-1 text-[0.72rem] transition-colors sm:text-xs ${
                         isActive
-                          ? "border border-metal-400 bg-white/15 text-white"
-                          : "border border-white/8 bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80"
+                          ? "border border-metal-400 bg-white/20 text-white font-medium shadow-sm"
+                          : "border border-white/12 bg-white/[0.04] text-white/80 hover:border-white/25 hover:text-white"
                       }`}
                     >
                       {p.label}
@@ -312,14 +312,14 @@ export function HeroRevolution() {
               </div>
 
               {/* Secondary Customization Tabs */}
-              <div className="mt-4 border-t border-white/8 pt-3">
-                <div className="flex items-center gap-4 text-xs font-medium text-white/50">
+              <div className="mt-4 border-t border-white/10 pt-3">
+                <div className="flex items-center gap-4 text-xs font-medium text-white/75">
                   <button
                     type="button"
                     onClick={() => setActiveTab("alloy")}
                     className={`pb-1 transition-colors ${
                       activeTab === "alloy"
-                        ? "border-b-2 border-metal-400 text-white"
+                        ? "border-b-2 border-metal-400 text-white font-semibold"
                         : "hover:text-white"
                     }`}
                   >
@@ -330,7 +330,7 @@ export function HeroRevolution() {
                     onClick={() => setActiveTab("stone")}
                     className={`pb-1 transition-colors ${
                       activeTab === "stone"
-                        ? "border-b-2 border-metal-400 text-white"
+                        ? "border-b-2 border-metal-400 text-white font-semibold"
                         : "hover:text-white"
                     }`}
                   >
@@ -341,7 +341,7 @@ export function HeroRevolution() {
                     onClick={() => setActiveTab("view")}
                     className={`pb-1 transition-colors ${
                       activeTab === "view"
-                        ? "border-b-2 border-metal-400 text-white"
+                        ? "border-b-2 border-metal-400 text-white font-semibold"
                         : "hover:text-white"
                     }`}
                   >
@@ -367,18 +367,18 @@ export function HeroRevolution() {
                           }
                           className={`flex items-center gap-2 rounded-xl border p-2 text-left transition-all ${
                             isSelected
-                              ? "border-metal-400 bg-white/15 shadow-sm"
-                              : "border-white/8 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
+                              ? "border-metal-400 bg-white/20 shadow-sm"
+                              : "border-white/12 bg-white/[0.04] hover:border-white/25 hover:bg-white/[0.08]"
                           }`}
                         >
                           <span
                             className={`h-4 w-4 shrink-0 rounded-full bg-gradient-to-tr shadow-inner ${m.gradient}`}
                           />
                           <div className="overflow-hidden">
-                            <div className="truncate text-[0.72rem] font-medium text-white">
+                            <div className="truncate text-[0.74rem] font-semibold text-white">
                               {m.badge}
                             </div>
-                            <div className="truncate text-[0.58rem] text-white/40">
+                            <div className="truncate text-[0.64rem] text-white/75">
                               {m.density}
                             </div>
                           </div>
@@ -397,7 +397,7 @@ export function HeroRevolution() {
                   >
                     {/* Cut buttons */}
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[0.7rem] text-white/40 mr-1">Cut:</span>
+                      <span className="text-[0.75rem] font-medium text-white/80 mr-1">Cut:</span>
                       {GEM_CUT_OPTIONS.map((cut) => {
                         const isCutActive = spec.gemShape === cut.id;
                         return (
@@ -408,17 +408,16 @@ export function HeroRevolution() {
                               setSpec((prev) => ({
                                 ...prev,
                                 gemShape: cut.id,
-                                // Emerald & Princess default to 4 prongs
                                 prongCount:
                                   cut.id === "emerald" || cut.id === "princess"
                                     ? 4
                                     : prev.prongCount,
                               }))
                             }
-                            className={`rounded-lg px-2.5 py-1 text-[0.7rem] transition-colors ${
+                            className={`rounded-lg px-2.5 py-1 text-[0.72rem] transition-colors ${
                               isCutActive
-                                ? "bg-white text-ink-950 font-medium shadow"
-                                : "bg-white/[0.06] text-white/60 hover:bg-white/10 hover:text-white"
+                                ? "bg-white text-ink-950 font-semibold shadow"
+                                : "bg-white/[0.08] text-white/80 hover:bg-white/15 hover:text-white"
                             }`}
                           >
                             {cut.label}
@@ -430,7 +429,7 @@ export function HeroRevolution() {
                     {/* Carat, Prongs, Finger Size Controls */}
                     <div className="flex flex-wrap items-center gap-4 pt-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[0.7rem] text-white/40">Carat:</span>
+                        <span className="text-[0.75rem] font-medium text-white/80">Carat:</span>
                         {CARAT_OPTIONS.map((ct) => (
                           <button
                             key={ct}
@@ -438,10 +437,10 @@ export function HeroRevolution() {
                             onClick={() =>
                               setSpec((prev) => ({ ...prev, gemSize: ct }))
                             }
-                            className={`rounded-md px-2 py-0.5 text-[0.7rem] ${
+                            className={`rounded-md px-2 py-0.5 text-[0.72rem] ${
                               spec.gemSize === ct
-                                ? "border border-metal-400 bg-white/20 text-white font-medium"
-                                : "text-white/50 hover:text-white"
+                                ? "border border-metal-400 bg-white/20 text-white font-semibold"
+                                : "border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:text-white"
                             }`}
                           >
                             {ct.toFixed(1)} ct
@@ -450,7 +449,7 @@ export function HeroRevolution() {
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[0.7rem] text-white/40">Prongs:</span>
+                        <span className="text-[0.75rem] font-medium text-white/80">Prongs:</span>
                         {[4, 6].map((cnt) => (
                           <button
                             key={cnt}
@@ -458,10 +457,10 @@ export function HeroRevolution() {
                             onClick={() =>
                               setSpec((prev) => ({ ...prev, prongCount: cnt }))
                             }
-                            className={`rounded-md px-2 py-0.5 text-[0.7rem] ${
+                            className={`rounded-md px-2 py-0.5 text-[0.72rem] ${
                               spec.prongCount === cnt
-                                ? "border border-metal-400 bg-white/20 text-white font-medium"
-                                : "text-white/50 hover:text-white"
+                                ? "border border-metal-400 bg-white/20 text-white font-semibold"
+                                : "border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:text-white"
                             }`}
                           >
                             {cnt} Claws
@@ -470,7 +469,7 @@ export function HeroRevolution() {
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[0.7rem] text-white/40">Finger:</span>
+                        <span className="text-[0.75rem] font-medium text-white/80">Finger:</span>
                         {RING_SIZE_OPTIONS.map((sz) => (
                           <button
                             key={sz}
@@ -478,10 +477,10 @@ export function HeroRevolution() {
                             onClick={() =>
                               setSpec((prev) => ({ ...prev, ringSize: sz }))
                             }
-                            className={`rounded-md px-1.5 py-0.5 text-[0.7rem] ${
+                            className={`rounded-md px-1.5 py-0.5 text-[0.72rem] ${
                               spec.ringSize === sz
-                                ? "border border-metal-400 bg-white/20 text-white font-medium"
-                                : "text-white/50 hover:text-white"
+                                ? "border border-metal-400 bg-white/20 text-white font-semibold"
+                                : "border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:text-white"
                             }`}
                           >
                             US {sz}
@@ -518,8 +517,8 @@ export function HeroRevolution() {
                           }
                           className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors ${
                             isActive
-                              ? "bg-white text-ink-950 font-medium"
-                              : "border border-white/8 bg-white/[0.04] text-white/60 hover:text-white"
+                              ? "bg-white text-ink-950 font-semibold"
+                              : "border border-white/12 bg-white/[0.06] text-white/80 hover:text-white"
                           }`}
                         >
                           <Icon className="h-3.5 w-3.5" />
@@ -532,11 +531,11 @@ export function HeroRevolution() {
               </div>
 
               {/* Call to Action Row */}
-              <div className="mt-5 flex flex-wrap items-center gap-3 pt-3 border-t border-white/8">
+              <div className="mt-5 flex flex-wrap items-center gap-3 pt-3 border-t border-white/10">
                 <button
                   type="button"
                   onClick={openInStudio}
-                  className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-white px-5 py-2.5 text-xs font-medium text-ink-950 transition-colors duration-300 hover:bg-metal-200 sm:text-sm"
+                  className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-white px-5 py-2.5 text-xs font-semibold text-ink-950 transition-colors duration-300 hover:bg-metal-200 sm:text-sm"
                 >
                   <span>Open in Full Studio</span>
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -544,7 +543,7 @@ export function HeroRevolution() {
 
                 <a
                   href="#contact"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/12 px-4 py-2.5 text-xs text-white/70 transition-colors hover:border-white/25 hover:text-white sm:text-sm"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-white/85 transition-colors hover:border-white/30 hover:text-white sm:text-sm"
                 >
                   Book an Atelier Demo
                 </a>
@@ -555,7 +554,7 @@ export function HeroRevolution() {
           {/* Right Column: 3D Viewport Stage */}
           <div className="relative flex h-[380px] w-full flex-col justify-center sm:h-[460px] lg:col-span-5 lg:h-[540px]">
             {/* 3D Visual Canvas */}
-            <div className="relative h-full w-full rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.03] to-transparent p-1 shadow-2xl overflow-hidden backdrop-blur-sm">
+            <div className="relative h-full w-full rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.04] to-transparent p-1 shadow-2xl overflow-hidden backdrop-blur-sm">
               <HeroRevolutionVisual
                 spec={spec}
                 onMetricsChange={setMetrics}
@@ -563,7 +562,7 @@ export function HeroRevolution() {
               />
 
               {/* Top overlay badge on viewport */}
-              <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-md bg-black/60 px-2.5 py-1 text-[0.65rem] text-white/70 backdrop-blur-md">
+              <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-md bg-black/70 px-2.5 py-1 text-[0.68rem] text-white/90 backdrop-blur-md">
                 <RotateCw className="h-3 w-3 animate-spin text-metal-300" style={{ animationDuration: "12s" }} />
                 <span>360° Interactive Canvas · Drag to Orbit</span>
               </div>
@@ -576,40 +575,40 @@ export function HeroRevolution() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-8 grid grid-cols-2 gap-2 overflow-hidden rounded-xl border border-white/10 bg-black/40 backdrop-blur-xl sm:grid-cols-4"
+          className="mt-8 grid grid-cols-2 gap-2 overflow-hidden rounded-xl border border-white/12 bg-black/50 backdrop-blur-xl sm:grid-cols-4"
         >
-          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/6">
-            <div className="mono-label !text-[0.56rem] !tracking-[0.16em] !text-white/40">
+          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/10">
+            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
               Metal Volume
             </div>
-            <div className="mt-1 text-sm font-medium text-white sm:text-base">
+            <div className="mt-1 text-sm font-semibold text-white sm:text-base">
               {metrics.volumeCm3.toFixed(2)} cm³
             </div>
           </div>
 
-          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/6">
-            <div className="mono-label !text-[0.56rem] !tracking-[0.16em] !text-white/40">
+          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/10">
+            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
               Est. Weight ({spec.metalType === "platinum" ? "950 Pt" : spec.metalType === "18k_gold" ? "18k Au" : spec.metalType === "14k_rose" ? "14k Rose" : spec.metalType === "white_gold" ? "18k White" : "Silver"})
             </div>
-            <div className="mt-1 text-sm font-medium text-white sm:text-base">
+            <div className="mt-1 text-sm font-semibold text-white sm:text-base">
               {metrics.weightGrams.toFixed(2)} g
             </div>
           </div>
 
-          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/6">
-            <div className="mono-label !text-[0.56rem] !tracking-[0.16em] !text-white/40">
+          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/10">
+            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
               Centre Stone
             </div>
-            <div className="mt-1 text-sm font-medium text-white sm:text-base">
+            <div className="mt-1 text-sm font-semibold text-white sm:text-base">
               {metrics.carat.toFixed(2)} ct · {metrics.diameterMm.toFixed(1)} mm
             </div>
           </div>
 
           <div className="p-3 sm:px-4 sm:py-3.5">
-            <div className="mono-label !text-[0.56rem] !tracking-[0.16em] !text-white/40">
+            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
               Solid Topology
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-400 sm:text-sm">
+            <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-emerald-400 sm:text-sm">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
               <span>100% Watertight B-Rep</span>
             </div>
