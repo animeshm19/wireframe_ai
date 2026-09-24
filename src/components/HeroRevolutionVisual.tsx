@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -10,7 +10,16 @@ import {
   type MetalType,
 } from "../lib/ring-spec";
 import type { GemCut } from "../lib/cad-engine";
-import { createBrilliantGeometry } from "../lib/brilliant-geometry";
+import {
+  gemOutline,
+  gemDims,
+  radiusAtAngle,
+  girdleRadiusFor,
+} from "../lib/cad-engine";
+import {
+  createAccurateGemGeometry,
+  getProngAnglesForCut,
+} from "../lib/gem-geometries";
 
 export type HeroRevolutionSpec = {
   metalType: MetalType;
@@ -37,17 +46,6 @@ type Props = {
   style?: CSSProperties;
 };
 
-// Aspect ratio mapping for fancy diamond cuts
-const GEM_ASPECT_RATIOS: Record<GemCut, number> = {
-  round: 1.0,
-  oval: 1.36,
-  marquise: 1.82,
-  emerald: 1.34,
-  princess: 1.0,
-  cushion: 1.08,
-  pear: 1.48,
-};
-
 export function HeroRevolutionVisual({
   spec,
   onMetricsChange,
@@ -61,7 +59,6 @@ export function HeroRevolutionVisual({
   const onMetricsChangeRef = useRef(onMetricsChange);
   onMetricsChangeRef.current = onMetricsChange;
 
-  // Scene state handles
   const updateMaterialRef = useRef<(() => void) | null>(null);
   const rebuildGeometryRef = useRef<(() => void) | null>(null);
   const updateDisplayModeRef = useRef<(() => void) | null>(null);
@@ -79,36 +76,33 @@ export function HeroRevolutionVisual({
       antialias: true,
       alpha: true,
       powerPreference: "high-performance",
-      preserveDrawingBuffer: false,
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.28;
+    renderer.toneMappingExposure = 1.30;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.localClippingEnabled = true;
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
 
-    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 200);
-    camera.position.set(0, 3.2, 17.5);
+    const camera = new THREE.PerspectiveCamera(34, width / height, 0.1, 200);
+    camera.position.set(0, 3.4, 18);
 
-    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
+    controls.dampingFactor = 0.07;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.75;
-    controls.maxPolarAngle = Math.PI / 2 + 0.32;
+    controls.autoRotateSpeed = 0.7;
+    controls.maxPolarAngle = Math.PI / 2 + 0.35;
     controls.minDistance = 9;
-    controls.maxDistance = 28;
-    controls.target.set(0, 1.1, 0);
+    controls.maxDistance = 30;
+    controls.target.set(0, 1.2, 0);
 
     // Environment Lighting
     const envScene = createJewelleryEnvironment();
 
-    // Studio front fill panel to reflect cleanly in polished face-on metal
     const frontFill = new THREE.Mesh(
       new THREE.PlaneGeometry(64, 46),
       new THREE.MeshBasicMaterial({ color: 0xfff8fa, side: THREE.DoubleSide })
@@ -126,14 +120,14 @@ export function HeroRevolutionVisual({
     });
     scene.environment = envTexture;
 
-    // Radial backdrop
+    // Backdrop
     const backdropCanvas = document.createElement("canvas");
     backdropCanvas.width = 4;
     backdropCanvas.height = 512;
     {
       const g = backdropCanvas.getContext("2d")!;
       const grad = g.createLinearGradient(0, 0, 0, 512);
-      grad.addColorStop(0, "#251222");
+      grad.addColorStop(0, "#261323");
       grad.addColorStop(0.38, "#180a15");
       grad.addColorStop(0.72, "#0f050d");
       grad.addColorStop(1, "#080106");
@@ -153,14 +147,14 @@ export function HeroRevolutionVisual({
     backdrop.renderOrder = -1;
     scene.add(backdrop);
 
-    // Subtle Key light
-    const key = new THREE.DirectionalLight(0xffffff, 1.6);
-    key.position.set(7, 10, 8);
+    // Directional Key Lights
+    const key = new THREE.DirectionalLight(0xffffff, 1.8);
+    key.position.set(7, 11, 9);
     scene.add(key);
 
-    const key2 = new THREE.DirectionalLight(0xfff5ea, 0.8);
-    key2.position.set(-6, -4, -6);
-    scene.add(key2);
+    const rim = new THREE.DirectionalLight(0xfff7ee, 1.0);
+    rim.position.set(-7, -4, -6);
+    scene.add(rim);
 
     // Section Clipping Plane (cuts X axis cleanly)
     const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
@@ -186,7 +180,6 @@ export function HeroRevolutionVisual({
       opacity: 0.85,
     });
 
-    // Diamond: Refractive with high dispersion
     const gemMat = coarse
       ? new THREE.MeshPhysicalMaterial({
           color: 0xffffff,
@@ -202,12 +195,12 @@ export function HeroRevolutionVisual({
           metalness: 0,
           roughness: 0,
           transmission: 1.0,
-          thickness: 1.6,
-          attenuationDistance: 45,
+          thickness: 1.8,
+          attenuationDistance: 50,
           ior: 2.417,
-          dispersion: 3.2,
+          dispersion: 3.4,
           specularIntensity: 1.2,
-          envMapIntensity: 3.4,
+          envMapIntensity: 3.6,
           side: THREE.DoubleSide,
         });
 
@@ -220,8 +213,8 @@ export function HeroRevolutionVisual({
     shadowCanvas.width = shadowCanvas.height = 256;
     const sctx = shadowCanvas.getContext("2d")!;
     const grad = sctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-    grad.addColorStop(0, "rgba(0,0,0,0.58)");
-    grad.addColorStop(0.42, "rgba(0,0,0,0.24)");
+    grad.addColorStop(0, "rgba(0,0,0,0.60)");
+    grad.addColorStop(0.42, "rgba(0,0,0,0.25)");
     grad.addColorStop(1, "rgba(0,0,0,0)");
     sctx.fillStyle = grad;
     sctx.fillRect(0, 0, 256, 256);
@@ -239,21 +232,19 @@ export function HeroRevolutionVisual({
     shadowMesh.position.y = -2.9;
     scene.add(shadowMesh);
 
-    // Geometry handles
+    // Dynamic mesh references
     let currentShankGeom: THREE.BufferGeometry | null = null;
     let currentGemGeom: THREE.BufferGeometry | null = null;
-    let currentProngGeoms: THREE.BufferGeometry[] = [];
+    const currentMetalGeoms: THREE.BufferGeometry[] = [];
 
     let shankMesh: THREE.Mesh | null = null;
     let gemMesh: THREE.Mesh | null = null;
-    const prongMeshes: THREE.Mesh[] = [];
+    const metalHeadMeshes: THREE.Mesh[] = [];
 
-    // Helper to calculate exact physics/specs
     const computeAndEmitMetrics = (
       rScene: number,
       tubeScene: number,
-      girdleScene: number,
-      ratio: number,
+      girdleR_mm: number,
       mmPerUnit: number
     ) => {
       const currentSpec = specRef.current;
@@ -261,17 +252,17 @@ export function HeroRevolutionVisual({
       const tubeRadiusMm = tubeScene * mmPerUnit;
       const majorRadiusMm = innerRadiusMm + tubeRadiusMm;
 
-      // Torus volume = 2 * pi^2 * R * r^2
+      // Torus volume
       const torusVolMm3 =
         2 * Math.PI * Math.PI * majorRadiusMm * Math.pow(tubeRadiusMm, 2);
-      // Prongs and head estimate
-      const prongsVolMm3 = currentSpec.prongCount * (Math.PI * 0.45 * 0.45 * 4.5);
-      const totalVolMm3 = torusVolMm3 * 0.92 + prongsVolMm3; // account for bore cut
+      // Prongs, gallery, base collar
+      const headVolMm3 = currentSpec.prongCount * 12 + 25;
+      const totalVolMm3 = torusVolMm3 * 0.93 + headVolMm3;
       const volumeCm3 = totalVolMm3 / 1000;
 
       const density = METAL_DENSITY[currentSpec.metalType] || 21.45;
       const weightGrams = volumeCm3 * density;
-      const diameterMm = girdleScene * 2 * mmPerUnit;
+      const diameterMm = girdleR_mm * 2;
 
       onMetricsChangeRef.current?.({
         volumeCm3: Number(volumeCm3.toFixed(2)),
@@ -282,102 +273,208 @@ export function HeroRevolutionVisual({
       });
     };
 
-    // Rebuild geometry when shape, carat, ring size or prong count changes
+    /**
+     * Builds the complete, physically attached ring:
+     * 1. Comfort-fit shank
+     * 2. Accurate GIA faceted gem for the exact requested cut
+     * 3. Solid base collar (donut bridge) welded directly to the shank crest
+     * 4. Realistic tapered claw prongs rooted in the base collar and curving inward over the crown
+     * 5. Structural gallery rail (under-bezel wire) tying all prongs together
+     */
     const rebuildGeometry = () => {
       const currentSpec = specRef.current;
 
-      // Clean existing meshes
+      // Dispose existing geometries
       if (shankMesh) {
         ringGroup.remove(shankMesh);
         currentShankGeom?.dispose();
+        shankMesh = null;
       }
       if (gemMesh) {
         ringGroup.remove(gemMesh);
         currentGemGeom?.dispose();
+        gemMesh = null;
       }
-      for (const p of prongMeshes) {
-        ringGroup.remove(p);
+      for (const m of metalHeadMeshes) {
+        ringGroup.remove(m);
       }
-      prongMeshes.length = 0;
-      for (const g of currentProngGeoms) {
+      metalHeadMeshes.length = 0;
+      for (const g of currentMetalGeoms) {
         g.dispose();
       }
-      currentProngGeoms.length = 0;
+      currentMetalGeoms.length = 0;
 
-      // Scene unit scaling: Size 6.5 inner radius is 8.45mm
+      const activeMetalMat =
+        currentSpec.displayMode === "wireframe" ? wireframeMat : metalMat;
+
+      // --- 1. Shank Construction ---
+      // Size 6.5 inner radius = 8.45 mm
       const baseInnerRadiusMm = 8.45 + (currentSpec.ringSize - 6.5) * 0.41;
       const R = 2.45 * (baseInnerRadiusMm / 8.45);
       const MM_PER_UNIT = baseInnerRadiusMm / R;
 
-      // Band width in scene units
-      const tubeRadius = (currentSpec.bandWidth / 2) / MM_PER_UNIT;
+      const bandWidthMm = currentSpec.bandWidth;
+      const tubeRadius = (bandWidthMm / 2) / MM_PER_UNIT;
 
-      // Torus shank (comfort fit proportion)
-      const shankGeom = new THREE.TorusGeometry(R, tubeRadius, 36, 140);
+      // Comfort-fit dome torus
+      const shankGeom = new THREE.TorusGeometry(R, tubeRadius, 40, 160);
       currentShankGeom = shankGeom;
 
       applyTriplanar(metalMat, MM_PER_UNIT / polish.tileMm);
 
-      const activeMetalMat =
-        currentSpec.displayMode === "wireframe" ? wireframeMat : metalMat;
       shankMesh = new THREE.Mesh(shankGeom, activeMetalMat);
       ringGroup.add(shankMesh);
 
-      // Girdle radius from carat weight (GIA 1.0ct ~ 6.5mm diameter)
-      const targetDiaMm = 6.5 * Math.pow(currentSpec.gemSize, 1 / 3);
-      const GIRDLE = (targetDiaMm / 2) / MM_PER_UNIT;
-      const aspect = GEM_ASPECT_RATIOS[currentSpec.gemShape] || 1.0;
+      // --- 2. Accurate Diamond Geometry ---
+      const girdleR_mm = girdleRadiusFor(currentSpec.gemShape, currentSpec.gemSize);
+      const GIRDLE = girdleR_mm / MM_PER_UNIT;
 
-      const gemGeom = createBrilliantGeometry({
-        girdleRadius: GIRDLE,
-        lengthToWidth: aspect,
-      });
+      // Create exact mathematical diamond geometry (Round, Oval, Emerald, Marquise, Cushion, Princess)
+      const gemGeom = createAccurateGemGeometry(currentSpec.gemShape, GIRDLE);
       currentGemGeom = gemGeom;
 
-      const pavilionDepth = GIRDLE * 0.86;
-      const GEM_Y = R + tubeRadius + pavilionDepth + 0.12;
+      const { pavH: pavH_mm, girdleH: girdleH_mm, crownH: crownH_mm } = gemDims(girdleR_mm);
+      const pavH = pavH_mm / MM_PER_UNIT;
+      const girdleH = girdleH_mm / MM_PER_UNIT;
+      const crownH = crownH_mm / MM_PER_UNIT;
 
+      // The crest (top apex) of the ring band
+      const crestY = R + tubeRadius;
+
+      // Base collar thickness and placement:
+      // The base collar is embedded 0.08 units into the shank crest so they form one solid piece.
+      const baseDonutY = crestY - 0.08;
+      const baseDonutRadius = Math.max(0.45, GIRDLE * 0.38);
+      const baseDonutTube = 0.09;
+
+      // Culet sits just inside the opening of the base collar
+      const culetY = baseDonutY + 0.06;
+      const girdleBottomY = culetY + pavH;
+      const girdleTopY = girdleBottomY + girdleH;
+
+      // Position diamond so its culet sits at culetY
       gemMesh = new THREE.Mesh(gemGeom, gemMat);
-      gemMesh.position.y = GEM_Y;
+      gemMesh.position.set(0, culetY, 0);
       ringGroup.add(gemMesh);
 
-      // Prongs
-      const prongLength = GEM_Y - R - 0.08;
-      const prongRadius = Math.max(0.08, GIRDLE * 0.095);
-      const prongsCount = currentSpec.prongCount;
+      // --- 3. Solid Base Collar (Head Foot / Donut Bridge) ---
+      // Sits directly on top of the shank and anchors the entire prong cage.
+      const baseCollarGeom = new THREE.TorusGeometry(
+        baseDonutRadius,
+        baseDonutTube,
+        16,
+        48
+      );
+      baseCollarGeom.rotateX(Math.PI / 2); // Lay horizontal
+      currentMetalGeoms.push(baseCollarGeom);
 
-      for (let i = 0; i < prongsCount; i++) {
-        const angle =
-          (i / prongsCount) * Math.PI * 2 +
-          (prongsCount === 4 ? Math.PI / 4 : 0);
-        const px = Math.cos(angle) * GIRDLE * 0.94;
-        const pz = Math.sin(angle) * GIRDLE * 0.94 * aspect;
+      const baseCollarMesh = new THREE.Mesh(baseCollarGeom, activeMetalMat);
+      baseCollarMesh.position.set(0, baseDonutY, 0);
+      ringGroup.add(baseCollarMesh);
+      metalHeadMeshes.push(baseCollarMesh);
 
-        const pGeom = new THREE.CapsuleGeometry(
-          prongRadius,
-          prongLength,
-          6,
-          10
+      // Solid bridge block beneath the collar to fill any clearance down to the band bore
+      const bridgeGeom = new THREE.CylinderGeometry(
+        baseDonutRadius * 0.85,
+        baseDonutRadius * 0.95,
+        tubeRadius * 0.8,
+        32
+      );
+      currentMetalGeoms.push(bridgeGeom);
+      const bridgeMesh = new THREE.Mesh(bridgeGeom, activeMetalMat);
+      bridgeMesh.position.set(0, baseDonutY - tubeRadius * 0.38, 0);
+      ringGroup.add(bridgeMesh);
+      metalHeadMeshes.push(bridgeMesh);
+
+      // --- 4. Structural Gallery Rail (Under-Bezel Wire) ---
+      // Sits at ~55% of the pavilion height, bracing all prongs together.
+      const galleryY = culetY + pavH * 0.55;
+      const galleryScale = 0.65; // scale relative to girdle
+      const galleryTubeR = 0.065;
+
+      const o = gemOutline(currentSpec.gemShape, 64);
+      // Build a closed 3D spline along the stone silhouette at gallery height
+      const galleryCurvePts: THREE.Vector3[] = o.map(([px, py]) => {
+        return new THREE.Vector3(
+          px * GIRDLE * galleryScale,
+          galleryY,
+          py * GIRDLE * galleryScale
         );
-        currentProngGeoms.push(pGeom);
+      });
+      const gallerySpline = new THREE.CatmullRomCurve3(galleryCurvePts, true);
+      const galleryRailGeom = new THREE.TubeGeometry(gallerySpline, 64, galleryTubeR, 8, true);
+      currentMetalGeoms.push(galleryRailGeom);
 
-        const pMesh = new THREE.Mesh(pGeom, activeMetalMat);
-        pMesh.position.set(px, (GEM_Y + R + tubeRadius) / 2, pz);
-        pMesh.rotation.z = -Math.cos(angle) * 0.18;
-        pMesh.rotation.x = Math.sin(angle) * 0.18;
+      const galleryRailMesh = new THREE.Mesh(galleryRailGeom, activeMetalMat);
+      ringGroup.add(galleryRailMesh);
+      metalHeadMeshes.push(galleryRailMesh);
 
-        ringGroup.add(pMesh);
-        prongMeshes.push(pMesh);
+      // --- 5. Realistic Tapered Claw Prongs ---
+      // Prongs are attached to the base collar, pass through the gallery rail,
+      // grip the stone girdle with an authentic seat, and curve inward over the crown.
+      const prongAngles = getProngAnglesForCut(currentSpec.gemShape, currentSpec.prongCount);
+      const prongWireRadius = Math.max(0.08, GIRDLE * 0.085);
+
+      for (const angle of prongAngles) {
+        // Find exact distance from center to stone edge in this direction
+        const edgeR = radiusAtAngle(o, angle) * GIRDLE;
+
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+
+        // Point 1: Base Anchor on the Donut Collar
+        const p1 = new THREE.Vector3(
+          cosA * (baseDonutRadius * 0.95),
+          baseDonutY,
+          sinA * (baseDonutRadius * 0.95)
+        );
+
+        // Point 2: Mid-shank support passing through Gallery Rail
+        const p2 = new THREE.Vector3(
+          cosA * (edgeR * galleryScale * 1.02),
+          galleryY,
+          sinA * (edgeR * galleryScale * 1.02)
+        );
+
+        // Point 3: Stone Girdle Seat Notch (firmly touching the diamond girdle)
+        const p3 = new THREE.Vector3(
+          cosA * (edgeR * 1.01),
+          girdleBottomY + girdleH * 0.5,
+          sinA * (edgeR * 1.01)
+        );
+
+        // Point 4: Elegant Claw Tip (curving over the crown onto the bezel facet)
+        const clawReachInward = 0.88; // curls inward over crown
+        const p4 = new THREE.Vector3(
+          cosA * (edgeR * clawReachInward),
+          girdleTopY + crownH * 0.35,
+          sinA * (edgeR * clawReachInward)
+        );
+
+        const prongCurve = new THREE.CatmullRomCurve3([p1, p2, p3, p4]);
+        const prongGeom = new THREE.TubeGeometry(prongCurve, 24, prongWireRadius, 10, false);
+        currentMetalGeoms.push(prongGeom);
+
+        const prongMesh = new THREE.Mesh(prongGeom, activeMetalMat);
+        ringGroup.add(prongMesh);
+        metalHeadMeshes.push(prongMesh);
+
+        // Rounded spherical claw cap at the tip
+        const capGeom = new THREE.SphereGeometry(prongWireRadius * 1.05, 12, 12);
+        currentMetalGeoms.push(capGeom);
+        const capMesh = new THREE.Mesh(capGeom, activeMetalMat);
+        capMesh.position.copy(p4);
+        ringGroup.add(capMesh);
+        metalHeadMeshes.push(capMesh);
       }
 
       shadowMesh.position.y = -R - tubeRadius - 0.25;
 
-      computeAndEmitMetrics(R, tubeRadius, GIRDLE, aspect, MM_PER_UNIT);
+      computeAndEmitMetrics(R, tubeRadius, girdleR_mm, MM_PER_UNIT);
     };
 
     rebuildGeometryRef.current = rebuildGeometry;
 
-    // Update material properties dynamically without re-creating geometry
     const updateMaterial = () => {
       const currentSpec = specRef.current;
       const appearance = METAL_APPEARANCE[currentSpec.metalType];
@@ -388,14 +485,12 @@ export function HeroRevolutionVisual({
       );
       metalMat.needsUpdate = true;
 
-      // Recalculate metrics for new metal density
       if (rebuildGeometryRef.current) {
         rebuildGeometryRef.current();
       }
     };
     updateMaterialRef.current = updateMaterial;
 
-    // Update display modes (Solid, Wireframe, Section)
     const updateDisplayMode = () => {
       const mode = specRef.current.displayMode;
 
@@ -407,13 +502,11 @@ export function HeroRevolutionVisual({
 
       const activeMetalMat = mode === "wireframe" ? wireframeMat : metalMat;
       if (shankMesh) shankMesh.material = activeMetalMat;
-      for (const p of prongMeshes) p.material = activeMetalMat;
-
-      if (mode === "wireframe") {
-        gemMat.wireframe = true;
-      } else {
-        gemMat.wireframe = false;
+      for (const m of metalHeadMeshes) {
+        m.material = activeMetalMat;
       }
+
+      gemMat.wireframe = mode === "wireframe";
       gemMat.needsUpdate = true;
       metalMat.needsUpdate = true;
     };
@@ -440,7 +533,6 @@ export function HeroRevolutionVisual({
 
     raf = requestAnimationFrame(tick);
 
-    // Pause when tab is hidden or element is scrolled offscreen
     const io = new IntersectionObserver(([e]) => {
       running = e.isIntersecting;
       if (running && !raf) tick();
@@ -453,7 +545,6 @@ export function HeroRevolutionVisual({
     };
     document.addEventListener("visibilitychange", onVisibility);
 
-    // Resize
     const ro = new ResizeObserver(() => {
       if (!mount.clientWidth || !mount.clientHeight) return;
       width = mount.clientWidth;
@@ -464,7 +555,6 @@ export function HeroRevolutionVisual({
     });
     ro.observe(mount);
 
-    // Cleanup
     return () => {
       running = false;
       cancelAnimationFrame(raf);
@@ -474,7 +564,7 @@ export function HeroRevolutionVisual({
 
       currentShankGeom?.dispose();
       currentGemGeom?.dispose();
-      for (const g of currentProngGeoms) g.dispose();
+      for (const g of currentMetalGeoms) g.dispose();
       shadowMesh.geometry.dispose();
       (shadowMesh.material as THREE.Material).dispose();
       shadowTex.dispose();
@@ -497,7 +587,6 @@ export function HeroRevolutionVisual({
     };
   }, []);
 
-  // Reactive updates triggered by props
   useEffect(() => {
     updateMaterialRef.current?.();
   }, [spec.metalType]);

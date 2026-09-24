@@ -1,16 +1,13 @@
-import { useState, useRef, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
-  Sparkles,
-  Sliders,
   CheckCircle2,
   Box,
   Layers,
   Scissors,
   ArrowRight,
   RotateCw,
-  Info,
 } from "lucide-react";
 import {
   HeroRevolutionVisual,
@@ -19,7 +16,6 @@ import {
 } from "./HeroRevolutionVisual";
 import {
   parseSpecFromPrompt,
-  METAL_LABELS,
   type MetalType,
 } from "../lib/ring-spec";
 import type { GemCut } from "../lib/cad-engine";
@@ -35,7 +31,7 @@ const ATELIER_PRESETS = [
       gemSize: 1.5,
       ringSize: 6.5,
       bandWidth: 2.4,
-      prongCount: 4,
+      prongCount: 6,
       displayMode: "solid" as const,
     },
   },
@@ -73,6 +69,19 @@ const ATELIER_PRESETS = [
       gemShape: "emerald" as GemCut,
       gemSize: 1.8,
       ringSize: 7.0,
+      bandWidth: 2.5,
+      prongCount: 4,
+      displayMode: "solid" as const,
+    },
+  },
+  {
+    label: "Platinum Princess Cut",
+    prompt: "Platinum solitaire, 2.0 ct princess cut diamond, size 6.5",
+    spec: {
+      metalType: "platinum" as MetalType,
+      gemShape: "princess" as GemCut,
+      gemSize: 2.0,
+      ringSize: 6.5,
       bandWidth: 2.5,
       prongCount: 4,
       displayMode: "solid" as const,
@@ -128,10 +137,10 @@ const METAL_SWATCHES: Array<{
 const GEM_CUT_OPTIONS: Array<{ id: GemCut; label: string }> = [
   { id: "round", label: "Round Brilliant" },
   { id: "oval", label: "Oval" },
-  { id: "emerald", label: "Emerald" },
+  { id: "emerald", label: "Emerald Cut" },
   { id: "marquise", label: "Marquise" },
   { id: "cushion", label: "Cushion" },
-  { id: "princess", label: "Princess" },
+  { id: "princess", label: "Princess Cut" },
 ];
 
 const CARAT_OPTIONS = [1.0, 1.5, 2.0, 2.5];
@@ -174,7 +183,6 @@ export function HeroRevolution() {
   };
 
   const openInStudio = () => {
-    // Navigate to /chat with configured spec
     navigate("/chat", {
       state: {
         initialPrompt: promptText,
@@ -326,7 +334,7 @@ export function HeroRevolution() {
                         : "hover:text-white"
                     }`}
                   >
-                    Stone & Size
+                    Stone, Prongs & Size
                   </button>
                   <button
                     type="button"
@@ -380,34 +388,47 @@ export function HeroRevolution() {
                   </motion.div>
                 )}
 
-                {/* Tab 2: Stone Cut & Carat Selector */}
+                {/* Tab 2: Stone Cut, Prongs & Carat Selector */}
                 {activeTab === "stone" && (
                   <motion.div
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="mt-3 flex flex-col gap-2.5"
                   >
+                    {/* Cut buttons */}
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[0.7rem] text-white/40 mr-1">Cut:</span>
-                      {GEM_CUT_OPTIONS.map((cut) => (
-                        <button
-                          key={cut.id}
-                          type="button"
-                          onClick={() =>
-                            setSpec((prev) => ({ ...prev, gemShape: cut.id }))
-                          }
-                          className={`rounded-lg px-2 py-1 text-[0.7rem] transition-colors ${
-                            spec.gemShape === cut.id
-                              ? "bg-white text-ink-950 font-medium"
-                              : "bg-white/[0.06] text-white/60 hover:bg-white/10 hover:text-white"
-                          }`}
-                        >
-                          {cut.label}
-                        </button>
-                      ))}
+                      {GEM_CUT_OPTIONS.map((cut) => {
+                        const isCutActive = spec.gemShape === cut.id;
+                        return (
+                          <button
+                            key={cut.id}
+                            type="button"
+                            onClick={() =>
+                              setSpec((prev) => ({
+                                ...prev,
+                                gemShape: cut.id,
+                                // Emerald & Princess default to 4 prongs
+                                prongCount:
+                                  cut.id === "emerald" || cut.id === "princess"
+                                    ? 4
+                                    : prev.prongCount,
+                              }))
+                            }
+                            className={`rounded-lg px-2.5 py-1 text-[0.7rem] transition-colors ${
+                              isCutActive
+                                ? "bg-white text-ink-950 font-medium shadow"
+                                : "bg-white/[0.06] text-white/60 hover:bg-white/10 hover:text-white"
+                            }`}
+                          >
+                            {cut.label}
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    <div className="flex items-center gap-4 pt-1">
+                    {/* Carat, Prongs, Finger Size Controls */}
+                    <div className="flex flex-wrap items-center gap-4 pt-1">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[0.7rem] text-white/40">Carat:</span>
                         {CARAT_OPTIONS.map((ct) => (
@@ -424,6 +445,26 @@ export function HeroRevolution() {
                             }`}
                           >
                             {ct.toFixed(1)} ct
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[0.7rem] text-white/40">Prongs:</span>
+                        {[4, 6].map((cnt) => (
+                          <button
+                            key={cnt}
+                            type="button"
+                            onClick={() =>
+                              setSpec((prev) => ({ ...prev, prongCount: cnt }))
+                            }
+                            className={`rounded-md px-2 py-0.5 text-[0.7rem] ${
+                              spec.prongCount === cnt
+                                ? "border border-metal-400 bg-white/20 text-white font-medium"
+                                : "text-white/50 hover:text-white"
+                            }`}
+                          >
+                            {cnt} Claws
                           </button>
                         ))}
                       </div>
@@ -548,7 +589,7 @@ export function HeroRevolution() {
 
           <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/6">
             <div className="mono-label !text-[0.56rem] !tracking-[0.16em] !text-white/40">
-              Est. Weight ({spec.metalType === "platinum" ? "950 Pt" : spec.metalType === "18k_gold" ? "18k Au" : "Alloy"})
+              Est. Weight ({spec.metalType === "platinum" ? "950 Pt" : spec.metalType === "18k_gold" ? "18k Au" : spec.metalType === "14k_rose" ? "14k Rose" : spec.metalType === "white_gold" ? "18k White" : "Silver"})
             </div>
             <div className="mt-1 text-sm font-medium text-white sm:text-base">
               {metrics.weightGrams.toFixed(2)} g
