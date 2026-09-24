@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "./auth/auth-context"; 
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
+import { HeroRevolution } from "./components/HeroRevolution";
 import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
@@ -43,7 +44,14 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
 function HomePage() {
   return (
     <PageWrapper>
-      <Hero />
+      {/* ============================================================ */}
+      {/* HERO SECTION SWITCHER: Easily reversible with one line       */}
+      {/* To revert to original Hero: comment out <HeroRevolution />   */}
+      {/* and uncomment <Hero /> below.                                */}
+      {/* ============================================================ */}
+      <HeroRevolution />
+      {/* <Hero /> */}
+
       {/* The macOS dock is parked, not deleted.
        *
        * It is a beautifully made component — the genie portal especially — but
