@@ -236,18 +236,12 @@ function MobileMenu({
         toggleRef.current,
         ...panelRef.current.querySelectorAll<HTMLElement>("a[href], button"),
       ].filter(Boolean) as HTMLElement[];
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      } else if (!items.includes(document.activeElement as HTMLElement)) {
-        e.preventDefault();
-        first.focus();
-      }
+      // The toggle lives in the nav and the panel in a portal, so DOM order
+      // cannot be trusted: move focus by hand.
+      e.preventDefault();
+      const i = items.indexOf(document.activeElement as HTMLElement);
+      const next = i === -1 ? 0 : (i + (e.shiftKey ? -1 : 1) + items.length) % items.length;
+      items[next].focus();
     };
     document.addEventListener("keydown", onKey);
 
