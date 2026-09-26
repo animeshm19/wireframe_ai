@@ -168,10 +168,10 @@ export function ContactSection() {
                 transition={{ duration: 0.6, delay: 0.1 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
                 className="flex gap-4"
               >
-                <span className="mono-label mt-1 !text-[0.5rem] !text-metal-400">
+                <span className="mono-label mt-1 !text-[0.55rem] !text-metal-400 font-semibold">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <span className="text-[0.9rem] leading-relaxed text-white/60">{s}</span>
+                <span className="text-[0.92rem] leading-relaxed text-white/85">{s}</span>
               </motion.li>
             ))}
           </ol>
@@ -180,16 +180,16 @@ export function ContactSection() {
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <div className="mono-label !text-[0.5rem]">Typical reply</div>
-              <div className="mt-1 text-[0.9rem] text-white/75">
+              <div className="mono-label !text-[0.55rem] !text-white/80">Typical reply</div>
+              <div className="mt-1 text-[0.92rem] font-medium text-white">
                 One business day
               </div>
             </div>
             <div>
-              <div className="mono-label !text-[0.5rem]">Or just email</div>
+              <div className="mono-label !text-[0.55rem] !text-white/80">Or just email</div>
               <a
                 href="mailto:hello@wireframe.studio"
-                className="underline-fancy mt-1 inline-block text-[0.9rem] text-white/75 hover:text-white"
+                className="underline-fancy mt-1 inline-block text-[0.92rem] font-medium text-white hover:text-metal-300"
               >
                 hello@wireframe.studio
               </a>
@@ -218,7 +218,7 @@ export function ContactSection() {
               <h3 className="mt-5 text-[1.3rem] font-medium tracking-tight text-white">
                 That's with us.
               </h3>
-              <p className="mt-2 max-w-sm text-[0.9rem] leading-relaxed text-white/55">
+              <p className="mt-2 max-w-sm text-[0.92rem] leading-relaxed text-white/85">
                 We'll come back within one business day. If it's urgent, reply
                 straight to the confirmation or write to
                 hello@wireframe.studio.
@@ -310,9 +310,9 @@ function Label({
   htmlFor, text, optional, error,
 }: { htmlFor: string; text: string; optional?: boolean; error?: string }) {
   return (
-    <label htmlFor={htmlFor} className="mono-label flex items-baseline gap-2 !text-[0.5rem]">
+    <label htmlFor={htmlFor} className="mono-label flex items-baseline gap-2 !text-[0.52rem] !text-white/85">
       <span>{text}</span>
-      {optional && <span className="!text-white/25">optional</span>}
+      {optional && <span className="!text-white/65">optional</span>}
       {error && <span className="normal-case tracking-normal text-red-300/90">{error}</span>}
     </label>
   );

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "./auth/auth-context"; 
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
+import { HeroRevolution } from "./components/HeroRevolution";
 import { InteractiveFeatureGrid } from "./components/InteractiveFeatureGrid";
 import { Footer } from "./components/Footer";
 import { SmoothCursor } from "@/components/ui/smooth-cursor";
@@ -16,7 +17,7 @@ import { ChatPage } from "./pages/ChatPage";
 import GenericComingSoonPage from "./components/GenericComingSoonPage"; 
 import { ChatComingSoonPage } from "./pages/ChatComingSoonPage"; 
 import { AboutPage } from "./pages/AboutPage";
-import { MeshPage } from "./pages/MeshPage";
+import { TechnologyPage } from "./pages/TechnologyPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { DocsPage } from "./pages/DocsPage";
 import { PartnersPage } from "./pages/PartnersPage";
@@ -43,7 +44,14 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
 function HomePage() {
   return (
     <PageWrapper>
-      <Hero />
+      {/* ============================================================ */}
+      {/* HERO SECTION SWITCHER: Easily reversible with one line       */}
+      {/* To revert to original Hero: comment out <HeroRevolution />   */}
+      {/* and uncomment <Hero /> below.                                */}
+      {/* ============================================================ */}
+      <HeroRevolution />
+      {/* <Hero /> */}
+
       {/* The macOS dock is parked, not deleted.
        *
        * It is a beautifully made component — the genie portal especially — but
@@ -121,7 +129,8 @@ export default function App() {
             <Route path="/chat" element={<PageWrapper><ChatGate /></PageWrapper>} />
             
             <Route path="/settings" element={<PageWrapper><SettingsPage /></PageWrapper>} />
-            <Route path="/mesh" element={<PageWrapper><MeshPage /></PageWrapper>} />
+            <Route path="/technology" element={<PageWrapper><TechnologyPage /></PageWrapper>} />
+            <Route path="/mesh" element={<PageWrapper><TechnologyPage /></PageWrapper>} />
             
             <Route path="/about" element={<PageWrapper><AboutPage /></PageWrapper>} />
             <Route path="/blog" element={<PageWrapper><BlogPage /></PageWrapper>} />
