@@ -97,6 +97,34 @@ export function DesignJobCard({ design }: { design: ChatDesign }) {
           </div>
         )}
 
+        {/*
+          A parser result must never be dressed as a model result. Before A8
+          this card said nothing at all once the parser had answered: the
+          "the model did not answer" note below is gated on `!design.spec`,
+          and the parser always supplies a spec, so the line was unreachable
+          on exactly the path it was written for. A jeweller saw a finished
+          card with a green tick and no way to know that "18k rose gold,
+          knife-edge, milgrain" had been matched word by word rather than
+          read. This is the honest version, and it is deliberately not a
+          whisper.
+
+          It says "did not answer" and not "every model was busy", because
+          `source: "parser"` is set on ANY failure in ai-extract.ts — offline,
+          not deployed, a rejected prompt — and the browser cannot tell which.
+          Naming a cause we do not know would be a new false statement in
+          place of the old one.
+        */}
+        {design.source === "parser" && design.spec && (
+          <div className="flex items-start gap-2 text-[10px] text-amber-200/90 bg-amber-900/15 border border-amber-500/20 rounded p-2">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400 mt-px" />
+            <span>
+              Matched from your wording, not interpreted — the design model
+              did not answer. Anything you did not state outright is a
+              standard value, not a reading of your description.
+            </span>
+          </div>
+        )}
+
         {design.interpretation && (
           <p className="text-[11px] text-white/60 leading-relaxed italic">
             {design.interpretation}

@@ -93,7 +93,19 @@ const ROLES = {
 
 const DEFAULT_ROLE = "extract";
 
-/** role -> selected model name. Per role, so one job cannot fix another's choice. */
+/**
+ * role -> the full ranked list of eligible models, best first.
+ *
+ * This used to hold the single winner. It holds the whole ranking now because
+ * that ranking is a failover chain: `pickModel` already computed six models
+ * that pass the policy and threw five of them away, while a 503 on the first
+ * dropped the customer to a regex parser. A8 keeps them.
+ *
+ * Callers are handed a COPY. Nothing downstream can reorder or truncate what
+ * is cached here, so a request that fails over to gemini-3.7-flash leaves
+ * gemini-3.8-flash first choice on the next call. Failover is per request;
+ * it is never a permanent demotion.
+ */
 const cache = new Map();
 
 function minGeneration() {
@@ -164,13 +176,19 @@ function score(name, role = DEFAULT_ROLE) {
 }
 
 /**
- * Resolve a model name for `role`, discovering it from the API on first use.
+ * Resolve the ranked list of models for `role`, best first, discovering them
+ * from the API on first use and caching the ranking per role.
+ *
+ * The head of this list is the model policy's choice while it exists. The
+ * tail is what A8 walks when the head answers 503 UNAVAILABLE, which is the
+ * live failure this whole file was extended for.
  *
  * @param {object} ai       a GoogleGenAI client
  * @param {object} [logger] firebase-functions logger, or anything with .info/.warn
  * @param {string} [role]   "extract" | "gate" | "vision"
+ * @returns {Promise<string[]>} a copy; mutating it cannot affect the cache
  */
-async function pickModel(ai, logger, role = DEFAULT_ROLE) {
+async function pickModelChain(ai, logger, role = DEFAULT_ROLE) {
   const cfg = roleConfig(role);
 
   const pinned = process.env[cfg.env] || process.env.GEMINI_MODEL;
@@ -182,10 +200,13 @@ async function pickModel(ai, logger, role = DEFAULT_ROLE) {
         reason: rejectionReason(pinned, role),
       });
     }
-    return pinned;
+    // A pin is a deliberate human decision about which model runs. Failing
+    // over off it would quietly undo that decision, so a pinned role gets a
+    // chain of exactly one: it is retried, and then the caller is honest.
+    return [pinned];
   }
 
-  if (cache.has(role)) return cache.get(role);
+  if (cache.has(role)) return cache.get(role).slice();
 
   const discovered = [];
   for await (const m of await ai.models.list()) {
@@ -213,8 +234,8 @@ async function pickModel(ai, logger, role = DEFAULT_ROLE) {
   }
 
   eligible.sort((a, b) => score(b, role) - score(a, role) || a.localeCompare(b));
+  cache.set(role, eligible);
   const selected = eligible[0];
-  cache.set(role, selected);
 
   logger?.info?.("Selected Gemini model", {
     role,
@@ -229,7 +250,7 @@ async function pickModel(ai, logger, role = DEFAULT_ROLE) {
   });
 
   if (selected !== cfg.policyModel) {
-    // Not an error — discovery working as intended after a retirement — but it
+    // Not an error - discovery working as intended after a retirement - but it
     // must never happen silently. claude/execution-board.md is now stale.
     logger?.warn?.("Selected Gemini model differs from the model policy", {
       role,
@@ -238,7 +259,20 @@ async function pickModel(ai, logger, role = DEFAULT_ROLE) {
     });
   }
 
-  return selected;
+  return eligible.slice();
+}
+
+/**
+ * The single best model for `role`. Unchanged behaviour; it is now the head
+ * of the chain rather than the only thing computed.
+ *
+ * @param {object} ai       a GoogleGenAI client
+ * @param {object} [logger] firebase-functions logger, or anything with .info/.warn
+ * @param {string} [role]   "extract" | "gate" | "vision"
+ */
+async function pickModel(ai, logger, role = DEFAULT_ROLE) {
+  const chain = await pickModelChain(ai, logger, role);
+  return chain[0];
 }
 
 /** Test seam. Not used in production. */
@@ -248,6 +282,7 @@ function _resetCache() {
 
 module.exports = {
   pickModel,
+  pickModelChain,
   score,
   rejectionReason,
   MIN_GENERATION,
