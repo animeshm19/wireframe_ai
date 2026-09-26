@@ -373,6 +373,8 @@
   /* Touch targets: at least 44px tall on phones. */
   @media (max-width: 767px) {
     .slider-metal { height: 44px; }
+    /* Inline links: vertical padding enlarges the tap area without moving the text. */
+    .prose-site a { padding: 13px 4px; margin-inline: -4px; }
     .tap { min-height: 44px; }
     .tap-sq { min-height: 44px; min-width: 44px; }
   }

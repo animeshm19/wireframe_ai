@@ -10,7 +10,7 @@ import { BASE, chordError, duelAt, innerDiameter } from "../components/duel-mode
 const FACTS = [
   {
     title: "The finger hole is an exact circle",
-    body: "A plain band is made by turning its cross-section around the finger, so in the STEP file the hole is a true circle, not a polygon.",
+    body: "A plain band is made by turning its cross-section around the finger, so in the STEP file the hole is a true circle.",
   },
   {
     title: "A new size is a new build",
