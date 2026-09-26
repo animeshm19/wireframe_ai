@@ -99,8 +99,7 @@ export function HeroRevolutionVisual({
     controls.maxDistance = 30;
     controls.target.set(0, 1.2, 0);
 
-    // -------------------------------------------------- Balanced Studio Rig --
-    // Fine jewellery diffusion tent with softbox, side cards, and hard specular points
+    // Lighting: a diffusion tent with a softbox and side cards, as for jewellery photography.
     const envScene = createJewelleryEnvironment();
 
     const frontFill = new THREE.Mesh(
@@ -121,7 +120,6 @@ export function HeroRevolutionVisual({
     scene.environment = envTexture;
 
     // ------------------------------------------------------------- Backdrop --
-    // Graded dark velvet sweep for crisp contrast against metal and diamond
     const backdropCanvas = document.createElement("canvas");
     backdropCanvas.width = 4;
     backdropCanvas.height = 512;
@@ -149,7 +147,6 @@ export function HeroRevolutionVisual({
     scene.add(backdrop);
 
     // --------------------------------------------------------- Scene Lights --
-    // Clean key and subtle rim: crisp, defined highlights without blowing out the piece
     const key = new THREE.DirectionalLight(0xffffff, 1.5);
     key.position.set(6, 10, 8);
     scene.add(key);
@@ -183,7 +180,6 @@ export function HeroRevolutionVisual({
       opacity: 0.85,
     });
 
-    // Diamond Material: Crystal-clear VVS1 D-Color with clean facet contrast
     const gemMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
       metalness: 0,
@@ -268,14 +264,7 @@ export function HeroRevolutionVisual({
       });
     };
 
-    /**
-     * Builds the complete, physically attached ring:
-     * 1. Comfort-fit shank
-     * 2. Accurate GIA faceted gem for the exact requested cut
-     * 3. Solid base collar (donut bridge) welded directly to the shank crest
-     * 4. Realistic tapered claw prongs rooted in the base collar and curving inward over the crown
-     * 5. Structural gallery rail (under-bezel wire) tying all prongs together
-     */
+    // Shank, stone, collar, gallery rail and prongs, all touching so the preview reads as one piece.
     const rebuildGeometry = () => {
       const currentSpec = specRef.current;
 
@@ -302,7 +291,7 @@ export function HeroRevolutionVisual({
       const activeMetalMat =
         currentSpec.displayMode === "wireframe" ? wireframeMat : metalMat;
 
-      // --- 1. Shank Construction ---
+      // Shank
       // Size 6.5 inner radius = 8.45 mm
       const baseInnerRadiusMm = 8.45 + (currentSpec.ringSize - 6.5) * 0.41;
       const R = 2.45 * (baseInnerRadiusMm / 8.45);
@@ -320,11 +309,10 @@ export function HeroRevolutionVisual({
       shankMesh = new THREE.Mesh(shankGeom, activeMetalMat);
       ringGroup.add(shankMesh);
 
-      // --- 2. Accurate Diamond Geometry ---
+      // Stone
       const girdleR_mm = girdleRadiusFor(currentSpec.gemShape, currentSpec.gemSize);
       const GIRDLE = girdleR_mm / MM_PER_UNIT;
 
-      // Create exact mathematical diamond geometry (Round, Oval, Emerald, Marquise, Cushion, Princess)
       const gemGeom = createAccurateGemGeometry(currentSpec.gemShape, GIRDLE);
       currentGemGeom = gemGeom;
 
@@ -352,8 +340,7 @@ export function HeroRevolutionVisual({
       gemMesh.position.set(0, culetY, 0);
       ringGroup.add(gemMesh);
 
-      // --- 3. Solid Base Collar (Head Foot / Donut Bridge) ---
-      // Sits directly on top of the shank and anchors the entire prong cage.
+      // Collar under the head, sitting on the shank; the prongs root in it.
       const baseCollarGeom = new THREE.TorusGeometry(
         baseDonutRadius,
         baseDonutTube,
@@ -381,8 +368,7 @@ export function HeroRevolutionVisual({
       ringGroup.add(bridgeMesh);
       metalHeadMeshes.push(bridgeMesh);
 
-      // --- 4. Structural Gallery Rail (Under-Bezel Wire) ---
-      // Sits at ~55% of the pavilion height, bracing all prongs together.
+      // Gallery rail at about 55% of the pavilion height.
       const galleryY = culetY + pavH * 0.55;
       const galleryScale = 0.65; // scale relative to girdle
       const galleryTubeR = 0.065;
@@ -404,9 +390,7 @@ export function HeroRevolutionVisual({
       ringGroup.add(galleryRailMesh);
       metalHeadMeshes.push(galleryRailMesh);
 
-      // --- 5. Realistic Tapered Claw Prongs ---
-      // Prongs are attached to the base collar, pass through the gallery rail,
-      // grip the stone girdle with an authentic seat, and curve inward over the crown.
+      // Prongs
       const prongAngles = getProngAnglesForCut(currentSpec.gemShape, currentSpec.prongCount);
       const prongWireRadius = Math.max(0.08, GIRDLE * 0.085);
 
@@ -438,7 +422,7 @@ export function HeroRevolutionVisual({
           sinA * (edgeR * 1.01)
         );
 
-        // Point 4: Elegant Claw Tip (curving over the crown onto the bezel facet)
+        // Point 4: claw tip, curving over the crown
         const clawReachInward = 0.88; // curls inward over crown
         const p4 = new THREE.Vector3(
           cosA * (edgeR * clawReachInward),

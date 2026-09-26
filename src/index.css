@@ -1,15 +1,4 @@
-/* src/index.css — Tailwind v4 entry + the wireframe design foundation.
- *
- * Everything below is one layer: tokens, type, texture, motion. Sections
- * inherit from here rather than inventing their own values, which is the
- * whole point — a page looks designed when its parts share a system.
- *
- * The palette is unchanged. The two brand mauves and the pink are exactly
- * the values they always were; what is new is that they now have light and
- * dark relatives, because metal is never a flat colour. A single mauve fill
- * reads as grey plastic; the same mauve with a highlight and a shadow reads
- * as polished metal. Same hue, different material.
- */
+/* Tailwind v4 entry and the site's tokens, type, texture and motion. */
 
 @import "tailwindcss";
 
@@ -21,16 +10,13 @@
   /* Brand casing: "wireframe" in the logo lockup and tab titles, "Wireframe" in sentences. */
   --radius: 0.625rem;
 
-  /* Ink. The page was two near-identical blacks (#13000c in the hero,
-   * #13010c everywhere else) which met at a visible seam. One value now. */
+  /* Ink */
   --ink-950: #050003;
   --ink-900: #13010c;
   --ink-850: #1a0510;
   --ink-800: #2b111a;
 
-  /* Metal. --metal-500 and --metal-400 ARE the old --gold-500 / --gold-400,
-   * unchanged. The rest are the same hue lightened and darkened so a surface
-   * can have a highlight and a shadow. */
+  /* Metal: the brand mauve, lighter and darker. 500/400 are the old gold-500/400. */
   --metal-700: #4a3d43;
   --metal-600: #6b5a61;
   --metal-500: rgb(131, 110, 118);
@@ -38,9 +24,7 @@
   --metal-300: #ddc3d1;
   --metal-200: #f0dfe7;
 
-  /* Accent — the existing pink, now a named token instead of a literal
-   * repeated in six components. (--pink-500 was "#2g3824", which is not a
-   * colour: g is not a hex digit, so every use of it silently did nothing.) */
+  /* Accent pink: at most one interactive highlight per view. */
   --accent-500: #e12882;
   --accent-400: #f45ba2;
   --accent-glow: rgba(225, 40, 130, 0.35);
@@ -50,23 +34,17 @@
   --border: rgba(255, 255, 255, 0.10);
   --edge-strong: rgba(255, 255, 255, 0.18);
 
-  /* Aliases kept so existing `text-(--gold-500)` call sites keep working.
-   * They resolve to the same values they always did. */
+  /* Old names still used in the app. */
   --gold-500: var(--metal-500);
   --gold-400: var(--metal-400);
   --pink-500: var(--accent-500);
 
-  /* Type. The stock stacks — no webfont is loaded, so there is no network
-   * request, no FOUT, and the page renders in the system UI face the way it
-   * always did. Everything expensive about the type here comes from size,
-   * weight contrast and tracking rather than from a typeface. */
+  /* System font stacks; no webfont is loaded. */
   --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Fluid type scale. Every size interpolates between a phone and a desktop,
-   * so nothing has to be re-specified per breakpoint and nothing overflows
-   * a 320px screen. */
+  /* Fluid type scale, phone to desktop. */
   --step-xs: clamp(0.70rem, 0.68rem + 0.10vw, 0.75rem);
   --step-sm: clamp(0.80rem, 0.77rem + 0.15vw, 0.875rem);
   --step-0:  clamp(0.95rem, 0.92rem + 0.18vw, 1.05rem);
@@ -76,8 +54,7 @@
   --step-4:  clamp(2.45rem, 1.75rem + 3.40vw, 4.80rem);
   --step-5:  clamp(3.00rem, 1.80rem + 5.80vw, 7.50rem);
 
-  /* Motion. One easing family, so every transition on the page feels like
-   * it came from the same hand. */
+  /* Motion */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
   --dur-fast: 220ms;
@@ -234,45 +211,7 @@
     padding-inline: max(var(--gutter), env(safe-area-inset-left), env(safe-area-inset-right));
   }
 
-  /* The metal treatment. Seven stops of one hue — the brand mauve lightened
-   * to a highlight and darkened to a shadow — swept diagonally. The sweep is
-   * what makes it read as a surface catching light rather than as a colour.
-   *
-   * .shiny-gold and .shiny-text are the names the existing markup already
-   * uses, so they are selectors on the same rules rather than aliases: in
-   * Tailwind v4 a custom utility cannot @apply another custom utility. */
-  .text-metal,
-  .shiny-gold {
-    background-image: linear-gradient(
-      100deg,
-      var(--metal-500) 0%,
-      var(--metal-300) 14%,
-      var(--metal-200) 27%,
-      var(--metal-400) 40%,
-      var(--metal-600) 52%,
-      var(--metal-200) 68%,
-      var(--metal-400) 86%,
-      var(--metal-500) 100%
-    );
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .text-metal-sweep,
-  .shiny-gold {
-    animation: metal-sweep 7s var(--ease-in-out-quint) infinite;
-  }
-
-  @keyframes metal-sweep {
-    0%, 100% { background-position: 0% center; }
-    50%      { background-position: 100% center; }
-  }
-
-  /* Plain bright text with a soft falloff — for body-weight headings that
-   * should not compete with the metal ones. */
-  .text-bright,
+  /* Used by the parked DockBar. */
   .shiny-text {
     background-image: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.92) 100%);
     -webkit-background-clip: text;
@@ -280,106 +219,7 @@
     color: transparent;
   }
 
-  .gold-text { color: var(--metal-300); }
-
-  /* The light rake.
-   *
-   * The hero headline is filled with two stacked backgrounds clipped to the
-   * glyphs: a dim white base for legibility, and a bright hotspot parked at
-   * --mx / --my, which Hero.tsx writes from the pointer. The effect is light
-   * moving across the letters as you move — the same thing a polished surface
-   * does when you tilt it, which is the one gesture this whole product is
-   * about. With no pointer the variables never change and it is simply a
-   * headline with a soft highlight in the middle. */
-  .hero-rake {
-    --mx: 50%;
-    --my: 42%;
-    background-image:
-      radial-gradient(
-        290px circle at var(--mx) var(--my),
-        #ffffff 0%,
-        var(--metal-200) 34%,
-        rgba(255, 255, 255, 0.75) 52%,
-        transparent 72%
-      ),
-      linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.88) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  /* If the glyph clip is unavailable the text would be transparent, i.e.
-   * invisible. Give it back a solid colour rather than a blank hero. */
-  @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
-    .hero-rake { color: #ffffff; background-image: none; }
-  }
-
-  /* The hero stage feathers into the page.
-   *
-   * The canvas paints its own graded backdrop — it has to, because that is what
-   * the diamond refracts — so it is opaque wherever it draws and would
-   * otherwise stop at a hard rectangle in the middle of the layout.
-   *
-   * Only the edges that actually meet the page need fading, and which ones
-   * those are differs by breakpoint. On a phone the stage spans the full width,
-   * so its left and right edges are the screen's edges and invisible; the seams
-   * are top and bottom. On a wide screen it runs to the top, bottom and right
-   * of the viewport, so the only seam is its left edge. A directional fade on
-   * exactly those edges goes fully transparent where it has to, which a radial
-   * one does not — the corners of a rectangle are further from the centre than
-   * the edge midpoints, so any radial that clears a corner has already cut into
-   * the middle of the picture. */
-  .hero-stage {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 84%, transparent 100%);
-    mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 84%, transparent 100%);
-  }
-
-  @media (min-width: 1024px) {
-    .hero-stage {
-      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 34%);
-      mask-image: linear-gradient(to right, transparent 0%, #000 34%);
-    }
-  }
-
-  /* A card border that lights up under the pointer.
-   *
-   * The glow is painted as a radial gradient across the whole card and then
-   * masked so only the one-pixel frame survives: two identical masks, one
-   * clipped to the padding box and one to the border box, composited with xor,
-   * leaves exactly the ring between them. Lighting the edge rather than
-   * washing the face keeps the card's contents readable while still following
-   * the pointer, which a plain overlay does not. --gx/--gy are written by the
-   * card from a rAF-throttled listener. */
-  .card-edge::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: radial-gradient(
-      240px circle at var(--gx, 50%) var(--gy, 50%),
-      var(--metal-200),
-      var(--metal-500) 26%,
-      transparent 62%
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity var(--dur-mid) var(--ease-out-expo);
-    pointer-events: none;
-  }
-
-  .card-edge:hover::after,
-  .card-edge:focus-within::after { opacity: 1; }
-
-  /* Range inputs, styled once. The browser default is a grey slab that undoes
-   * a page's worth of work wherever it appears. */
+  /* Range inputs, styled once. */
   .slider-metal {
     -webkit-appearance: none;
     appearance: none;
@@ -418,43 +258,7 @@
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
   }
 
-  /* A specular sweep across a card face on hover.
-   *
-   * A narrow band of light, skewed, travelling left to right — the highlight
-   * that runs across a polished surface as you tilt it. It sits under the
-   * card's content and above its background, so it lights the panel without
-   * washing out anything on it. */
-  .card-sheen::before {
-    content: "";
-    position: absolute;
-    inset: -40% -60%;
-    background: linear-gradient(
-      100deg,
-      transparent 42%,
-      rgba(255, 255, 255, 0.055) 50%,
-      transparent 58%
-    );
-    transform: translateX(-62%);
-    transition: transform 1.15s var(--ease-out-expo);
-    pointer-events: none;
-    z-index: 0;
-  }
-  .card-sheen:hover::before { transform: translateX(62%); }
-
-  /* Drafting paper, faded out before it reaches anything that has to be read.
-   * It is what makes a panel read as a drawing rather than as a div. */
-  .blueprint {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-    background-size: 22px 22px;
-    -webkit-mask-image: radial-gradient(90% 75% at 50% 42%, #000 18%, transparent 78%);
-    mask-image: radial-gradient(90% 75% at 50% 42%, #000 18%, transparent 78%);
-  }
-
-  /* The mono spec label. Used for every number, index, unit and status on the
-   * page — it is the detail that makes the whole thing read as an instrument
-   * rather than as a brochure. */
+  /* All-caps mono label. The app (chat, Studio) still uses it; marketing pages use .label. */
   .mono-label {
     font-family: var(--font-mono);
     font-size: var(--step-xs);
@@ -573,23 +377,14 @@
     .tap-sq { min-height: 44px; min-width: 44px; }
   }
 
-  /* A 1px rule that fades out at both ends, so it reads as engraved rather
-   * than as a border. */
+  /* A 1px rule that fades out at both ends. */
   .hairline {
     height: 1px;
     border: 0;
     background: linear-gradient(90deg, transparent, var(--edge-strong), transparent);
   }
 
-  .hairline-metal {
-    height: 1px;
-    border: 0;
-    background: linear-gradient(90deg, transparent, var(--metal-500), transparent);
-  }
-
-  /* Glass. Kept as a class because a lot of markup already asks for it, but
-   * rebuilt: the old one had a hard gold glow on every instance, which is
-   * what made stacked panels look like they were lit from inside. */
+  /* Used by ui/card.tsx in the app. */
   .glass {
     background: linear-gradient(
       180deg,
@@ -605,42 +400,6 @@
       0 30px 80px -20px rgba(0, 0, 0, 0.85);
   }
 
-  /* A raised surface that lifts toward the pointer. */
-  .lift {
-    transition: transform var(--dur-fast) var(--ease-out-expo),
-                box-shadow var(--dur-fast) var(--ease-out-expo);
-  }
-  .lift:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.9);
-  }
-
-  .mesh-bg {
-    background-image:
-      radial-gradient(1200px 600px at 10% 10%, rgba(198, 155, 178, 0.07), transparent 60%),
-      radial-gradient(1000px 600px at 80% 80%, rgba(225, 40, 130, 0.05), transparent 60%);
-  }
-
-  .underline-fancy { position: relative; }
-  .underline-fancy::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: -4px;
-    height: 1px;
-    width: 0%;
-    background: linear-gradient(90deg, var(--metal-500), var(--metal-300));
-    transition: width var(--dur-mid) var(--ease-out-expo);
-  }
-  .underline-fancy:hover::after { width: 100%; }
-
-  /* Full viewport height that accounts for mobile browser chrome. 100vh on
-   * iOS Safari is the height with the address bar hidden, so a 100vh hero is
-   * always taller than the screen and always cropped on first paint. */
-  .min-h-screen-safe { min-height: 100vh; min-height: 100dvh; }
-  .h-screen-safe { height: 100vh; height: 100dvh; }
-
-  .pb-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   .pt-safe { padding-top: max(1rem, env(safe-area-inset-top)); }
 }
 

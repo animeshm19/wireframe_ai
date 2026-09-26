@@ -1,8 +1,5 @@
-/**
- * Demo request. Posts the seven fields to the requestDemo callable
- * (functions/index.js). The form element is captured before the await because
- * React clears ev.currentTarget once the handler yields.
- */
+/* Demo request: posts seven fields to the requestDemo callable (functions/index.js).
+ * The form is captured before the await because React clears ev.currentTarget. */
 
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";

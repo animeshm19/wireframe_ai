@@ -147,7 +147,7 @@ function MinimumsPost() {
   );
 }
 
-export const POSTS: Post[] = [
+const POSTS: Post[] = [
   {
     slug: "resizing-a-mesh",
     title: "Why a scaled ring is a different ring",

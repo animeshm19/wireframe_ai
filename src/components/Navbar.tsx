@@ -17,7 +17,7 @@ type NavLink = { label: string } & (
 );
 
 // One name per section: the same words in the nav, the section eyebrow and the footer.
-export const LINKS: NavLink[] = [
+const LINKS: NavLink[] = [
   { kind: "section", label: "How it works", id: "how" },
   { kind: "section", label: "On the bench", id: "bench" },
   { kind: "section", label: "Pricing", id: "pricing" },
