@@ -156,7 +156,8 @@
     @apply bg-(--background) text-(--foreground) antialiased;
     font-family: var(--font-sans);
     font-size: var(--step-0);
-    line-height: 1.6;
+    font-weight: 400;
+    line-height: 1.55;
     overflow-x: clip;
     /* Stops a horizontal drag on a touch device from bouncing the page
      * sideways when a section scrolls its own content. */
@@ -165,11 +166,10 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* System sans gets tight tracking and a short leading at display sizes —
-   * that pairing is what stops a UI face reading as a UI face. */
   h1, h2, h3 {
-    line-height: 1.02;
-    letter-spacing: -0.035em;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.022em;
     text-wrap: balance;
   }
 
@@ -208,33 +208,17 @@
 
 /* --------------------------------------------------------------- texture -- */
 
-/* Film grain and a vignette, fixed over the whole page.
- *
- * This is the cheapest large jump in perceived quality a dark site can make.
- * A flat CSS gradient reads as a flat CSS gradient; the same gradient under a
- * little noise reads as something photographed. The noise is a static SVG
- * turbulence tile — no animation, no repaint, no measurable cost.
- */
-.grain-layer,
-.vignette-layer {
+/* Film grain over the marketing pages. A static noise tile: no animation,
+ * no repaint. */
+.grain-layer {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 9998;
-}
-
-.grain-layer {
-  opacity: 0.08;
+  opacity: 0.04;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   background-size: 180px 180px;
-}
-
-.vignette-layer {
-  z-index: 9997;
-  background:
-    radial-gradient(130% 90% at 50% 0%, transparent 45%, rgba(5, 0, 3, 0.20) 100%),
-    radial-gradient(110% 80% at 50% 100%, transparent 50%, rgba(5, 0, 3, 0.15) 100%);
 }
 
 /* ------------------------------------------------------------- utilities -- */
@@ -467,17 +451,6 @@
     mask-image: radial-gradient(90% 75% at 50% 42%, #000 18%, transparent 78%);
   }
 
-  /* The card's index, set enormous and hollow, bleeding off its corner.
-   * Numbering the panels is what turns four features into one sequence. */
-  .ghost-numeral {
-    font-family: var(--font-mono);
-    font-weight: 600;
-    line-height: 0.74;
-    letter-spacing: -0.06em;
-    color: transparent;
-    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.075);
-  }
-
   /* The mono spec label. Used for every number, index, unit and status on the
    * page — it is the detail that makes the whole thing read as an instrument
    * rather than as a brochure. */
@@ -492,6 +465,111 @@
   }
 
   .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Marketing type. One scale for the whole site (see PageHeader). */
+  .h-display {
+    font-size: clamp(2.1rem, 1.45rem + 2.6vw, 3.5rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.022em;
+    color: #fff;
+  }
+  .h-section {
+    font-size: clamp(1.8rem, 1.3rem + 1.9vw, 2.75rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.022em;
+    color: #fff;
+  }
+  .h-card {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: #fff;
+  }
+  .lede {
+    font-size: var(--step-1);
+    font-weight: 400;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  /* A short normal-case label above a section heading. */
+  .eyebrow {
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--metal-300);
+  }
+
+  /* Small field label in the body face. Replaces the old all-caps mono label
+   * on the marketing pages; the app keeps .mono-label. */
+  .label {
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.35;
+    letter-spacing: 0;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  /* Monospace is for measurements only: a number with a unit. */
+  .measure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  /* One soft glow at the top of a page. The only background decoration. */
+  .page-glow {
+    background-image: radial-gradient(70% 45% at 50% -8%, rgba(198, 155, 178, 0.11), transparent 62%);
+  }
+
+  /* The two button styles on the marketing pages. */
+  .btn-primary,
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    border-radius: 999px;
+    padding: 0.65rem 1.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.2;
+    transition: background-color var(--dur-fast) var(--ease-out-expo),
+                border-color var(--dur-fast) var(--ease-out-expo);
+  }
+  .btn-primary { background: #fff; color: var(--ink-900); }
+  .btn-primary:hover { background: var(--metal-200); }
+  .btn-secondary {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .btn-secondary:hover { border-color: rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.06); }
+
+  /* Running text on inner pages. */
+  .prose-site { color: rgba(255, 255, 255, 0.84); font-size: var(--step-0); line-height: 1.65; }
+  .prose-site > * + * { margin-top: 1rem; }
+  .prose-site h2 { margin-top: 2.75rem; font-size: var(--step-2); color: #fff; }
+  .prose-site h3 { margin-top: 2rem; font-size: var(--step-1); color: #fff; letter-spacing: -0.01em; }
+  .prose-site h2 + *, .prose-site h3 + * { margin-top: 0.75rem; }
+  .prose-site ul { list-style: disc; padding-left: 1.25rem; }
+  .prose-site ol { list-style: decimal; padding-left: 1.25rem; }
+  .prose-site li + li { margin-top: 0.4rem; }
+  .prose-site a { color: #fff; text-decoration: underline; text-decoration-color: rgba(255,255,255,0.35); text-underline-offset: 3px; }
+  .prose-site a:hover { text-decoration-color: var(--metal-300); }
+  .prose-site strong { color: #fff; font-weight: 600; }
+  .prose-site code, .prose-site kbd { font-family: var(--font-mono); font-size: 0.85em; }
+  .prose-site kbd { border: 1px solid rgba(255,255,255,0.18); border-radius: 4px; padding: 0.05rem 0.35rem; color: #fff; }
+
+  /* Touch targets: at least 44px tall on phones. */
+  @media (max-width: 767px) {
+    .tap { min-height: 44px; }
+    .tap-sq { min-height: 44px; min-width: 44px; }
+  }
 
   /* A 1px rule that fades out at both ends, so it reads as engraved rather
    * than as a border. */
@@ -609,13 +687,6 @@
 }
 
 /* ---------------------------------------------------------------- motion -- */
-
-/* Coarse pointers get the system cursor back and no hover-only affordances.
- * The custom cursor is meaningless without a mouse and the hover states are
- * unreachable, so they must never be the only way to read something. */
-@media (pointer: coarse) {
-  .cursor-none { cursor: auto; }
-}
 
 /* One global switch. Everything animated on this site is either a transition,
  * a CSS animation, or Framer Motion — the first two stop here, and Framer

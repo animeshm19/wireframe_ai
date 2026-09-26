@@ -35,7 +35,7 @@ const LINKS: NavLink[] = [
   { kind: "section", label: "Capabilities", id: "capabilities" },
   { kind: "section", label: "Pricing", id: "pricing" },
   { kind: "route", label: "Technology", to: "/technology" },
-  { kind: "route", label: "Blog", to: "/blog" },
+  { kind: "route", label: "Journal", to: "/journal" },
 ];
 
 const SECTION_IDS = LINKS.filter((l) => l.kind === "section").map(

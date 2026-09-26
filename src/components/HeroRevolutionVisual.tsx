@@ -92,7 +92,7 @@ export function HeroRevolutionVisual({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
-    controls.autoRotate = true;
+    controls.autoRotate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     controls.autoRotateSpeed = 0.7;
     controls.maxPolarAngle = Math.PI / 2 + 0.35;
     controls.minDistance = 9;
@@ -100,7 +100,7 @@ export function HeroRevolutionVisual({
     controls.target.set(0, 1.2, 0);
 
     // -------------------------------------------------- Balanced Studio Rig --
-    // Fine jewelry diffusion tent with softbox, side cards, and hard specular points
+    // Fine jewellery diffusion tent with softbox, side cards, and hard specular points
     const envScene = createJewelleryEnvironment();
 
     const frontFill = new THREE.Mesh(
@@ -605,10 +605,12 @@ export function HeroRevolutionVisual({
       ref={mountRef}
       className={className}
       style={{
-        touchAction: "none",
+        // Vertical swipes still scroll the page on a phone; horizontal drags turn the ring.
+        touchAction: "pan-y",
         ...style,
       }}
-      aria-label="Interactive 3D Jewelry Studio Viewport"
+      role="img"
+      aria-label="3D preview of the ring. Drag to turn it."
     />
   );
 }

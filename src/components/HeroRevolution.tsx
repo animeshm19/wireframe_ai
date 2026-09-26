@@ -1,156 +1,94 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import {
-  CheckCircle2,
-  Box,
-  Layers,
-  Scissors,
-  ArrowRight,
-  RotateCw,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import {
   HeroRevolutionVisual,
   type HeroRevolutionSpec,
   type HeroMetrics,
 } from "./HeroRevolutionVisual";
 import {
+  METAL_DENSITY,
+  METAL_LABELS,
   parseSpecFromPrompt,
   type MetalType,
 } from "../lib/ring-spec";
 import type { GemCut } from "../lib/cad-engine";
+import { useRise } from "./motion";
 
-// Curated atelier starting points
-const ATELIER_PRESETS = [
+const PRESETS: Array<{ label: string; prompt: string; spec: HeroRevolutionSpec }> = [
   {
-    label: "Solitaire 950 Platinum",
+    label: "Platinum solitaire",
     prompt: "Platinum solitaire, 1.5 ct round brilliant, size 6.5",
-    spec: {
-      metalType: "platinum" as MetalType,
-      gemShape: "round" as GemCut,
-      gemSize: 1.5,
-      ringSize: 6.5,
-      bandWidth: 2.4,
-      prongCount: 6,
-      displayMode: "solid" as const,
-    },
+    spec: { metalType: "platinum", gemShape: "round", gemSize: 1.5, ringSize: 6.5, bandWidth: 2.4, prongCount: 6, displayMode: "solid" },
   },
   {
-    label: "18k Yellow Gold Oval",
+    label: "Yellow gold oval",
     prompt: "18k yellow gold solitaire with 2.0ct oval diamond, size 6",
-    spec: {
-      metalType: "18k_gold" as MetalType,
-      gemShape: "oval" as GemCut,
-      gemSize: 2.0,
-      ringSize: 6.0,
-      bandWidth: 2.2,
-      prongCount: 6,
-      displayMode: "solid" as const,
-    },
+    spec: { metalType: "18k_gold", gemShape: "oval", gemSize: 2.0, ringSize: 6.0, bandWidth: 2.2, prongCount: 6, displayMode: "solid" },
   },
   {
-    label: "Rose Gold Marquise",
+    label: "Rose gold marquise",
     prompt: "14k rose gold knife edge ring, 1.5ct marquise diamond, size 6.5",
-    spec: {
-      metalType: "14k_rose" as MetalType,
-      gemShape: "marquise" as GemCut,
-      gemSize: 1.5,
-      ringSize: 6.5,
-      bandWidth: 2.6,
-      prongCount: 6,
-      displayMode: "solid" as const,
-    },
+    spec: { metalType: "14k_rose", gemShape: "marquise", gemSize: 1.5, ringSize: 6.5, bandWidth: 2.6, prongCount: 6, displayMode: "solid" },
   },
   {
-    label: "18k White Gold Emerald Cut",
+    label: "White gold emerald cut",
     prompt: "18k white gold 1.8ct emerald cut diamond, size 7",
-    spec: {
-      metalType: "white_gold" as MetalType,
-      gemShape: "emerald" as GemCut,
-      gemSize: 1.8,
-      ringSize: 7.0,
-      bandWidth: 2.5,
-      prongCount: 4,
-      displayMode: "solid" as const,
-    },
+    spec: { metalType: "white_gold", gemShape: "emerald", gemSize: 1.8, ringSize: 7.0, bandWidth: 2.5, prongCount: 4, displayMode: "solid" },
   },
   {
-    label: "Platinum Princess Cut",
+    label: "Platinum princess",
     prompt: "Platinum solitaire, 2.0 ct princess cut diamond, size 6.5",
-    spec: {
-      metalType: "platinum" as MetalType,
-      gemShape: "princess" as GemCut,
-      gemSize: 2.0,
-      ringSize: 6.5,
-      bandWidth: 2.5,
-      prongCount: 4,
-      displayMode: "solid" as const,
-    },
+    spec: { metalType: "platinum", gemShape: "princess", gemSize: 2.0, ringSize: 6.5, bandWidth: 2.5, prongCount: 4, displayMode: "solid" },
   },
 ];
 
-// Metal alloy swatch definitions
-const METAL_SWATCHES: Array<{
-  id: MetalType;
-  label: string;
-  badge: string;
-  gradient: string;
-  density: string;
-}> = [
-  {
-    id: "platinum",
-    label: "950 Platinum",
-    badge: "950 Pt",
-    gradient: "from-[#eae6df] via-[#d6d2ca] to-[#a8a49c]",
-    density: "21.45 g/cm³",
-  },
-  {
-    id: "18k_gold",
-    label: "18k Yellow Gold",
-    badge: "750 Au",
-    gradient: "from-[#fff0cd] via-[#fde2aa] to-[#d4aa5c]",
-    density: "15.6 g/cm³",
-  },
-  {
-    id: "14k_rose",
-    label: "14k Rose Gold",
-    badge: "585 Au",
-    gradient: "from-[#feddce] via-[#facebf] to-[#c98e7b]",
-    density: "13.0 g/cm³",
-  },
-  {
-    id: "white_gold",
-    label: "18k White Gold",
-    badge: "Rhodium",
-    gradient: "from-[#ffffff] via-[#e2e0de] to-[#b3b1af]",
-    density: "15.2 g/cm³",
-  },
-  {
-    id: "silver",
-    label: "Sterling Silver",
-    badge: "925 Ag",
-    gradient: "from-[#ffffff] via-[#fbfaf5] to-[#c7c6c0]",
-    density: "10.49 g/cm³",
-  },
+// Hallmark plus colour. Densities come from the engine's table.
+const METAL_SWATCHES: Array<{ id: MetalType; badge: string; gradient: string }> = [
+  { id: "platinum", badge: "950 Pt", gradient: "from-[#eae6df] via-[#d6d2ca] to-[#a8a49c]" },
+  { id: "18k_gold", badge: "750 Yellow", gradient: "from-[#fff0cd] via-[#fde2aa] to-[#d4aa5c]" },
+  { id: "white_gold", badge: "750 White", gradient: "from-[#ffffff] via-[#e2e0de] to-[#b3b1af]" },
+  { id: "14k_rose", badge: "585 Rose", gradient: "from-[#feddce] via-[#facebf] to-[#c98e7b]" },
+  { id: "silver", badge: "925 Silver", gradient: "from-[#ffffff] via-[#fbfaf5] to-[#c7c6c0]" },
 ];
 
-const GEM_CUT_OPTIONS: Array<{ id: GemCut; label: string }> = [
-  { id: "round", label: "Round Brilliant" },
+const CUTS: Array<{ id: GemCut; label: string }> = [
+  { id: "round", label: "Round" },
   { id: "oval", label: "Oval" },
-  { id: "emerald", label: "Emerald Cut" },
+  { id: "emerald", label: "Emerald" },
   { id: "marquise", label: "Marquise" },
   { id: "cushion", label: "Cushion" },
-  { id: "princess", label: "Princess Cut" },
+  { id: "princess", label: "Princess" },
 ];
 
-const CARAT_OPTIONS = [1.0, 1.5, 2.0, 2.5];
-const RING_SIZE_OPTIONS = [5.0, 6.0, 6.5, 7.0, 8.0];
+const CARATS = [1.0, 1.5, 2.0, 2.5];
+const SIZES = [5.0, 6.0, 6.5, 7.0, 8.0];
+const VIEWS: Array<{ id: HeroRevolutionSpec["displayMode"]; label: string }> = [
+  { id: "solid", label: "Solid" },
+  { id: "wireframe", label: "Edges" },
+  { id: "section", label: "Section" },
+];
+
+type Tab = "metal" | "stone" | "view";
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: "metal", label: "Metal" },
+  { id: "stone", label: "Stone and size" },
+  { id: "view", label: "View" },
+];
+
+const chip = (on: boolean) =>
+  "tap inline-flex items-center rounded-full border px-3 py-1 text-[0.8rem] transition-colors " +
+  (on
+    ? "border-metal-400 bg-white/15 font-medium text-white"
+    : "border-white/12 bg-white/[0.04] text-white/80 hover:border-white/25 hover:text-white");
 
 export function HeroRevolution() {
   const navigate = useNavigate();
+  const rise = useRise();
 
-  const [promptText, setPromptText] = useState(ATELIER_PRESETS[0].prompt);
-  const [spec, setSpec] = useState<HeroRevolutionSpec>(ATELIER_PRESETS[0].spec);
+  const [promptText, setPromptText] = useState(PRESETS[0].prompt);
+  const [spec, setSpec] = useState<HeroRevolutionSpec>(PRESETS[0].spec);
   const [metrics, setMetrics] = useState<HeroMetrics>({
     volumeCm3: 0.31,
     weightGrams: 6.65,
@@ -158,18 +96,23 @@ export function HeroRevolution() {
     diameterMm: 7.4,
     isWatertight: true,
   });
+  const [tab, setTab] = useState<Tab>("metal");
 
-  const [activeTab, setActiveTab] = useState<"alloy" | "stone" | "view">("alloy");
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  // Grows with the text, up to three lines.
+  useLayoutEffect(() => {
+    const el = promptRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const cs = getComputedStyle(el);
+    const line = parseFloat(cs.lineHeight) || 22;
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    el.style.height = `${Math.min(el.scrollHeight, line * 3 + padY) + border}px`;
+  }, [promptText]);
 
-  const handlePresetSelect = (preset: typeof ATELIER_PRESETS[number]) => {
-    setPromptText(preset.prompt);
-    setSpec(preset.spec);
-  };
-
-  const handlePromptSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const preview = () => {
     if (!promptText.trim()) return;
-
     const parsed = parseSpecFromPrompt(promptText);
     setSpec((prev) => ({
       ...prev,
@@ -182,425 +125,273 @@ export function HeroRevolution() {
     }));
   };
 
-  const openInStudio = () => {
-    navigate("/chat", {
-      state: {
-        initialPrompt: promptText,
-        initialSpec: spec,
-      },
-    });
-  };
+  const openStudio = () =>
+    navigate("/chat", { state: { initialPrompt: promptText, initialSpec: spec } });
+
+  const hallmark = METAL_SWATCHES.find((m) => m.id === spec.metalType)?.badge ?? METAL_LABELS[spec.metalType];
 
   return (
-    <section className="relative min-h-[100svh] w-full overflow-hidden bg-ink-950 text-white">
-      {/* Background ambient lighting and precision grid */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          background:
-            "radial-gradient(110% 75% at 50% -10%, rgba(212,170,92,0.12), transparent 60%)," +
-            "radial-gradient(90% 60% at 75% 105%, rgba(198,155,178,0.10), transparent 65%)",
-        }}
-      />
-
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[50%] opacity-[0.20] z-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-          transform: "perspective(480px) rotateX(64deg)",
-          transformOrigin: "bottom center",
-          maskImage: "linear-gradient(to top, #000 0%, transparent 80%)",
-          WebkitMaskImage: "linear-gradient(to top, #000 0%, transparent 80%)",
-        }}
-      />
-
-      {/* Main Container */}
-      <div className="relative z-10 mx-auto flex min-h-[100svh] max-w-7xl flex-col justify-between px-4 pb-8 pt-24 sm:px-6 lg:px-8 lg:pt-28">
-        {/* Top Header / Headline */}
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
-          {/* Left Column: Headline & Atelier Console */}
+    <section className="page-glow relative w-full overflow-hidden bg-ink-950 text-white">
+      <div className="shell relative flex min-h-[100svh] flex-col justify-between pb-10 pt-28 lg:pt-32">
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-10">
           <div className="flex flex-col lg:col-span-7">
-
-            {/* Headline */}
-            <motion.h1
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.1 }}
-              className="mt-4 text-3xl font-medium tracking-tight text-white sm:text-4xl lg:text-5xl"
-            >
-              Design fine jewelry with{" "}
-              <span className="bg-gradient-to-r from-white via-white/95 to-metal-300 bg-clip-text text-transparent">
-                mathematical precision.
-              </span>
+            <motion.h1 {...rise(0)} className="h-display max-w-[18ch]">
+              Describe the ring. Get a file your caster can use.
             </motion.h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.2 }}
-              className="mt-3 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base"
-            >
-              Type your design intent, customize every facet live in 3D, and
-              export exact, watertight STEP and STL files calibrated for
-              investment casting.
+            <motion.p {...rise(0.05)} className="lede mt-5 max-w-xl">
+              Write what you want in plain words. Adjust it in 3D. Export STEP or STL,
+              checked against casting limits for the alloy you chose.
             </motion.p>
 
-            {/* Atelier Bench Console Card */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.3 }}
-              className="mt-6 rounded-2xl border border-white/12 bg-black/50 p-4 backdrop-blur-xl shadow-2xl sm:p-5"
+              {...rise(0.1)}
+              className="mt-8 rounded-2xl border border-white/12 bg-black/45 p-4 sm:p-5"
             >
-              {/* Natural Language Prompt Input Bar */}
-              <form onSubmit={handlePromptSubmit} className="relative flex items-center">
-                <input
-                  type="text"
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  preview();
+                }}
+                className="flex flex-col gap-2 sm:flex-row sm:items-start"
+              >
+                <label htmlFor="hero-prompt" className="sr-only">
+                  Describe your ring
+                </label>
+                <textarea
+                  id="hero-prompt"
+                  ref={promptRef}
+                  rows={1}
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
-                  placeholder="Describe your piece (e.g. 18k yellow gold solitaire, 2ct oval, size 6)..."
-                  className="w-full rounded-xl border border-white/15 bg-white/[0.07] py-2.5 pl-3.5 pr-24 text-xs text-white placeholder-white/60 transition-all focus:border-metal-400 focus:bg-white/[0.10] focus:outline-none sm:text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      preview();
+                    }
+                  }}
+                  placeholder="For example: 18k yellow gold solitaire, 2 ct oval, size 6"
+                  className="glassy-input min-h-11 flex-1 resize-none !leading-snug"
                 />
-                <button
-                  type="submit"
-                  className="absolute right-1.5 inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-ink-950 transition-transform active:scale-95 hover:bg-metal-200"
-                >
-                  <span>Resolve</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
+                <button type="submit" className="btn-primary w-full shrink-0 sm:w-auto">
+                  Preview
                 </button>
               </form>
 
-              {/* Quick Preset Chips */}
-              <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2">
-                {ATELIER_PRESETS.map((p) => {
-                  const isActive = promptText === p.prompt;
-                  return (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => handlePresetSelect(p)}
-                      className={`rounded-full px-2.5 py-1 text-[0.72rem] transition-colors sm:text-xs ${
-                        isActive
-                          ? "border border-metal-400 bg-white/20 text-white font-medium shadow-sm"
-                          : "border border-white/12 bg-white/[0.04] text-white/80 hover:border-white/25 hover:text-white"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    aria-pressed={promptText === p.prompt}
+                    onClick={() => {
+                      setPromptText(p.prompt);
+                      setSpec(p.spec);
+                    }}
+                    className={chip(promptText === p.prompt)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
 
-              {/* Secondary Customization Tabs */}
-              <div className="mt-4 border-t border-white/10 pt-3">
-                <div className="flex items-center gap-4 text-xs font-medium text-white/75">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("alloy")}
-                    className={`pb-1 transition-colors ${
-                      activeTab === "alloy"
-                        ? "border-b-2 border-metal-400 text-white font-semibold"
-                        : "hover:text-white"
-                    }`}
-                  >
-                    Precious Alloy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("stone")}
-                    className={`pb-1 transition-colors ${
-                      activeTab === "stone"
-                        ? "border-b-2 border-metal-400 text-white font-semibold"
-                        : "hover:text-white"
-                    }`}
-                  >
-                    Stone, Prongs & Size
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("view")}
-                    className={`pb-1 transition-colors ${
-                      activeTab === "view"
-                        ? "border-b-2 border-metal-400 text-white font-semibold"
-                        : "hover:text-white"
-                    }`}
-                  >
-                    CAD Viewport
-                  </button>
+              <div className="mt-5 border-t border-white/10 pt-3">
+                <div role="tablist" aria-label="Adjust the ring" className="flex gap-5 text-sm">
+                  {TABS.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab === t.id}
+                      onClick={() => setTab(t.id)}
+                      className={
+                        "tap border-b-2 pb-1 transition-colors " +
+                        (tab === t.id
+                          ? "border-metal-400 font-medium text-white"
+                          : "border-transparent text-white/70 hover:text-white")
+                      }
+                    >
+                      {t.label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Tab 1: Metal Alloy Swatches */}
-                {activeTab === "alloy" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"
+                {tab === "metal" && (
+                  <div
+                    role="tabpanel"
+                    className="-mx-4 mt-3 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0"
                   >
                     {METAL_SWATCHES.map((m) => {
-                      const isSelected = spec.metalType === m.id;
+                      const on = spec.metalType === m.id;
                       return (
                         <button
                           key={m.id}
                           type="button"
-                          onClick={() =>
-                            setSpec((prev) => ({ ...prev, metalType: m.id }))
+                          aria-pressed={on}
+                          aria-label={`${METAL_LABELS[m.id]}, ${METAL_DENSITY[m.id].toFixed(2)} grams per cubic centimetre`}
+                          onClick={() => setSpec((prev) => ({ ...prev, metalType: m.id }))}
+                          className={
+                            "flex w-[38%] min-h-11 shrink-0 snap-start items-center gap-2 rounded-xl border p-2 text-left transition-colors sm:w-auto " +
+                            (on
+                              ? "border-metal-400 bg-white/15"
+                              : "border-white/12 bg-white/[0.04] hover:border-white/25")
                           }
-                          className={`flex items-center gap-2 rounded-xl border p-2 text-left transition-all ${
-                            isSelected
-                              ? "border-metal-400 bg-white/20 shadow-sm"
-                              : "border-white/12 bg-white/[0.04] hover:border-white/25 hover:bg-white/[0.08]"
-                          }`}
                         >
-                          <span
-                            className={`h-4 w-4 shrink-0 rounded-full bg-gradient-to-tr shadow-inner ${m.gradient}`}
-                          />
-                          <div className="overflow-hidden">
-                            <div className="truncate text-[0.74rem] font-semibold text-white">
-                              {m.badge}
-                            </div>
-                            <div className="truncate text-[0.64rem] text-white/75">
-                              {m.density}
-                            </div>
-                          </div>
+                          <span className={`h-4 w-4 shrink-0 rounded-full bg-gradient-to-tr ${m.gradient}`} />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[0.8rem] font-semibold text-white">{m.badge}</span>
+                            <span className="measure block truncate text-[0.7rem] text-white/70">
+                              {METAL_DENSITY[m.id].toFixed(2)} g/cm³
+                            </span>
+                          </span>
                         </button>
                       );
                     })}
-                  </motion.div>
+                  </div>
                 )}
 
-                {/* Tab 2: Stone Cut, Prongs & Carat Selector */}
-                {activeTab === "stone" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 flex flex-col gap-2.5"
-                  >
-                    {/* Cut buttons */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[0.75rem] font-medium text-white/80 mr-1">Cut:</span>
-                      {GEM_CUT_OPTIONS.map((cut) => {
-                        const isCutActive = spec.gemShape === cut.id;
-                        return (
-                          <button
-                            key={cut.id}
-                            type="button"
-                            onClick={() =>
-                              setSpec((prev) => ({
-                                ...prev,
-                                gemShape: cut.id,
-                                prongCount:
-                                  cut.id === "emerald" || cut.id === "princess"
-                                    ? 4
-                                    : prev.prongCount,
-                              }))
-                            }
-                            className={`rounded-lg px-2.5 py-1 text-[0.72rem] transition-colors ${
-                              isCutActive
-                                ? "bg-white text-ink-950 font-semibold shadow"
-                                : "bg-white/[0.08] text-white/80 hover:bg-white/15 hover:text-white"
-                            }`}
-                          >
-                            {cut.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Carat, Prongs, Finger Size Controls */}
-                    <div className="flex flex-wrap items-center gap-4 pt-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[0.75rem] font-medium text-white/80">Carat:</span>
-                        {CARAT_OPTIONS.map((ct) => (
-                          <button
-                            key={ct}
-                            type="button"
-                            onClick={() =>
-                              setSpec((prev) => ({ ...prev, gemSize: ct }))
-                            }
-                            className={`rounded-md px-2 py-0.5 text-[0.72rem] ${
-                              spec.gemSize === ct
-                                ? "border border-metal-400 bg-white/20 text-white font-semibold"
-                                : "border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:text-white"
-                            }`}
-                          >
-                            {ct.toFixed(1)} ct
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[0.75rem] font-medium text-white/80">Prongs:</span>
-                        {[4, 6].map((cnt) => (
-                          <button
-                            key={cnt}
-                            type="button"
-                            onClick={() =>
-                              setSpec((prev) => ({ ...prev, prongCount: cnt }))
-                            }
-                            className={`rounded-md px-2 py-0.5 text-[0.72rem] ${
-                              spec.prongCount === cnt
-                                ? "border border-metal-400 bg-white/20 text-white font-semibold"
-                                : "border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:text-white"
-                            }`}
-                          >
-                            {cnt} Claws
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[0.75rem] font-medium text-white/80">Finger:</span>
-                        {RING_SIZE_OPTIONS.map((sz) => (
-                          <button
-                            key={sz}
-                            type="button"
-                            onClick={() =>
-                              setSpec((prev) => ({ ...prev, ringSize: sz }))
-                            }
-                            className={`rounded-md px-1.5 py-0.5 text-[0.72rem] ${
-                              spec.ringSize === sz
-                                ? "border border-metal-400 bg-white/20 text-white font-semibold"
-                                : "border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:text-white"
-                            }`}
-                          >
-                            US {sz}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Tab 3: Display Mode */}
-                {activeTab === "view" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 flex items-center gap-2"
-                  >
-                    {[
-                      { id: "solid" as const, label: "Solid PBR", icon: Box },
-                      { id: "wireframe" as const, label: "CAD Wireframe", icon: Layers },
-                      { id: "section" as const, label: "Cross-Section", icon: Scissors },
-                    ].map((mode) => {
-                      const Icon = mode.icon;
-                      const isActive = spec.displayMode === mode.id;
-                      return (
+                {tab === "stone" && (
+                  <div role="tabpanel" className="mt-3 space-y-3">
+                    <Row label="Cut">
+                      {CUTS.map((c) => (
                         <button
-                          key={mode.id}
+                          key={c.id}
                           type="button"
+                          aria-pressed={spec.gemShape === c.id}
                           onClick={() =>
                             setSpec((prev) => ({
                               ...prev,
-                              displayMode: mode.id,
+                              gemShape: c.id,
+                              prongCount: c.id === "emerald" || c.id === "princess" ? 4 : prev.prongCount,
                             }))
                           }
-                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors ${
-                            isActive
-                              ? "bg-white text-ink-950 font-semibold"
-                              : "border border-white/12 bg-white/[0.06] text-white/80 hover:text-white"
-                          }`}
+                          className={chip(spec.gemShape === c.id)}
                         >
-                          <Icon className="h-3.5 w-3.5" />
-                          <span>{mode.label}</span>
+                          {c.label}
                         </button>
-                      );
-                    })}
-                  </motion.div>
+                      ))}
+                    </Row>
+                    <Row label="Carat">
+                      {CARATS.map((ct) => (
+                        <button
+                          key={ct}
+                          type="button"
+                          aria-pressed={spec.gemSize === ct}
+                          onClick={() => setSpec((prev) => ({ ...prev, gemSize: ct }))}
+                          className={chip(spec.gemSize === ct)}
+                        >
+                          {ct.toFixed(1)} ct
+                        </button>
+                      ))}
+                    </Row>
+                    <Row label="Prongs">
+                      {[4, 6].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          aria-pressed={spec.prongCount === n}
+                          onClick={() => setSpec((prev) => ({ ...prev, prongCount: n }))}
+                          className={chip(spec.prongCount === n)}
+                        >
+                          {n} prongs
+                        </button>
+                      ))}
+                    </Row>
+                    <Row label="Size">
+                      {SIZES.map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          aria-pressed={spec.ringSize === sz}
+                          onClick={() => setSpec((prev) => ({ ...prev, ringSize: sz }))}
+                          className={chip(spec.ringSize === sz)}
+                        >
+                          US {sz}
+                        </button>
+                      ))}
+                    </Row>
+                  </div>
+                )}
+
+                {tab === "view" && (
+                  <div role="tabpanel" className="mt-3 flex flex-wrap gap-2">
+                    {VIEWS.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        aria-pressed={spec.displayMode === v.id}
+                        onClick={() => setSpec((prev) => ({ ...prev, displayMode: v.id }))}
+                        className={chip(spec.displayMode === v.id)}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
 
-              {/* Call to Action Row */}
-              <div className="mt-5 flex flex-wrap items-center gap-3 pt-3 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={openInStudio}
-                  className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-white px-5 py-2.5 text-xs font-semibold text-ink-950 transition-colors duration-300 hover:bg-metal-200 sm:text-sm"
-                >
-                  <span>Open in Full Studio</span>
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              <div className="mt-5 flex flex-wrap gap-3 border-t border-white/10 pt-4">
+                <button type="button" onClick={openStudio} className="btn-primary group">
+                  Open the Studio
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </button>
-
-                <a
-                  href="#contact"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-white/85 transition-colors hover:border-white/30 hover:text-white sm:text-sm"
-                >
-                  Book an Atelier Demo
+                <a href="#contact" className="btn-secondary">
+                  Book a demo
                 </a>
               </div>
             </motion.div>
           </div>
 
-          {/* Right Column: 3D Viewport Stage */}
-          <div className="relative flex h-[380px] w-full flex-col justify-center sm:h-[460px] lg:col-span-5 lg:h-[540px]">
-            {/* 3D Visual Canvas */}
-            <div className="relative h-full w-full rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.04] to-transparent p-1 shadow-2xl overflow-hidden backdrop-blur-sm">
+          <motion.div
+            {...rise(0.15)}
+            className="relative h-[340px] w-full sm:h-[440px] lg:col-span-5 lg:h-[540px]"
+          >
+            <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.04] to-transparent p-1">
               <HeroRevolutionVisual
                 spec={spec}
                 onMetricsChange={setMetrics}
                 className="h-full w-full cursor-grab active:cursor-grabbing"
               />
-
-              {/* Top overlay badge on viewport */}
-              <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-md bg-black/70 px-2.5 py-1 text-[0.68rem] text-white/90 backdrop-blur-md">
-                <RotateCw className="h-3 w-3 animate-spin text-metal-300" style={{ animationDuration: "12s" }} />
-                <span>360° Interactive Canvas · Drag to Orbit</span>
+              <div className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/65 px-2.5 py-1 text-xs text-white/85">
+                Drag to turn
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
-        {/* Bottom Strip: Live Mathematical Engineering Readouts */}
+        {/* A torus estimate for the preview, not the Studio's measured solid, hence "approx." */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-8 grid grid-cols-2 gap-2 overflow-hidden rounded-xl border border-white/12 bg-black/50 backdrop-blur-xl sm:grid-cols-4"
+          {...rise(0.2)}
+          className="mt-8 grid grid-cols-2 overflow-hidden rounded-xl border border-white/12 bg-black/45 sm:grid-cols-4"
         >
-          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/10">
-            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
-              Metal Volume
-            </div>
-            <div className="mt-1 text-sm font-semibold text-white sm:text-base">
-              {metrics.volumeCm3.toFixed(2)} cm³
-            </div>
-          </div>
-
-          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/10">
-            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
-              Est. Weight ({spec.metalType === "platinum" ? "950 Pt" : spec.metalType === "18k_gold" ? "18k Au" : spec.metalType === "14k_rose" ? "14k Rose" : spec.metalType === "white_gold" ? "18k White" : "Silver"})
-            </div>
-            <div className="mt-1 text-sm font-semibold text-white sm:text-base">
-              {metrics.weightGrams.toFixed(2)} g
-            </div>
-          </div>
-
-          <div className="p-3 sm:px-4 sm:py-3.5 border-r border-white/10">
-            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
-              Centre Stone
-            </div>
-            <div className="mt-1 text-sm font-semibold text-white sm:text-base">
-              {metrics.carat.toFixed(2)} ct · {metrics.diameterMm.toFixed(1)} mm
-            </div>
-          </div>
-
-          <div className="p-3 sm:px-4 sm:py-3.5">
-            <div className="mono-label !text-[0.62rem] !tracking-[0.16em] !text-white/75">
-              Solid Topology
-            </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-emerald-400 sm:text-sm">
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              <span>100% Watertight B-Rep</span>
-            </div>
+          <Stat label="Approx. metal volume" value={`${metrics.volumeCm3.toFixed(2)} cm³`} />
+          <Stat label={`Approx. weight (${hallmark})`} value={`${metrics.weightGrams.toFixed(2)} g`} />
+          <Stat label="Centre stone" value={`${metrics.carat.toFixed(2)} ct · ${metrics.diameterMm.toFixed(1)} mm`} />
+          <div className="border-t border-white/10 p-3 sm:border-t-0 sm:px-4 sm:py-3.5">
+            <div className="label">Casting check</div>
+            <div className="mt-1 text-sm text-white/85">Checked on export in the Studio</div>
           </div>
         </motion.div>
       </div>
     </section>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="label w-14 shrink-0">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-white/10 p-3 odd:border-r sm:border-r sm:px-4 sm:py-3.5 [&:nth-child(n+3)]:border-t sm:[&:nth-child(n+3)]:border-t-0">
+      <div className="label">{label}</div>
+      <div className="measure mt-1 text-sm font-semibold text-white sm:text-base">{value}</div>
+    </div>
   );
 }
 

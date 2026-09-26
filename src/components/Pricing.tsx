@@ -50,7 +50,7 @@ const TIERS: Tier[] = [
     features: [
       { text: "Describe a piece in plain language, unlimited prompts" },
       { text: "Every setting, cut and shank the engine builds" },
-      { text: "Exact STEP and binary STL export" },
+      { text: "STEP and STL export" },
       { text: "Measured metal weight per alloy, carat per stone" },
       { text: "Email support" },
     ],
@@ -171,7 +171,7 @@ export function Pricing() {
               })}
             </div>
             <span className="mono-label !text-[0.55rem] !text-metal-400">
-              Two months on us, yearly
+              Save 20% yearly
             </span>
           </motion.div>
         </div>
@@ -252,9 +252,7 @@ function Plate({ tier, yearly, i }: { tier: Tier; yearly: boolean; i: number }) 
 
         {price !== null && (
           <div className="mono-label mt-2 !text-[0.55rem] !text-white/75">
-            {yearly
-              ? `billed yearly · $${price * 12} per seat`
-              : `billed monthly · $${(tier.yearly ?? 0) * 12} yearly`}
+            {yearly ? `$${price * 12} billed yearly` : "Billed monthly"}
           </div>
         )}
 

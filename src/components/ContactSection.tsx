@@ -238,11 +238,11 @@ export function ContactSection() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field id="fullName" label="Name" placeholder="Animesh Mittal"
+                <Field id="fullName" label="Name" placeholder="Your name"
                        autoComplete="name" error={errors.fullName} />
                 <Field id="email" label="Email" type="email" placeholder="you@studio.com"
                        autoComplete="email" error={errors.email} />
-                <Field id="company" label="Studio" placeholder="EAJ Concepts"
+                <Field id="company" label="Studio" placeholder="Studio or workshop name"
                        autoComplete="organization" error={errors.company} />
                 <Field id="website" label="Website" placeholder="yourstudio.com"
                        autoComplete="url" optional />

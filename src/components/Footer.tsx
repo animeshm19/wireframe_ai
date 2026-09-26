@@ -35,9 +35,7 @@ const COLUMNS: Array<{ heading: string; items: Item[] }> = [
     heading: "Company",
     items: [
       { label: "About", to: "/about" },
-      { label: "Blog", to: "/blog" },
-      { label: "Careers", to: "/careers" },
-      { label: "Partners", to: "/partners" },
+      { label: "Journal", to: "/journal" },
     ],
   },
   {
