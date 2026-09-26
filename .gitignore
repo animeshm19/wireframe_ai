@@ -69,3 +69,6 @@ src/leak-test.ts
 src/chat-only.tsx
 vite.harness.config.ts
 dist-harness/
+
+# Rendered-site audit output (screenshots are for review, not the repo).
+audit/

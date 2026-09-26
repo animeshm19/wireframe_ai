@@ -1,29 +1,10 @@
-/**
- * Book a walkthrough.
- *
- * The form still posts the same seven fields to the same callable —
- * requestDemo, in functions/index.js — so nothing downstream changes.
- *
- * What changed, apart from the design:
- *
- *   A successful request used to report failure. The submit handler awaited
- *   the call and then did e.currentTarget.reset(). React nulls currentTarget
- *   once the handler returns, so by the time the await resolved that was
- *   null.reset(), which threw, which the catch below turned into "There was
- *   an issue submitting your request" — after the request had gone through.
- *   Anyone who filled this in was told it failed and, reasonably, sent it
- *   again. The form element is captured synchronously now.
- *
- *   The labels were floating text next to inputs rather than attached to
- *   them, so a screen reader announced unlabelled fields and clicking a label
- *   did nothing. They are real labels with ids.
- *
- *   Nothing was validated before being sent, and the status messages were not
- *   announced. Both fixed.
- */
+/* Demo request: posts seven fields to the requestDemo callable (functions/index.js).
+ * The form is captured before the await because React clears ev.currentTarget. */
 
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { CheckCircle2 } from "lucide-react";
+import { useRise } from "./motion";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../lib/firebase";
 
@@ -59,13 +40,13 @@ export function ContactSection() {
   const [failed, setFailed] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const formRef = useRef<HTMLFormElement>(null);
+  const rise = useRise();
 
   const validate = (p: DemoRequestPayload): Errors => {
     const e: Errors = {};
     if (!p.fullName.trim()) e.fullName = "Required";
     if (!p.email.trim()) e.email = "Required";
-    // Deliberately loose: the only thing worth rejecting here is an address
-    // that cannot possibly be one. Anything stricter turns away real people.
+    // Loose on purpose: stricter patterns turn away real addresses.
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email.trim()))
       e.email = "That does not look like an email address";
     if (!p.company.trim()) e.company = "Required";
@@ -119,137 +100,69 @@ export function ContactSection() {
   };
 
   return (
-    <section
-      id="contact"
-      className="relative scroll-mt-24 overflow-hidden border-t border-white/5 bg-ink-900 py-24 sm:py-32"
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(55% 45% at 18% 8%, rgba(225,40,130,0.06), transparent 62%)," +
-            "radial-gradient(45% 40% at 88% 90%, rgba(198,155,178,0.06), transparent 62%)",
-        }}
-      />
-
-      <div className="shell relative z-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-16">
-        {/* Left: what the call actually is */}
+    <section id="contact" className="relative scroll-mt-24 border-t border-white/5 bg-ink-900 py-16 md:py-28">
+      <div className="shell grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-16">
         <div>
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="flex items-center gap-3"
-          >
-            <span className="mono-label !text-metal-400">04</span>
-            <span className="h-px w-8 bg-white/15" />
-            <span className="mono-label">Talk to us</span>
-          </motion.div>
-
-          <motion.h2
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.75, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-5 max-w-[15ch] text-[clamp(1.9rem,1.2rem+2.4vw,3.1rem)] font-semibold leading-[1.04] tracking-[-0.035em] text-white"
-          >
-            Bring us a piece you already make.
+          <motion.p {...rise(0)} className="eyebrow">Book a demo</motion.p>
+          <motion.h2 {...rise(0.04)} className="h-section mt-3 max-w-[16ch]">
+            Bring us a piece you already make
           </motion.h2>
 
-          <ol className="mt-8 space-y-5">
+          <motion.ol {...rise(0.08)} className="mt-8 space-y-4">
             {STEPS.map((s, i) => (
-              <motion.li
-                key={s}
-                initial={{ opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.6, delay: 0.1 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
-                className="flex gap-4"
-              >
-                <span className="mono-label mt-1 !text-[0.55rem] !text-metal-400 font-semibold">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="text-[0.92rem] leading-relaxed text-white/85">{s}</span>
-              </motion.li>
+              <li key={s} className="flex gap-4">
+                <span className="measure mt-0.5 w-4 shrink-0 text-sm text-metal-300">{i + 1}</span>
+                <span className="text-white/85">{s}</span>
+              </li>
             ))}
-          </ol>
+          </motion.ol>
 
           <hr className="hairline my-8" />
 
-          <div className="grid gap-5 sm:grid-cols-2">
+          <dl className="grid gap-5 sm:grid-cols-2">
             <div>
-              <div className="mono-label !text-[0.55rem] !text-white/80">Typical reply</div>
-              <div className="mt-1 text-[0.92rem] font-medium text-white">
-                One business day
-              </div>
+              <dt className="label">Typical reply</dt>
+              <dd className="mt-1 text-white">One business day</dd>
             </div>
             <div>
-              <div className="mono-label !text-[0.55rem] !text-white/80">Or just email</div>
-              <a
-                href="mailto:hello@wireframe.studio"
-                className="underline-fancy mt-1 inline-block text-[0.92rem] font-medium text-white hover:text-metal-300"
-              >
-                hello@wireframe.studio
-              </a>
+              <dt className="label">Or email</dt>
+              <dd className="mt-1">
+                <a href="mailto:hello@wireframe.studio" className="inline-flex min-h-11 items-center text-white underline decoration-white/30 underline-offset-4 hover:decoration-white md:min-h-0">
+                  hello@wireframe.studio
+                </a>
+              </dd>
             </div>
-          </div>
+          </dl>
         </div>
 
-        {/* Right: the form */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.8, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-          className="card-edge relative overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-b from-white/[0.045] to-white/[0.012] p-6 sm:p-8"
-        >
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent"
-          />
-
+        <motion.div {...rise(0.06)} className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
           {sent ? (
-            <div role="status" className="flex min-h-[26rem] flex-col items-start justify-center">
-              <span className="grid h-11 w-11 place-items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
-                ✓
-              </span>
-              <h3 className="mt-5 text-[1.3rem] font-medium tracking-tight text-white">
-                That's with us.
-              </h3>
-              <p className="mt-2 max-w-sm text-[0.92rem] leading-relaxed text-white/85">
-                We'll come back within one business day. If it's urgent, reply
-                straight to the confirmation or write to
+            <div role="status" className="flex min-h-[24rem] flex-col items-start justify-center">
+              <CheckCircle2 className="h-6 w-6 text-emerald-300" aria-hidden="true" />
+              <h3 className="mt-4 text-[1.3rem] font-semibold text-white">Request sent</h3>
+              <p className="mt-2 max-w-sm text-white/82">
+                We will reply within one business day. If it is urgent, write to
                 hello@wireframe.studio.
               </p>
-              <button
-                onClick={() => setSent(false)}
-                className="mono-label mt-6 !text-[0.52rem] underline decoration-white/25 underline-offset-4 hover:!text-white"
-              >
+              <button type="button" onClick={() => setSent(false)} className="btn-secondary mt-6">
                 Send another
               </button>
             </div>
           ) : (
-            <form ref={formRef} onSubmit={onSubmit} noValidate className="relative">
-              <div className="mono-label mb-5 flex items-center gap-2 !text-[0.5rem]">
-                <span>Request a walkthrough</span>
-                <span className="h-px flex-1 bg-white/10" />
-              </div>
-
+            <form ref={formRef} onSubmit={onSubmit} noValidate>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field id="fullName" label="Name" placeholder="Animesh Mittal"
+                <Field id="fullName" label="Name" placeholder="Your name"
                        autoComplete="name" error={errors.fullName} />
                 <Field id="email" label="Email" type="email" placeholder="you@studio.com"
                        autoComplete="email" error={errors.email} />
-                <Field id="company" label="Studio" placeholder="EAJ Concepts"
+                <Field id="company" label="Studio" placeholder="Studio or workshop name"
                        autoComplete="organization" error={errors.company} />
                 <Field id="website" label="Website" placeholder="yourstudio.com"
                        autoComplete="url" optional />
 
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="teamSize" text="Bench size" error={errors.teamSize} />
-                  <select id="teamSize" name="teamSize" defaultValue=""
+                  <Label htmlFor="teamSize" text="Team size" error={errors.teamSize} />
+                  <select id="teamSize" name="teamSize" defaultValue="" aria-invalid={!!errors.teamSize}
                           className="glassy-input glassy-select">
                     <option value="" disabled>Choose one</option>
                     {TEAM_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -269,31 +182,19 @@ export function ContactSection() {
                 <Label htmlFor="message" text="What would you bring to the call?" optional />
                 <textarea
                   id="message" name="message" rows={4}
-                  placeholder="A piece you make often, and where it slows down."
+                  placeholder="A piece you make often, and where it slows you down."
                   className="glassy-input resize-none"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={sending}
-                className="group mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-sm font-medium text-ink-900 transition-opacity duration-300 disabled:opacity-55"
-              >
-                {sending ? "Sending…" : "Request a walkthrough"}
-                {!sending && (
-                  <span className="transition-transform duration-500 group-hover:translate-x-1">→</span>
-                )}
+              <button type="submit" disabled={sending} className="btn-primary mt-6 w-full disabled:opacity-60">
+                {sending ? "Sending…" : "Send request"}
               </button>
 
-              {/* Announced, so a screen reader hears the outcome. */}
               <div aria-live="polite" className="min-h-[1.4rem]">
-                {failed && (
-                  <p className="mt-3 text-[0.8rem] leading-relaxed text-red-300/90">{failed}</p>
-                )}
+                {failed && <p className="mt-3 text-sm text-red-300">{failed}</p>}
                 {!failed && Object.keys(errors).length > 0 && (
-                  <p className="mt-3 text-[0.8rem] text-red-300/90">
-                    A couple of fields still need filling in.
-                  </p>
+                  <p className="mt-3 text-sm text-red-300">Some fields still need filling in.</p>
                 )}
               </div>
             </form>
@@ -310,10 +211,10 @@ function Label({
   htmlFor, text, optional, error,
 }: { htmlFor: string; text: string; optional?: boolean; error?: string }) {
   return (
-    <label htmlFor={htmlFor} className="mono-label flex items-baseline gap-2 !text-[0.52rem] !text-white/85">
+    <label htmlFor={htmlFor} className="label flex items-baseline gap-2 !text-white/85">
       <span>{text}</span>
-      {optional && <span className="!text-white/65">optional</span>}
-      {error && <span className="normal-case tracking-normal text-red-300/90">{error}</span>}
+      {optional && <span className="text-white/55">optional</span>}
+      {error && <span className="text-red-300">{error}</span>}
     </label>
   );
 }

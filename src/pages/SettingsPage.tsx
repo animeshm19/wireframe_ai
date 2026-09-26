@@ -127,7 +127,7 @@ function PreferencesSection() {
             </div>
             <div>
               <div className="text-sm font-medium">Millimeters (mm)</div>
-              <div className="text-xs text-white/50">Standard for jewelry CAD</div>
+              <div className="text-xs text-white/50">Standard for jewellery CAD</div>
             </div>
           </label>
           <label className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-transparent cursor-pointer hover:bg-white/5 opacity-60">

@@ -26,13 +26,13 @@ const SIZE = 512;
 function canvas2d(size = SIZE) {
   const c = document.createElement("canvas");
   c.width = c.height = size;
-  return { c, ctx: c.getContext("2d")! };
+  return { c, ctx: c.getContext("2d", { willReadFrequently: true })! };
 }
 
 /** Sobel a height field into a tangent-space normal map. */
 function heightToNormal(height: HTMLCanvasElement, strength: number): THREE.CanvasTexture {
   const w = height.width, h = height.height;
-  const src = height.getContext("2d")!.getImageData(0, 0, w, h).data;
+  const src = height.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, w, h).data;
   const { c, ctx } = canvas2d(w);
   const out = ctx.createImageData(w, h);
   const at = (x: number, y: number) =>

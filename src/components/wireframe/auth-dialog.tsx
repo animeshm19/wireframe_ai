@@ -206,7 +206,7 @@ export function AuthDialog({
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="w-full rounded-2xl border border-white/12 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/25"
-                        placeholder="Animesh"
+                        placeholder="First name"
                         autoComplete="name"
                       />
                     </div>

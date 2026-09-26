@@ -1,19 +1,4 @@
-/**
- * The footer.
- *
- * Three of its links went nowhere. /features, /pricing and /terms are not
- * routes — the router has no match for any of them, so all three fell through
- * to the catch-all and landed on the "coming soon" page. Features and pricing
- * are sections on this page and are now anchors to them; there is no terms
- * page to link to, so it is not linked to.
- *
- * The two social links pointed at x.com and linkedin.com — the sites, not any
- * account. A link to a social network's front door is worse than no link, so
- * they are out until there are real handles to put there.
- */
-
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
 
 const logoUrl = "/icons/Wireframe.png";
 
@@ -23,21 +8,19 @@ const COLUMNS: Array<{ heading: string; items: Item[] }> = [
   {
     heading: "Product",
     items: [
-      { label: "Capabilities", anchor: "features" },
-      { label: "On the bench", anchor: "capabilities" },
-      { label: "Plans", anchor: "pricing" },
+      { label: "How it works", anchor: "how" },
+      { label: "On the bench", anchor: "bench" },
+      { label: "Pricing", anchor: "pricing" },
       { label: "Technology", to: "/technology" },
+      { label: "Studio guide", to: "/docs" },
       { label: "Changelog", to: "/changelog" },
-      { label: "Docs", to: "/docs" },
     ],
   },
   {
     heading: "Company",
     items: [
       { label: "About", to: "/about" },
-      { label: "Blog", to: "/blog" },
-      { label: "Careers", to: "/careers" },
-      { label: "Partners", to: "/partners" },
+      { label: "Journal", to: "/journal" },
     ],
   },
   {
@@ -45,75 +28,55 @@ const COLUMNS: Array<{ heading: string; items: Item[] }> = [
     items: [
       { label: "Help", to: "/support" },
       { label: "Privacy", to: "/privacy" },
-      { label: "Book a walkthrough", anchor: "contact" },
+      { label: "Book a demo", anchor: "contact" },
       { label: "hello@wireframe.studio", href: "mailto:hello@wireframe.studio" },
     ],
   },
 ];
 
-const goTo = (id: string) =>
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+const linkCls =
+  "inline-flex min-h-11 min-w-11 items-center text-left text-[0.92rem] text-white/78 transition-colors hover:text-white md:min-h-0 md:py-1";
 
 export function Footer() {
+  const navigate = useNavigate();
   const year = new Date().getFullYear();
 
+  const goTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    else navigate(`/#${id}`);
+  };
+
   return (
-    <footer className="relative overflow-hidden border-t border-white/8 bg-ink-950">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(70% 60% at 50% 120%, rgba(198,155,178,0.09), transparent 62%)",
-        }}
-      />
-
-      <div className="shell relative z-10 py-16 sm:py-20">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] lg:gap-20">
+    <footer className="relative border-t border-white/8 bg-ink-950">
+      <div className="shell py-14 sm:py-20">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] lg:gap-20">
           <div>
-            <Link to="/" className="inline-flex items-center gap-2.5">
+            <Link to="/" className="inline-flex min-h-11 items-center gap-2.5" aria-label="wireframe, home">
               <img src={logoUrl} alt="" className="h-7 w-auto" />
-              <span className="text-[0.95rem] font-semibold tracking-tight text-white">
-                wireframe
-              </span>
+              <span className="text-[0.95rem] font-semibold tracking-tight text-white">wireframe</span>
             </Link>
-
-            <p className="mt-5 max-w-sm text-[0.92rem] leading-relaxed text-white/85">
-              Describe a piece in plain language and get a parametric B-rep
-              solid — measured, checked against real casting limits, and
-              exported as STEP or STL.
+            <p className="mt-4 max-w-sm text-[0.92rem] text-white/78">
+              Describe a ring in plain language and get a solid model, measured and
+              checked against casting limits, ready to export as STEP or STL.
             </p>
-
           </div>
 
-          <div className="grid gap-8 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
             {COLUMNS.map((col) => (
               <nav key={col.heading} aria-label={col.heading}>
-                <h3 className="mono-label !text-[0.55rem] !text-white/90 font-semibold">{col.heading}</h3>
-                <ul className="mt-4 space-y-2.5">
+                <h2 className="text-sm font-semibold text-white">{col.heading}</h2>
+                <ul className="mt-3 md:space-y-1.5">
                   {col.items.map((item) => (
                     <li key={item.label}>
                       {"to" in item ? (
-                        <Link
-                          to={item.to}
-                          className="text-[0.88rem] font-medium text-white/80 transition-colors duration-300 hover:text-white"
-                        >
-                          {item.label}
-                        </Link>
+                        <Link to={item.to} className={linkCls}>{item.label}</Link>
                       ) : "anchor" in item ? (
-                        <button
-                          onClick={() => goTo(item.anchor)}
-                          className="text-left text-[0.88rem] font-medium text-white/80 transition-colors duration-300 hover:text-white"
-                        >
+                        <button type="button" onClick={() => goTo(item.anchor)} className={linkCls}>
                           {item.label}
                         </button>
                       ) : (
-                        <a
-                          href={item.href}
-                          className="text-[0.88rem] font-medium text-white/80 transition-colors duration-300 hover:text-white"
-                        >
-                          {item.label}
-                        </a>
+                        <a href={item.href} className={linkCls}>{item.label}</a>
                       )}
                     </li>
                   ))}
@@ -123,29 +86,9 @@ export function Footer() {
           </div>
         </div>
 
-        {/* The wordmark, set large enough to be a graphic rather than a label.
-            It is the one place on the page the name gets to be the picture. */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-          aria-hidden="true"
-          className="pointer-events-none mt-16 select-none text-center"
-        >
-          <span className="text-metal block bg-clip-text text-[clamp(3.2rem,1.2rem+11vw,10rem)] font-semibold leading-[0.8] tracking-[-0.06em]">
-            wireframe
-          </span>
-        </motion.div>
-
-        <div className="mt-12 flex flex-col gap-4 border-t border-white/8 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="mono-label !text-[0.52rem] !text-white/75">
-            © {year} wireframe · Built in Canada
-          </p>
-          <p className="mono-label !text-[0.52rem] !text-white/75">
-            B-rep kernel · OCCT · STEP AP214 &amp; binary STL
-          </p>
-        </div>
+        <p className="mt-14 border-t border-white/8 pt-6 text-sm text-white/65">
+          © {year} Wireframe · Made in Canada
+        </p>
       </div>
     </footer>
   );
