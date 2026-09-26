@@ -231,7 +231,7 @@ export function HeroRevolution() {
                           aria-label={`${METAL_LABELS[m.id]}, ${METAL_DENSITY[m.id].toFixed(2)} grams per cubic centimetre`}
                           onClick={() => setSpec((prev) => ({ ...prev, metalType: m.id }))}
                           className={
-                            "flex w-[38%] min-h-11 shrink-0 snap-start items-center gap-2 rounded-xl border p-2 text-left transition-colors sm:w-auto " +
+                            "flex w-[8.5rem] min-h-11 shrink-0 snap-start items-center gap-2 rounded-xl border p-2 text-left transition-colors sm:w-auto " +
                             (on
                               ? "border-metal-400 bg-white/15"
                               : "border-white/12 bg-white/[0.04] hover:border-white/25")
