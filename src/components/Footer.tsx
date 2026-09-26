@@ -35,7 +35,7 @@ const COLUMNS: Array<{ heading: string; items: Item[] }> = [
 ];
 
 const linkCls =
-  "inline-flex min-h-11 items-center text-left text-[0.92rem] text-white/78 transition-colors hover:text-white md:min-h-0 md:py-1";
+  "inline-flex min-h-11 min-w-11 items-center text-left text-[0.92rem] text-white/78 transition-colors hover:text-white md:min-h-0 md:py-1";
 
 export function Footer() {
   const navigate = useNavigate();
@@ -62,7 +62,7 @@ export function Footer() {
             </p>
           </div>
 
-          <div className="grid gap-8 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3">
             {COLUMNS.map((col) => (
               <nav key={col.heading} aria-label={col.heading}>
                 <h2 className="text-sm font-semibold text-white">{col.heading}</h2>

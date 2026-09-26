@@ -166,7 +166,7 @@ function ResizeTest() {
           step={0.5}
           value={size}
           onChange={(e) => setSize(Number(e.target.value))}
-          className="slider-metal w-full max-w-xs flex-1"
+          className="slider-metal order-3 w-full sm:order-none sm:max-w-xs sm:flex-1"
           aria-valuetext={`US ${size}, inner diameter ${d.innerDia.toFixed(2)} millimetres`}
         />
         <span className="measure text-sm text-white">
@@ -174,7 +174,7 @@ function ResizeTest() {
         </span>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5">
         <DuelColumn
           title="Scaled as a mesh"
           note={d.k === 1 ? "Every length times 1.000" : `Every length times ${d.k.toFixed(3)}`}
@@ -214,15 +214,15 @@ function DuelColumn({
   const wallLow = col.wall < limits.minBandThickness;
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/35 p-4 sm:p-5">
-      <div className="flex items-baseline justify-between gap-3">
+    <div className="min-w-0 rounded-xl border border-white/10 bg-black/35 p-3 sm:p-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
         <h3 className="h-card">{title}</h3>
         <span className="text-xs text-white/60">{note}</span>
       </div>
 
       <RingDrawing innerDia={innerDia} col={col} />
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+      <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
         <Figure label="Seat" value={`${col.seat.toFixed(2)} mm`} bad={seatOff} hint={`stone ${BASE.seat.toFixed(2)} mm`} />
         <Figure label="Stone for this seat" value={`${col.carat.toFixed(2)} ct`} bad={seatOff} />
         <Figure label="Prongs" value={`${col.prong.toFixed(2)} mm`} bad={prongLow} />
@@ -240,7 +240,7 @@ function Figure({ label, value, bad, hint }: { label: string; value: string; bad
       <dt className="label">{label}</dt>
       <dd className={"measure mt-0.5 " + (bad ? "text-red-300" : "text-white")}>
         {value}
-        {hint && <span className="ml-1.5 text-white/50">({hint})</span>}
+        {hint && <span className="ml-1.5 hidden text-white/50 sm:inline">({hint})</span>}
       </dd>
     </div>
   );
@@ -248,16 +248,16 @@ function Figure({ label, value, bad, hint }: { label: string; value: string; bad
 
 function VerdictLine({ v }: { v: Verdict }) {
   if (v.kind === "same")
-    return <p className="mt-4 border-t border-white/8 pt-3 text-sm text-white/70">Same ring. Move the slider.</p>;
+    return <p className="mt-4 border-t border-white/8 pt-3 text-xs sm:text-sm text-white/70">Same ring. Move the slider.</p>;
   if (v.kind === "ok")
     return (
-      <p className="mt-4 flex items-start gap-2 border-t border-white/8 pt-3 text-sm text-emerald-300">
+      <p className="mt-4 flex items-start gap-2 border-t border-white/8 pt-3 text-xs text-emerald-300 sm:text-sm">
         <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         Stone fits. Prongs and wall as specified.
       </p>
     );
   return (
-    <p className="mt-4 flex items-start gap-2 border-t border-white/8 pt-3 text-sm text-red-300">
+    <p className="mt-4 flex items-start gap-2 border-t border-white/8 pt-3 text-xs text-red-300 sm:text-sm">
       <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       {v.text}
     </p>
@@ -266,17 +266,17 @@ function VerdictLine({ v }: { v: Verdict }) {
 
 /** Front view to one scale for both columns: band, stone and two prongs. */
 function RingDrawing({ innerDia, col }: { innerDia: number; col: Column }) {
-  const S = 4.4; // px per mm
+  const S = 5.4; // px per mm, the same in both columns
   const cx = 120;
   const ri = (innerDia / 2) * S;
   const ro = ri + col.wall * S;
   const sr = (col.seat / 2) * S;
-  const cy = 196 - ro;
+  const cy = 186 - ro;
   const stoneY = cy - ro - sr * 0.55;
   const pr = (col.prong / 2) * S;
 
   return (
-    <svg viewBox="0 0 240 200" className="mt-3 h-44 w-full" role="img"
+    <svg viewBox="0 0 240 190" className="mt-3 h-28 w-full sm:h-48" role="img"
          aria-label={`Band ${col.wall.toFixed(2)} millimetres thick, seat ${col.seat.toFixed(2)} millimetres`}>
       <circle cx={cx} cy={cy} r={(ri + ro) / 2} fill="none" stroke="var(--metal-400)" strokeOpacity="0.55" strokeWidth={ro - ri} />
       <circle cx={cx} cy={cy} r={ri} fill="none" stroke="var(--metal-300)" strokeWidth="1" />
@@ -617,7 +617,7 @@ function BrepDemo() {
   const zoom = 16;
 
   return (
-    <div className="flex flex-col gap-5 sm:flex-row lg:flex-col xl:flex-row">
+    <div className="flex flex-col gap-5 sm:flex-row lg:flex-col">
       <div className="mx-auto shrink-0 text-center">
         <svg viewBox="0 0 140 140" className="h-40 w-40" role="img" aria-label={`A circle drawn with ${facets} flat sides`}>
           <defs>

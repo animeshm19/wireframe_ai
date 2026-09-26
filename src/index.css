@@ -568,6 +568,7 @@
 
   /* Touch targets: at least 44px tall on phones. */
   @media (max-width: 767px) {
+    .slider-metal { height: 44px; }
     .tap { min-height: 44px; }
     .tap-sq { min-height: 44px; min-width: 44px; }
   }

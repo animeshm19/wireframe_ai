@@ -78,7 +78,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 ];
 
 const chip = (on: boolean) =>
-  "tap inline-flex items-center rounded-full border px-3 py-1 text-[0.8rem] transition-colors " +
+  "tap inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-[0.8rem] transition-colors " +
   (on
     ? "border-metal-400 bg-white/15 font-medium text-white"
     : "border-white/12 bg-white/[0.04] text-white/80 hover:border-white/25 hover:text-white");
@@ -171,14 +171,14 @@ export function HeroRevolution() {
                     }
                   }}
                   placeholder="For example: 18k yellow gold solitaire, 2 ct oval, size 6"
-                  className="glassy-input min-h-11 flex-1 resize-none !leading-snug"
+                  className="glassy-input min-h-11 w-full resize-none !leading-snug sm:flex-1"
                 />
                 <button type="submit" className="btn-primary w-full shrink-0 sm:w-auto">
                   Preview
                 </button>
               </form>
 
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
                 {PRESETS.map((p) => (
                   <button
                     key={p.label}
@@ -205,7 +205,7 @@ export function HeroRevolution() {
                       aria-selected={tab === t.id}
                       onClick={() => setTab(t.id)}
                       className={
-                        "tap border-b-2 pb-1 transition-colors " +
+                        "tap-sq border-b-2 pb-1 transition-colors " +
                         (tab === t.id
                           ? "border-metal-400 font-medium text-white"
                           : "border-transparent text-white/70 hover:text-white")
@@ -344,7 +344,7 @@ export function HeroRevolution() {
 
           <motion.div
             {...rise(0.15)}
-            className="relative h-[340px] w-full sm:h-[440px] lg:col-span-5 lg:h-[540px]"
+            className="relative h-[300px] w-full sm:h-[440px] lg:col-span-5 lg:h-[540px]"
           >
             <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.04] to-transparent p-1">
               <HeroRevolutionVisual
