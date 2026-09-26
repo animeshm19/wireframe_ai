@@ -1,315 +1,191 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { Button } from "../components/ui/button";
 import { Link } from "react-router-dom";
+import { PageHeader, PageShell } from "../components/PageHeader";
+import { useTitle } from "../components/useTitle";
+import { MANUFACTURING_LIMITS, METALS, METAL_LABELS } from "../lib/ring-spec";
 
-type PersonaId = "designer" | "cad" | "studio";
+/* Everything here is read from the app: panel names from studio-workspace.tsx,
+ * shortcuts from the bindings in studio-workspace.tsx and chat-shell.tsx. */
 
-const PERSONAS: {
-  id: PersonaId;
-  label: string;
-  subtitle: string;
-}[] = [
-  {
-    id: "designer",
-    label: "Designer",
-    subtitle: "You sketch ideas and shape collections.",
-  },
-  {
-    id: "cad",
-    label: "CAD specialist",
-    subtitle: "You turn concepts into precise geometry.",
-  },
-  {
-    id: "studio",
-    label: "Studio lead",
-    subtitle: "You keep projects and clients moving.",
-  },
+const STUDIO_KEYS: Array<[string, string]> = [
+  ["1 to 4", "Shaded, Shaded + edges, Wireframe, X-ray"],
+  ["S", "Section cut"],
+  ["D", "Dimensions"],
+  ["T", "Turntable"],
+  ["\\", "Show or hide the panels"],
+  ["L", "Select a section of the band"],
+  ["P", "Pin this version for compare"],
+  ["C", "Compare against the pinned version"],
+  ["R", "Reset to the generated design"],
+  ["E", "Download STEP"],
+  ["Shift E", "Download STL"],
+  ["G", "Save a render (PNG)"],
+  ["⌘ K or Ctrl K", "Command palette"],
+  ["?", "Keyboard shortcuts"],
+  ["Esc", "Cancel, or close the Studio"],
 ];
 
-const personaCopy: Record<
-  PersonaId,
-  {
-    intro: string;
-    flowTitle: string;
-    flow: string[];
-    notesTitle: string;
-    notes: string[];
-  }
-> = {
-  designer: {
-    intro:
-      "Wireframe gives you a structured place to define how a piece should behave when it changes, without asking you to learn a full new CAD system.",
-    flowTitle: "A typical day with Wireframe as a designer",
-    flow: [
-      "Start from a mesh preset that matches the type of piece you are designing, such as a solitaire ring or a simple pendant.",
-      "Adjust core proportions with a few parameters instead of redrawing the band or setting from scratch every time.",
-      "Save meshes for pieces that are likely to repeat, such as popular engagement designs or best-selling pendants.",
-      "Add short notes that capture intent, like how much variation you are comfortable with in band thickness or stone size.",
-      "Export a mesh and key measurements so your CAD specialist starts from the same structure you see in your head.",
-    ],
-    notesTitle: "What this does not try to do",
-    notes: [
-      "Wireframe does not replace sketching or your early exploration tools.",
-      "It is not aiming to be a full 3D environment for visual exploration.",
-      "It focuses on repeatable structures more than one-off experimental pieces.",
-    ],
-  },
-  cad: {
-    intro:
-      "For CAD specialists, Wireframe’s role is to give you a clean starting point and a small set of parameters that explain how a piece is meant to move.",
-    flowTitle: "A typical day with Wireframe as a CAD specialist",
-    flow: [
-      "Receive a mesh package with a base mesh and a small set of well-named dimensions.",
-      "Review designer notes that explain intent, such as minimum comfort for band thickness or how claws should read from the top.",
-      "Import the mesh into your CAD software and refine details that are better handled there, like micro prong styling or engraving.",
-      "Use the provided dimensions to keep measurements consistent when you adapt the piece to different sizes or stones.",
-      "If a client change returns later, request an updated mesh instead of rebuilding a similar piece from earlier files.",
-    ],
-    notesTitle: "Where Wireframe stops and CAD begins",
-    notes: [
-      "Wireframe does not try to cover detailed operations that are already strong in your existing CAD tools.",
-      "It does not enforce a specific CAD application; it is a neutral starting point.",
-      "It is deliberately conservative with geometry so you can finish details where you are most comfortable.",
-    ],
-  },
-  studio: {
-    intro:
-      "As a studio lead, Wireframe is a way to make repeated work more predictable and easier to hand off, without forcing everyone into one rigid process.",
-    flowTitle: "How Wireframe fits into your studio",
-    flow: [
-      "Identify a small set of pieces that repeat often and cause the most manual rework today.",
-      "Work with designers and CAD specialists to define mesh presets for those pieces and agree on the core parameters.",
-      "Use Wireframe as the place where those presets live, so new variations start from the same structure.",
-      "Encourage teams to attach notes that explain what is fixed and what is flexible in each design.",
-      "Use the shared meshes and dimensions to reduce misunderstandings when designs change between client conversations.",
-    ],
-    notesTitle: "What this is not",
-    notes: [
-      "Wireframe is not a full studio management or order tracking system.",
-      "It does not replace the tools you use for quoting, invoicing, or scheduling.",
-      "It is focused on the design and CAD handoff layer, not everything around it.",
-    ],
-  },
-};
+const CHAT_KEYS: Array<[string, string]> = [
+  ["⌘ K or Ctrl K", "Command palette"],
+  ["⌘ B or Ctrl B", "Show or hide the sidebar"],
+  ["⌘ N or Ctrl N", "New collection"],
+  ["⌘ F or Ctrl F", "Search collections"],
+  ["⌘ Enter or Ctrl Enter", "Send"],
+  ["⌘ U or Ctrl U", "Attach a file"],
+  ["Esc", "Close what is open"],
+];
+
+function Keys({ rows }: { rows: Array<[string, string]> }) {
+  return (
+    <table className="w-full text-left text-sm">
+      <tbody>
+        {rows.map(([k, what]) => (
+          <tr key={k + what} className="border-b border-white/8">
+            <td className="w-44 py-2 pr-4"><kbd>{k}</kbd></td>
+            <td className="py-2">{what}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 export function DocsPage() {
-  const [activePersona, setActivePersona] = useState<PersonaId>("designer");
-  const data = personaCopy[activePersona];
-
-  const handleBookDemoClick = () => {
-    const el = document.getElementById("contact");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      window.location.href = "/#contact";
-    }
-  };
-
+  useTitle("Studio guide");
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#13000c] text-white">
-      {/* Background: gentle vertical bands */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_bottom,rgba(250,250,255,0.04),transparent_50%),radial-gradient(circle_at_top,#2b111a,transparent_55%),radial-gradient(circle_at_bottom,#050003,transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-40 mix-blend-soft-light bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.05)_0px,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_6px)]" />
+    <PageShell narrow>
+      <PageHeader
+        title="Studio guide"
+        lede="How to go from a sentence to a file your caster can use."
+      />
 
-      {/* Content */}
-      <div className="relative z-30 mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-16 pt-24 sm:px-6 lg:px-8">
-        {/* Header */}
-        <motion.header
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          className="mb-8"
-        >
-          <div className="mb-4 flex flex-col gap-3 text-xs text-white/60">
-            <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-black/50 px-3 py-1 backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-(--gold-500) animate-pulse" />
-              <span className="uppercase tracking-[0.18em]">How it fits into your day</span>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-white/40">
-              <Link to="/" className="hover:text-(--gold-500)">
-                Home
-              </Link>
-              <span className="text-white/30">/</span>
-              <span className="text-white/60">Docs</span>
-            </div>
-          </div>
+      <div className="prose-site mt-14">
+        <h2>1. Describe the ring</h2>
+        <p>
+          <Link to="/chat">Open the Studio</Link> and write what you want in the
+          message box. Name the metal, the stone cut and carat, the setting, the
+          ring size and the band width if you know it. For example:
+        </p>
+        <p><em>Platinum solitaire, 1.5 ct oval, cathedral setting, size 6.5, 2.4 mm comfort fit band.</em></p>
+        <p>
+          A language model reads your sentence into a ring spec and a preview is
+          built. If the model is not available, a simpler reader picks out what it
+          can, and the design card tells you it did. Anything you leave out gets a
+          sensible default that you can change in the next step.
+        </p>
+        <p>
+          Your conversations are kept as collections in the sidebar. You can pin,
+          search and delete them. They are saved in your browser on this
+          device.
+        </p>
 
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-3">
-              <h1 className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                A workflow guide, not a manual.
-              </h1>
-              <p className="max-w-2xl text-sm leading-relaxed text-white/70 sm:text-base">
-                Wireframe sits between sketching and detailed CAD work. These guides show
-                where it adds structure and where it intentionally gets out of the way,
-                so each role knows what to expect.
-              </p>
-            </div>
-            <div className="flex flex-col items-start gap-2 text-xs text-white/55 md:items-end">
-              <p>Early access · focused on real workflows, not feature checklists.</p>
-              <Button
-                size="sm"
-                className="rounded-full border border-(--gold-500) bg-(--gold-500)/90 px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-black hover:bg-(--gold-500)"
-                onClick={handleBookDemoClick}
-              >
-                Walk through your setup
-              </Button>
-            </div>
-          </div>
-        </motion.header>
+        <h2>2. Adjust it in the Studio</h2>
+        <p>
+          Under a design, choose <strong>Open in the Studio</strong>. The
+          Parameters panel holds everything the ring is built from: stone cut,
+          setting, band profile, shank shape, shank stones, metal, finish, ring size
+          (US), carat, band width and prongs. Change one and the ring is built again.
+          <strong> Reset to the generated design</strong> takes you back to what
+          the chat produced.
+        </p>
+        <p>
+          The Measurements panel shows inner and outer diameter, band, stone
+          diameter, stone height, stone weight, metal volume, the number of stones
+          and the estimated metal weight.
+        </p>
 
-        {/* Persona tabs */}
-        <motion.section
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut", delay: 0.05 }}
-          className="mb-8"
-        >
-          <div className="rounded-3xl border border-white/10 bg-black/60 p-3 sm:p-4">
-            <div className="flex flex-wrap gap-2 text-[11px]">
-              {PERSONAS.map((persona) => {
-                const isActive = persona.id === activePersona;
+        <h2>3. Look at it properly</h2>
+        <ul>
+          <li><strong>Display</strong>: Shaded, Shaded + edges, Wireframe or X-ray.</li>
+          <li><strong>Section cut</strong>: slice through the ring along X, Y or Z and slide the cut to see inside the head and the band.</li>
+          <li><strong>Dimensions</strong>: measurements drawn on the model.</li>
+          <li><strong>Turntable</strong>: the ring turns slowly on its own.</li>
+          <li><strong>Pin for compare</strong>: keep a version, change the design, then switch between the two.</li>
+          <li><strong>Save render</strong>: a PNG image of the current view.</li>
+        </ul>
+
+        <h2>4. Edit one stretch of the shank</h2>
+        <p>
+          Choose <strong>Select a section</strong> (or press <kbd>L</kbd>) and
+          draw a loop around part of the band. That stretch becomes its own region,
+          and you can change its width and thickness without touching the rest.
+          The ends blend into the band so there is no step in the metal.
+        </p>
+        <p>
+          The region is saved as an angle around the finger, so it stays on the
+          same stretch of shank when you change the ring size.
+        </p>
+
+        <h2>5. Check it</h2>
+        <p>
+          The Manufacturability panel lists anything a caster would reject or
+          that would fail in wear, with the numbers. It checks the band thickness,
+          any edited region on its own, the prong diameter, the metal left behind
+          stones set into the band and the space between them, and that the metal
+          is one piece. These are the minimums it uses:
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[30rem] text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/15 text-white">
+                <th className="py-2 pr-4 font-semibold">Alloy</th>
+                <th className="py-2 pr-4 font-semibold">Band thickness</th>
+                <th className="py-2 pr-4 font-semibold">Prong diameter</th>
+                <th className="py-2 font-semibold">Wall behind a seat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {METALS.map((m) => {
+                const L = MANUFACTURING_LIMITS[m];
                 return (
-                  <button
-                    key={persona.id}
-                    type="button"
-                    onClick={() => setActivePersona(persona.id)}
-                    className={
-                      "relative rounded-full px-3 py-1.5 text-left transition-colors " +
-                      (isActive
-                        ? "border border-(--gold-500)/70 bg-(--gold-500)/15 text-(--gold-500)"
-                        : "border border-transparent text-white/60 hover:border-white/15 hover:text-white/80")
-                    }
-                  >
-                    <div className="font-medium">{persona.label}</div>
-                    <div className="text-[10px] text-white/45">{persona.subtitle}</div>
-                    {isActive && (
-                      <motion.span
-                        layoutId="docs-persona-pill"
-                        className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-(--gold-500)/10"
-                        transition={{ type: "spring", stiffness: 240, damping: 24 }}
-                      />
-                    )}
-                  </button>
+                  <tr key={m} className="border-b border-white/8">
+                    <td className="py-2 pr-4">{METAL_LABELS[m]}</td>
+                    <td className="measure py-2 pr-4">{L.minBandThickness.toFixed(2)} mm</td>
+                    <td className="measure py-2 pr-4">{L.minProngDia.toFixed(2)} mm</td>
+                    <td className="measure py-2">{L.minWall.toFixed(2)} mm</td>
+                  </tr>
                 );
               })}
-            </div>
-          </div>
-        </motion.section>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Nothing is changed for you. You decide whether to adjust the design.
+        </p>
 
-        {/* Persona content */}
-        <motion.section
-          key={activePersona}
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: "easeOut" }}
-          className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)]"
-        >
-          {/* Left: main flow */}
-          <div className="space-y-5 rounded-3xl border border-white/12 bg-black/70 p-5 sm:p-6">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
-              {data.flowTitle}
-            </h2>
-            <p className="text-xs leading-relaxed text-white/70 sm:text-sm">
-              {data.intro}
-            </p>
-            <ol className="mt-2 space-y-3 text-xs text-white/75 sm:text-[13px]">
-              {data.flow.map((step, i) => (
-                <li key={i} className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <div className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-(--gold-500)/15 text-[11px] font-medium text-(--gold-500)">
-                    {i + 1}
-                  </div>
-                  <p>{step}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
+        <h2>6. Export</h2>
+        <ul>
+          <li>
+            <strong>Download STEP</strong>: the exact solid in millimetres, metal
+            and stones. Open it in Rhino, MatrixGold or any CAD package that reads
+            STEP.
+          </li>
+          <li>
+            <strong>Download STL</strong>: the metal only, for printing a wax or
+            resin model to cast.
+          </li>
+        </ul>
+        <p>
+          Both are made from the merged, measured solid, so export waits until the
+          Studio has finished merging the latest change.
+        </p>
 
-          {/* Right: boundaries / expectations */}
-          <div className="space-y-4 rounded-3xl border border-white/12 bg-black/70 p-5 sm:p-6">
-            <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
-              {data.notesTitle}
-            </h3>
-            <ul className="space-y-2 text-xs text-white/75 sm:text-[13px]">
-              {data.notes.map((note, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
-                  <span>{note}</span>
-                </li>
-              ))}
-            </ul>
+        <h2>Keyboard shortcuts</h2>
+        <p>
+          Press <kbd>?</kbd> in the app to see these. Letter keys do nothing while
+          you are typing in a field.
+        </p>
+        <h3>In the Studio</h3>
+        <Keys rows={STUDIO_KEYS} />
+        <h3>In the chat</h3>
+        <Keys rows={CHAT_KEYS} />
 
-            <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-[11px] text-white/70">
-              <p className="mb-1 font-medium text-white/80">
-                Want a guide specific to your team
-              </p>
-              <p className="mb-2">
-                During early access, we often create a short, private outline for how
-                Wireframe fits into your existing process instead of expecting teams
-                to adapt to a generic template.
-              </p>
-              <a
-                href="mailto:hello@wireframe.studio?subject=Workflow%20guide"
-                className="font-medium text-(--gold-500) hover:underline"
-              >
-                Email hello@wireframe.studio
-              </a>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Quick start */}
-        <section className="mt-10 rounded-3xl border border-white/12 bg-black/80 p-5 sm:p-6">
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between"
-          >
-            <div className="md:max-w-xl space-y-2">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
-                A simple first week with Wireframe
-              </h3>
-              <p className="text-xs leading-relaxed text-white/70 sm:text-sm">
-                You do not need to rebuild your entire catalog on day one. Most early
-                teams start by picking two or three pieces that repeat often and then
-                decide together where a mesh would genuinely save time.
-              </p>
-            </div>
-            <div className="grid gap-3 text-xs text-white/75 sm:grid-cols-3 sm:text-[13px]">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">
-                  Day 1–2
-                </p>
-                <p className="mt-1.5">
-                  Choose a few representative pieces and gather existing CAD files and
-                  notes around them.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">
-                  Day 3–4
-                </p>
-                <p className="mt-1.5">
-                  Define one or two mesh presets with the team and agree on the key
-                  parameters that matter.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/50">
-                  Day 5
-                </p>
-                <p className="mt-1.5">
-                  Run through a real client scenario and see where the mesh saves time
-                  or creates friction, then adjust accordingly.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        </section>
+        <h2>Still stuck?</h2>
+        <p>
+          See <Link to="/support">Help</Link>, or write to{" "}
+          <a href="mailto:hello@wireframe.studio">hello@wireframe.studio</a>.
+        </p>
       </div>
-    </main>
+    </PageShell>
   );
 }
 
