@@ -225,21 +225,6 @@ export function HeroRevolution() {
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
           {/* Left Column: Headline & Atelier Console */}
           <div className="flex flex-col lg:col-span-7">
-            {/* Live Status Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex w-fit items-center gap-2.5 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 backdrop-blur-md"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-              </span>
-              <span className="mono-label !text-[0.68rem] !tracking-[0.18em] !text-white/90">
-                Interactive Atelier Bench · Live B-Rep Solid
-              </span>
-            </motion.div>
 
             {/* Headline */}
             <motion.h1

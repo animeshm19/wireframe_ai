@@ -84,15 +84,6 @@ export function Footer() {
               exported as STEP or STL.
             </p>
 
-            <div className="mt-6 inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-white/[0.05] px-3.5 py-1.5">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              </span>
-              <span className="mono-label !text-[0.55rem] !text-white/85">
-                Onboarding select studios
-              </span>
-            </div>
           </div>
 
           <div className="grid gap-8 sm:grid-cols-3">
