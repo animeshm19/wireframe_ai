@@ -196,9 +196,13 @@ export function BlogPage() {
   }, []);
 
   const featured = ARTICLES.find((a) => a.highlight) ?? ARTICLES[0];
+  // The featured plate above only renders on "All", and it renders `featured`.
+  // Leaving that article in the grid too printed the same title, summary and
+  // date twice on the landing tab, which reads as a mistake rather than as
+  // emphasis. On a category tab there is no plate, so it belongs in the grid.
   const filteredArticles =
     activeCategory === "All"
-      ? ARTICLES
+      ? ARTICLES.filter((a) => a.id !== featured.id)
       : ARTICLES.filter((a) => a.category === activeCategory);
 
   return (
