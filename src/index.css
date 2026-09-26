@@ -18,6 +18,7 @@
 /* ---------------------------------------------------------------- tokens -- */
 
 :root {
+  /* Brand casing: "wireframe" in the logo lockup and tab titles, "Wireframe" in sentences. */
   --radius: 0.625rem;
 
   /* Ink. The page was two near-identical blacks (#13000c in the hero,
