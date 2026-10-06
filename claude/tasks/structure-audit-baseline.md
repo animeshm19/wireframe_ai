@@ -2,7 +2,7 @@
 
 Command: `node scripts/structure-audit.mjs --full --tag baseline --stage S0 --report-only`
 
-Commit `bf79dc9`, 2026-10-06T16:53:44.779Z, Node v24.9.0, stage **S0**, full matrix, 237 designs, 0 crashed, 796s on 9 jobs.
+Commit `673825f`, 2026-10-06T17:13:53.372Z, Node v24.9.0, stage **S0**, full matrix, 237 designs, 0 crashed, 373s on 9 jobs.
 
 Binding failures at S0: **0**.
 

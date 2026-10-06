@@ -3,13 +3,13 @@
   "tag": "baseline",
   "stage": "S0",
   "mode": "full",
-  "commit": "bf79dc9",
+  "commit": "673825f",
   "node": "v24.9.0",
-  "date": "2026-10-06T16:53:44.779Z",
+  "date": "2026-10-06T17:13:53.372Z",
   "designs": 237,
   "crashed": 0,
   "jobs": 9,
-  "wallSeconds": 796,
+  "wallSeconds": 373,
   "invariants": [
    {
     "id": "I1",
@@ -179,7 +179,11 @@
       "ruleOfThirdsHeight": 0.8789823707562668,
       "thicknessEstimate": 0.5575427125497612,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -226,14 +230,14 @@
      ]
     },
     "timing": {
-     "buildMs": 387.023625,
-     "fuseMs": 2115.880916,
-     "measureMs": 6925.839,
-     "totalMs": 9428.743541
+     "buildMs": 388.640792,
+     "fuseMs": 1965.5299169999998,
+     "measureMs": 5836.0185,
+     "totalMs": 8190.189209
     },
     "errors": []
    },
-   "wallMs": 9892,
+   "wallMs": 8577,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -424,7 +428,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502918669556,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -471,14 +479,14 @@
      ]
     },
     "timing": {
-     "buildMs": 395.725291,
-     "fuseMs": 1727.9837089999999,
-     "measureMs": 6201.851958000001,
-     "totalMs": 8325.560958
+     "buildMs": 349.298125,
+     "fuseMs": 1591.693584,
+     "measureMs": 5585.124041,
+     "totalMs": 7526.11575
     },
     "errors": []
    },
-   "wallMs": 8774,
+   "wallMs": 7967,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -671,7 +679,11 @@
       "ruleOfThirdsHeight": 2.0123672775159838,
       "thicknessEstimate": 0.7355254654394727,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3415781850106558
+      }
      }
     ],
     "joint": {
@@ -718,14 +730,14 @@
      ]
     },
     "timing": {
-     "buildMs": 417.10812500000003,
-     "fuseMs": 1615.959166,
-     "measureMs": 6209.505084,
-     "totalMs": 8242.572375
+     "buildMs": 400.34070899999995,
+     "fuseMs": 1382.1785,
+     "measureMs": 5369.377875,
+     "totalMs": 7151.897084
     },
     "errors": []
    },
-   "wallMs": 8676,
+   "wallMs": 7556,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -933,7 +945,11 @@
       "ruleOfThirdsHeight": 0.8789823707562668,
       "thicknessEstimate": 0.55754274654,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -981,14 +997,14 @@
      ]
     },
     "timing": {
-     "buildMs": 322.858125,
-     "fuseMs": 2812.078917,
-     "measureMs": 7194.974083,
-     "totalMs": 10329.911125
+     "buildMs": 388.657625,
+     "fuseMs": 2543.960375,
+     "measureMs": 6516.079917000001,
+     "totalMs": 9448.697917000001
     },
     "errors": []
    },
-   "wallMs": 10761,
+   "wallMs": 9829,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -1188,7 +1204,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502695226104,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -1236,14 +1256,14 @@
      ]
     },
     "timing": {
-     "buildMs": 452.05291700000004,
-     "fuseMs": 2225.752708,
-     "measureMs": 6712.884292000001,
-     "totalMs": 9390.689917
+     "buildMs": 415.448708,
+     "fuseMs": 2083.7478330000004,
+     "measureMs": 6266.7744999999995,
+     "totalMs": 8765.971040999999
     },
     "errors": []
    },
-   "wallMs": 9875,
+   "wallMs": 9165,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -1445,7 +1465,11 @@
       "ruleOfThirdsHeight": 2.0123672775159838,
       "thicknessEstimate": 0.735525473906776,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3415781850106558
+      }
      }
     ],
     "joint": {
@@ -1493,14 +1517,14 @@
      ]
     },
     "timing": {
-     "buildMs": 421.678833,
-     "fuseMs": 1927.832125,
-     "measureMs": 6466.68525,
-     "totalMs": 8816.196208000001
+     "buildMs": 391.7088749999999,
+     "fuseMs": 1916.8909170000002,
+     "measureMs": 5918.930083000001,
+     "totalMs": 8227.529875
     },
     "errors": []
    },
-   "wallMs": 9249,
+   "wallMs": 8602,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -1724,7 +1748,11 @@
       "ruleOfThirdsHeight": 0.8789823707562668,
       "thicknessEstimate": 0.5575427180916903,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -1774,14 +1802,14 @@
      ]
     },
     "timing": {
-     "buildMs": 371.202333,
-     "fuseMs": 4343.1654579999995,
-     "measureMs": 9833.343042,
-     "totalMs": 14547.710833000001
+     "buildMs": 470.160417,
+     "fuseMs": 3739.9606250000006,
+     "measureMs": 8734.181875,
+     "totalMs": 12944.302917
     },
     "errors": []
    },
-   "wallMs": 15010,
+   "wallMs": 13366,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -1995,7 +2023,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -2045,14 +2077,14 @@
      ]
     },
     "timing": {
-     "buildMs": 149.14070799999996,
-     "fuseMs": 3705.330125,
-     "measureMs": 8232.733917000001,
-     "totalMs": 12087.20475
+     "buildMs": 347.49129199999993,
+     "fuseMs": 3009.522125,
+     "measureMs": 7602.416166,
+     "totalMs": 10959.429583
     },
     "errors": []
    },
-   "wallMs": 12520,
+   "wallMs": 11362,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -2270,7 +2302,11 @@
       "ruleOfThirdsHeight": 2.0123672775159838,
       "thicknessEstimate": 0.7355255929381395,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3415781850106558
+      }
      }
     ],
     "joint": {
@@ -2320,14 +2356,14 @@
      ]
     },
     "timing": {
-     "buildMs": 386.558625,
-     "fuseMs": 3053.298417,
-     "measureMs": 8575.477458,
-     "totalMs": 12015.334499999999
+     "buildMs": 356.189209,
+     "fuseMs": 2774.7396660000004,
+     "measureMs": 7360.002875,
+     "totalMs": 10490.93175
     },
     "errors": []
    },
-   "wallMs": 12496,
+   "wallMs": 10895,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -2571,7 +2607,11 @@
       "ruleOfThirdsHeight": 0.8789823707562668,
       "thicknessEstimate": 0.5575427489662321,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -2623,14 +2663,14 @@
      ]
     },
     "timing": {
-     "buildMs": 141.901,
-     "fuseMs": 5154.249083,
-     "measureMs": 11143.011875,
-     "totalMs": 16439.161958
+     "buildMs": 125.44337499999997,
+     "fuseMs": 4611.470208,
+     "measureMs": 9829.091208,
+     "totalMs": 14566.004791
     },
     "errors": []
    },
-   "wallMs": 16765,
+   "wallMs": 14870,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -2866,7 +2906,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389503251855804,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -2918,14 +2962,14 @@
      ]
     },
     "timing": {
-     "buildMs": 153.740709,
-     "fuseMs": 4825.736916,
-     "measureMs": 11077.159167,
-     "totalMs": 16056.636792
+     "buildMs": 145.948041,
+     "fuseMs": 4452.284709,
+     "measureMs": 9407.780666,
+     "totalMs": 14006.013416
     },
     "errors": []
    },
-   "wallMs": 16376,
+   "wallMs": 14276,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -3163,7 +3207,11 @@
       "ruleOfThirdsHeight": 2.0123672775159838,
       "thicknessEstimate": 0.7355254107893878,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3415781850106558
+      }
      }
     ],
     "joint": {
@@ -3215,14 +3263,14 @@
      ]
     },
     "timing": {
-     "buildMs": 127.56300000000002,
-     "fuseMs": 3274.9109999999996,
-     "measureMs": 9791.353125000001,
-     "totalMs": 13193.827125000002
+     "buildMs": 174.08029200000001,
+     "fuseMs": 3132.701167,
+     "measureMs": 8186.019957999999,
+     "totalMs": 11492.801416999999
     },
     "errors": []
    },
-   "wallMs": 13469,
+   "wallMs": 11808,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -3423,7 +3471,11 @@
       "ruleOfThirdsHeight": 0.8688299458350297,
       "thicknessEstimate": 0.5556413532620028,
       "prongsTouched": 2,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -3470,14 +3522,14 @@
      ]
     },
     "timing": {
-     "buildMs": 158.429625,
-     "fuseMs": 1529.006875,
-     "measureMs": 7631.663625,
-     "totalMs": 9319.100125
+     "buildMs": 135.72854200000003,
+     "fuseMs": 1566.6822499999998,
+     "measureMs": 6627.6408329999995,
+     "totalMs": 8330.051625
     },
     "errors": []
    },
-   "wallMs": 9700,
+   "wallMs": 8583,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -3670,7 +3722,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 2,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -3717,14 +3773,14 @@
      ]
     },
     "timing": {
-     "buildMs": 169.88658399999997,
-     "fuseMs": 1087.178958,
-     "measureMs": 5128.768208,
-     "totalMs": 6385.83375
+     "buildMs": 187.54479199999997,
+     "fuseMs": 967.9087079999999,
+     "measureMs": 4575.369667,
+     "totalMs": 5730.823167
     },
     "errors": []
    },
-   "wallMs": 6725,
+   "wallMs": 6016,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -3919,7 +3975,11 @@
       "ruleOfThirdsHeight": 1.9891240267083965,
       "thicknessEstimate": 0.7319937221187733,
       "prongsTouched": 2,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3260826844722644
+      }
      }
     ],
     "joint": {
@@ -3966,14 +4026,14 @@
      ]
     },
     "timing": {
-     "buildMs": 160.442292,
-     "fuseMs": 1011.2400829999999,
-     "measureMs": 4979.749667,
-     "totalMs": 6151.432042
+     "buildMs": 106.56866600000001,
+     "fuseMs": 874.2256669999999,
+     "measureMs": 4305.5805,
+     "totalMs": 5286.374833
     },
     "errors": []
    },
-   "wallMs": 6546,
+   "wallMs": 5543,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -4183,7 +4243,11 @@
       "ruleOfThirdsHeight": 0.8688299458350297,
       "thicknessEstimate": 0.555641375763128,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -4231,14 +4295,14 @@
      ]
     },
     "timing": {
-     "buildMs": 272.54337499999997,
-     "fuseMs": 2407.3515,
-     "measureMs": 8041.878416,
-     "totalMs": 10721.773291
+     "buildMs": 158.446417,
+     "fuseMs": 2028.9788330000001,
+     "measureMs": 6680.322125000001,
+     "totalMs": 8867.747375
     },
     "errors": []
    },
-   "wallMs": 11024,
+   "wallMs": 9164,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -4440,7 +4504,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -4488,14 +4556,14 @@
      ]
     },
     "timing": {
-     "buildMs": 246.55566600000003,
-     "fuseMs": 1651.59575,
-     "measureMs": 6401.112792000001,
-     "totalMs": 8299.264208
+     "buildMs": 174.39391700000002,
+     "fuseMs": 1435.23025,
+     "measureMs": 5620.923833,
+     "totalMs": 7230.548
     },
     "errors": []
    },
-   "wallMs": 8642,
+   "wallMs": 7500,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -4699,7 +4767,11 @@
       "ruleOfThirdsHeight": 1.9891240267083965,
       "thicknessEstimate": 0.7319936522952606,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3260826844722644
+      }
      }
     ],
     "joint": {
@@ -4748,14 +4820,14 @@
      ]
     },
     "timing": {
-     "buildMs": 193.411958,
-     "fuseMs": 1290.202792,
-     "measureMs": 6017.131541,
-     "totalMs": 7500.7462909999995
+     "buildMs": 171.566959,
+     "fuseMs": 1138.6809159999998,
+     "measureMs": 4945.283417000001,
+     "totalMs": 6255.531292
     },
     "errors": []
    },
-   "wallMs": 7767,
+   "wallMs": 6578,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -4981,7 +5053,11 @@
       "ruleOfThirdsHeight": 0.8688299458350297,
       "thicknessEstimate": 0.5556413588039317,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -5031,14 +5107,14 @@
      ]
     },
     "timing": {
-     "buildMs": 176.74445799999998,
-     "fuseMs": 2577.298083,
-     "measureMs": 10116.976584,
-     "totalMs": 12871.019125
+     "buildMs": 182.795209,
+     "fuseMs": 2453.316208,
+     "measureMs": 9122.82,
+     "totalMs": 11758.931417
     },
     "errors": []
    },
-   "wallMs": 13162,
+   "wallMs": 12081,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -5256,7 +5332,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -5306,14 +5386,14 @@
      ]
     },
     "timing": {
-     "buildMs": 241.537083,
-     "fuseMs": 1727.5292080000002,
-     "measureMs": 6092.134250000001,
-     "totalMs": 8061.200541000001
+     "buildMs": 168.09016699999998,
+     "fuseMs": 1791.141875,
+     "measureMs": 5520.220458,
+     "totalMs": 7479.4525
     },
     "errors": []
    },
-   "wallMs": 8333,
+   "wallMs": 7756,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -5533,7 +5613,11 @@
       "ruleOfThirdsHeight": 1.9891240267083965,
       "thicknessEstimate": 0.7319938607012979,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3260826844722644
+      }
      }
     ],
     "joint": {
@@ -5583,14 +5667,14 @@
      ]
     },
     "timing": {
-     "buildMs": 206.73804199999998,
-     "fuseMs": 1892.704291,
-     "measureMs": 6014.259166999999,
-     "totalMs": 8113.701499999999
+     "buildMs": 134.21337500000004,
+     "fuseMs": 1578.486375,
+     "measureMs": 5444.107667,
+     "totalMs": 7156.807417
     },
     "errors": []
    },
-   "wallMs": 8399,
+   "wallMs": 7485,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -5836,7 +5920,11 @@
       "ruleOfThirdsHeight": 0.8688299458350297,
       "thicknessEstimate": 0.5556413497363022,
       "prongsTouched": 6,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -5888,14 +5976,14 @@
      ]
     },
     "timing": {
-     "buildMs": 173.25316700000002,
-     "fuseMs": 4715.539333,
-     "measureMs": 11943.260667,
-     "totalMs": 16832.053167000002
+     "buildMs": 150.38237500000002,
+     "fuseMs": 3883.734375,
+     "measureMs": 10273.209292,
+     "totalMs": 14307.326041999999
     },
     "errors": []
    },
-   "wallMs": 17181,
+   "wallMs": 14654,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -6133,7 +6221,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 6,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -6185,14 +6277,14 @@
      ]
     },
     "timing": {
-     "buildMs": 222.88575000000003,
-     "fuseMs": 4178.0812080000005,
-     "measureMs": 9652.049584,
-     "totalMs": 14053.016542
+     "buildMs": 126.12241599999999,
+     "fuseMs": 3457.106792,
+     "measureMs": 8581.9335,
+     "totalMs": 12165.162708
     },
     "errors": []
    },
-   "wallMs": 14392,
+   "wallMs": 12478,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -6432,7 +6524,11 @@
       "ruleOfThirdsHeight": 1.9891240267083965,
       "thicknessEstimate": 0.7319936949382271,
       "prongsTouched": 2,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3260826844722644
+      }
      }
     ],
     "joint": {
@@ -6484,14 +6580,14 @@
      ]
     },
     "timing": {
-     "buildMs": 171.68275,
-     "fuseMs": 2235.7277910000003,
-     "measureMs": 8854.486084,
-     "totalMs": 11261.896625
+     "buildMs": 187.75850000000003,
+     "fuseMs": 1970.1253749999998,
+     "measureMs": 7552.741583000001,
+     "totalMs": 9710.625458
     },
     "errors": []
    },
-   "wallMs": 11546,
+   "wallMs": 9986,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -6692,7 +6788,11 @@
       "ruleOfThirdsHeight": 0.8787367475726885,
       "thicknessEstimate": 0.5572993607428951,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -6739,14 +6839,14 @@
      ]
     },
     "timing": {
-     "buildMs": 165.220208,
-     "fuseMs": 1441.279875,
-     "measureMs": 8169.522082999999,
-     "totalMs": 9776.022165999999
+     "buildMs": 153.833792,
+     "fuseMs": 1302.0450409999999,
+     "measureMs": 7063.6642919999995,
+     "totalMs": 8519.543125
     },
     "errors": []
    },
-   "wallMs": 10087,
+   "wallMs": 8780,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -6939,7 +7039,11 @@
       "ruleOfThirdsHeight": 1.3949076375,
       "thicknessEstimate": 0.6388864804100027,
       "prongsTouched": 1,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.929938425
+      }
      }
     ],
     "joint": {
@@ -6986,14 +7090,14 @@
      ]
     },
     "timing": {
-     "buildMs": 138.6855,
-     "fuseMs": 1849.6035420000003,
-     "measureMs": 6500.492624999999,
-     "totalMs": 8488.781667
+     "buildMs": 84.85066599999999,
+     "fuseMs": 1523.6203340000002,
+     "measureMs": 5640.113875,
+     "totalMs": 7248.584875
     },
     "errors": []
    },
-   "wallMs": 8880,
+   "wallMs": 7564,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -7188,7 +7292,11 @@
       "ruleOfThirdsHeight": 2.011804940802897,
       "thicknessEstimate": 0.7354393764187828,
       "prongsTouched": 1,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.341203293868598
+      }
      }
     ],
     "joint": {
@@ -7235,14 +7343,14 @@
      ]
     },
     "timing": {
-     "buildMs": 154.599375,
-     "fuseMs": 1192.3131250000001,
-     "measureMs": 4968.779417,
-     "totalMs": 6315.691917
+     "buildMs": 152.630958,
+     "fuseMs": 1039.1630839999998,
+     "measureMs": 4080.127125,
+     "totalMs": 5271.921167
     },
     "errors": []
    },
-   "wallMs": 6738,
+   "wallMs": 5550,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -7452,7 +7560,11 @@
       "ruleOfThirdsHeight": 0.8787367475726885,
       "thicknessEstimate": 0.5572994327835468,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -7500,14 +7612,14 @@
      ]
     },
     "timing": {
-     "buildMs": 185.580125,
-     "fuseMs": 2772.610542,
-     "measureMs": 8023.591541,
-     "totalMs": 10981.782208
+     "buildMs": 156.490541,
+     "fuseMs": 2231.2755420000003,
+     "measureMs": 6379.452208000001,
+     "totalMs": 8767.218291000001
     },
     "errors": []
    },
-   "wallMs": 11303,
+   "wallMs": 9087,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -7709,7 +7821,11 @@
       "ruleOfThirdsHeight": 1.3949076375,
       "thicknessEstimate": 0.6388863749002685,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.929938425
+      }
      }
     ],
     "joint": {
@@ -7757,14 +7873,14 @@
      ]
     },
     "timing": {
-     "buildMs": 257.57954099999995,
-     "fuseMs": 1848.2977090000002,
-     "measureMs": 7029.517791,
-     "totalMs": 9135.395041000002
+     "buildMs": 175.648209,
+     "fuseMs": 1419.1008749999999,
+     "measureMs": 5912.5166659999995,
+     "totalMs": 7507.26575
     },
     "errors": []
    },
-   "wallMs": 9511,
+   "wallMs": 7849,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -7968,7 +8084,11 @@
       "ruleOfThirdsHeight": 2.011804940802897,
       "thicknessEstimate": 0.7354392414547228,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.341203293868598
+      }
      }
     ],
     "joint": {
@@ -8017,14 +8137,14 @@
      ]
     },
     "timing": {
-     "buildMs": 176.68045800000002,
-     "fuseMs": 1288.750375,
-     "measureMs": 5803.784374999999,
-     "totalMs": 7269.215208
+     "buildMs": 89.70133299999998,
+     "fuseMs": 1076.3045000000002,
+     "measureMs": 5758.2134590000005,
+     "totalMs": 6924.219292
     },
     "errors": []
    },
-   "wallMs": 7580,
+   "wallMs": 7167,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -8250,7 +8370,11 @@
       "ruleOfThirdsHeight": 0.8787367475726885,
       "thicknessEstimate": 0.557299366284824,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -8300,14 +8424,14 @@
      ]
     },
     "timing": {
-     "buildMs": 186.755042,
-     "fuseMs": 2811.877958,
-     "measureMs": 10985.318959,
-     "totalMs": 13983.951959
+     "buildMs": 158.30516599999999,
+     "fuseMs": 2747.823417,
+     "measureMs": 9878.665207999999,
+     "totalMs": 12784.793791
     },
     "errors": []
    },
-   "wallMs": 14304,
+   "wallMs": 13095,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -8525,7 +8649,11 @@
       "ruleOfThirdsHeight": 1.3949076375,
       "thicknessEstimate": 0.638886420805358,
       "prongsTouched": 2,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.929938425
+      }
      }
     ],
     "joint": {
@@ -8575,14 +8703,14 @@
      ]
     },
     "timing": {
-     "buildMs": 169.74204099999997,
-     "fuseMs": 2895.887625,
-     "measureMs": 9457.570125,
-     "totalMs": 12523.199791000001
+     "buildMs": 146.44225,
+     "fuseMs": 2379.0235,
+     "measureMs": 8332.143167,
+     "totalMs": 10857.608917
     },
     "errors": []
    },
-   "wallMs": 12883,
+   "wallMs": 11150,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -8802,7 +8930,11 @@
       "ruleOfThirdsHeight": 2.011804940802897,
       "thicknessEstimate": 0.7354393764187819,
       "prongsTouched": 2,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.341203293868598
+      }
      }
     ],
     "joint": {
@@ -8852,14 +8984,14 @@
      ]
     },
     "timing": {
-     "buildMs": 169.78833399999996,
-     "fuseMs": 1701.541166,
-     "measureMs": 6807.070792,
-     "totalMs": 8678.400292
+     "buildMs": 133.815791,
+     "fuseMs": 1539.112709,
+     "measureMs": 5988.846375,
+     "totalMs": 7661.774875
     },
     "errors": []
    },
-   "wallMs": 9020,
+   "wallMs": 7954,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -9105,7 +9237,11 @@
       "ruleOfThirdsHeight": 0.8787367475726885,
       "thicknessEstimate": 0.5572993941414683,
       "prongsTouched": 6,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -9157,14 +9293,14 @@
      ]
     },
     "timing": {
-     "buildMs": 179.331792,
-     "fuseMs": 4856.141083,
-     "measureMs": 12295.116584,
-     "totalMs": 17330.589459
+     "buildMs": 174.87829200000002,
+     "fuseMs": 4208.037125,
+     "measureMs": 10572.997625,
+     "totalMs": 14955.913042
     },
     "errors": []
    },
-   "wallMs": 17694,
+   "wallMs": 15298,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -9402,7 +9538,11 @@
       "ruleOfThirdsHeight": 1.3949076375,
       "thicknessEstimate": 0.6388865475460208,
       "prongsTouched": 4,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.929938425
+      }
      }
     ],
     "joint": {
@@ -9454,14 +9594,14 @@
      ]
     },
     "timing": {
-     "buildMs": 173.740584,
-     "fuseMs": 4689.056125,
-     "measureMs": 10203.8525,
-     "totalMs": 15066.649209000001
+     "buildMs": 203.69391700000003,
+     "fuseMs": 3958.2952910000004,
+     "measureMs": 8821.625584000001,
+     "totalMs": 12983.614792
     },
     "errors": []
    },
-   "wallMs": 15366,
+   "wallMs": 13264,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -9701,7 +9841,11 @@
       "ruleOfThirdsHeight": 2.011804940802897,
       "thicknessEstimate": 0.7354393369901109,
       "prongsTouched": 4,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.341203293868598
+      }
      }
     ],
     "joint": {
@@ -9753,14 +9897,14 @@
      ]
     },
     "timing": {
-     "buildMs": 215.867417,
-     "fuseMs": 2836.9872080000005,
-     "measureMs": 8380.789667,
-     "totalMs": 11433.644291999999
+     "buildMs": 238.41758300000004,
+     "fuseMs": 2246.1575000000003,
+     "measureMs": 7466.1395,
+     "totalMs": 9950.714583
     },
     "errors": []
    },
-   "wallMs": 11762,
+   "wallMs": 10294,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -9961,7 +10105,11 @@
       "ruleOfThirdsHeight": 0.9675713460033473,
       "thicknessEstimate": 0.5716466903686522,
       "prongsTouched": 0,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -10008,14 +10156,14 @@
      ]
     },
     "timing": {
-     "buildMs": 180.707875,
-     "fuseMs": 1653.0802079999999,
-     "measureMs": 6124.0157500000005,
-     "totalMs": 7957.803833000001
+     "buildMs": 228.22120900000004,
+     "fuseMs": 1293.2205000000001,
+     "measureMs": 5175.945750000001,
+     "totalMs": 6697.3874590000005
     },
     "errors": []
    },
-   "wallMs": 8283,
+   "wallMs": 7007,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -10208,7 +10356,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.660911560058594,
       "prongsTouched": 0,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -10255,14 +10407,14 @@
      ]
     },
     "timing": {
-     "buildMs": 221.539083,
-     "fuseMs": 1175.7644999999998,
-     "measureMs": 5646.429375,
-     "totalMs": 7043.732958
+     "buildMs": 133.475208,
+     "fuseMs": 925.0694589999999,
+     "measureMs": 4846.858833,
+     "totalMs": 5905.403499999999
     },
     "errors": []
    },
-   "wallMs": 7363,
+   "wallMs": 6198,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -10457,7 +10609,11 @@
       "ruleOfThirdsHeight": 2.2151854009130587,
       "thicknessEstimate": 0.7675081982127807,
       "prongsTouched": 0,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4767902672753725
+      }
      }
     ],
     "joint": {
@@ -10504,14 +10660,14 @@
      ]
     },
     "timing": {
-     "buildMs": 250.39129100000002,
-     "fuseMs": 1032.67675,
-     "measureMs": 5101.206542,
-     "totalMs": 6384.274582999999
+     "buildMs": 158.862167,
+     "fuseMs": 928.4625409999999,
+     "measureMs": 4585.057084,
+     "totalMs": 5672.381792
     },
     "errors": []
    },
-   "wallMs": 6683,
+   "wallMs": 5978,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -10721,7 +10877,11 @@
       "ruleOfThirdsHeight": 0.9675713460033473,
       "thicknessEstimate": 0.5716466903686525,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -10769,14 +10929,14 @@
      ]
     },
     "timing": {
-     "buildMs": 138.497875,
-     "fuseMs": 1524.69625,
-     "measureMs": 6807.804542000001,
-     "totalMs": 8470.998667000002
+     "buildMs": 133.46637500000003,
+     "fuseMs": 1266.487459,
+     "measureMs": 6024.6,
+     "totalMs": 7424.553834
     },
     "errors": []
    },
-   "wallMs": 8761,
+   "wallMs": 7720,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -10978,7 +11138,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.660911560058594,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -11027,14 +11191,14 @@
      ]
     },
     "timing": {
-     "buildMs": 172.74370800000003,
-     "fuseMs": 1606.074625,
-     "measureMs": 6601.992292000001,
-     "totalMs": 8380.810625
+     "buildMs": 111.20429099999998,
+     "fuseMs": 1418.135167,
+     "measureMs": 5634.338917000001,
+     "totalMs": 7163.678375
     },
     "errors": []
    },
-   "wallMs": 8704,
+   "wallMs": 7454,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -11238,7 +11402,11 @@
       "ruleOfThirdsHeight": 2.2151854009130587,
       "thicknessEstimate": 0.7675079355496921,
       "prongsTouched": 2,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4767902672753725
+      }
      }
     ],
     "joint": {
@@ -11287,14 +11455,14 @@
      ]
     },
     "timing": {
-     "buildMs": 192.469833,
-     "fuseMs": 1354.732667,
-     "measureMs": 6089.360042,
-     "totalMs": 7636.562542
+     "buildMs": 177.448334,
+     "fuseMs": 1217.077916,
+     "measureMs": 5568.5599170000005,
+     "totalMs": 6963.086167
     },
     "errors": []
    },
-   "wallMs": 8022,
+   "wallMs": 7262,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -11520,7 +11688,11 @@
       "ruleOfThirdsHeight": 0.9675713460033473,
       "thicknessEstimate": 0.5716466903686525,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -11570,14 +11742,14 @@
      ]
     },
     "timing": {
-     "buildMs": 153.21408399999999,
-     "fuseMs": 2655.692791,
-     "measureMs": 8683.253417,
-     "totalMs": 11492.160292
+     "buildMs": 126.88816699999998,
+     "fuseMs": 2512.580292,
+     "measureMs": 7857.144875,
+     "totalMs": 10496.613334
     },
     "errors": []
    },
-   "wallMs": 11794,
+   "wallMs": 10784,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -11795,7 +11967,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -11845,14 +12021,14 @@
      ]
     },
     "timing": {
-     "buildMs": 253.16891699999996,
-     "fuseMs": 1917.305375,
-     "measureMs": 8190.070250000001,
-     "totalMs": 10360.544542000001
+     "buildMs": 127.447542,
+     "fuseMs": 2015.0030419999998,
+     "measureMs": 7301.701208,
+     "totalMs": 9444.151792
     },
     "errors": []
    },
-   "wallMs": 10701,
+   "wallMs": 9713,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -12072,7 +12248,11 @@
       "ruleOfThirdsHeight": 2.2151854009130587,
       "thicknessEstimate": 0.7675081982127807,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4767902672753725
+      }
      }
     ],
     "joint": {
@@ -12122,14 +12302,14 @@
      ]
     },
     "timing": {
-     "buildMs": 216.31179099999997,
-     "fuseMs": 1738.276125,
-     "measureMs": 7358.628542,
-     "totalMs": 9313.216458
+     "buildMs": 132.23649999999998,
+     "fuseMs": 1689.343375,
+     "measureMs": 5981.894791000001,
+     "totalMs": 7803.474666
     },
     "errors": []
    },
-   "wallMs": 9723,
+   "wallMs": 8102,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -12375,7 +12555,11 @@
       "ruleOfThirdsHeight": 0.9675713460033473,
       "thicknessEstimate": 0.5716466903686523,
       "prongsTouched": 2,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -12427,14 +12611,14 @@
      ]
     },
     "timing": {
-     "buildMs": 128.121416,
-     "fuseMs": 3585.672834,
-     "measureMs": 9555.03575,
-     "totalMs": 13268.83
+     "buildMs": 129.288834,
+     "fuseMs": 3568.35175,
+     "measureMs": 8408.500791,
+     "totalMs": 12106.141375000001
     },
     "errors": []
    },
-   "wallMs": 13562,
+   "wallMs": 12400,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -12672,7 +12856,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 2,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -12725,14 +12913,14 @@
      ]
     },
     "timing": {
-     "buildMs": 157.56070899999997,
-     "fuseMs": 4142.876416,
-     "measureMs": 9075.317917,
-     "totalMs": 13375.755041999999
+     "buildMs": 164.97395899999998,
+     "fuseMs": 3251.3976660000003,
+     "measureMs": 8092.516917000001,
+     "totalMs": 11508.888542
     },
     "errors": []
    },
-   "wallMs": 13706,
+   "wallMs": 11868,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -12972,7 +13160,11 @@
       "ruleOfThirdsHeight": 2.2151854009130587,
       "thicknessEstimate": 0.7675079754262422,
       "prongsTouched": 2,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4767902672753725
+      }
      }
     ],
     "joint": {
@@ -13025,14 +13217,14 @@
      ]
     },
     "timing": {
-     "buildMs": 155.29129100000003,
-     "fuseMs": 2538.9696249999997,
-     "measureMs": 7597.0283340000005,
-     "totalMs": 10291.28925
+     "buildMs": 187.46249999999998,
+     "fuseMs": 2258.7907090000003,
+     "measureMs": 6902.689291,
+     "totalMs": 9348.9425
     },
     "errors": []
    },
-   "wallMs": 10607,
+   "wallMs": 9679,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -13233,7 +13425,11 @@
       "ruleOfThirdsHeight": 0.830734582394883,
       "thicknessEstimate": 0.549690642562932,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -13280,14 +13476,14 @@
      ]
     },
     "timing": {
-     "buildMs": 187.29625,
-     "fuseMs": 1899.415375,
-     "measureMs": 9027.760416,
-     "totalMs": 11114.472040999999
+     "buildMs": 240.206125,
+     "fuseMs": 1766.512541,
+     "measureMs": 7810.814292000001,
+     "totalMs": 9817.532958
     },
     "errors": []
    },
-   "wallMs": 11396,
+   "wallMs": 10131,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -13480,7 +13676,11 @@
       "ruleOfThirdsHeight": 1.31870895,
       "thicknessEstimate": 0.6267237549241567,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8791393
+      }
      }
     ],
     "joint": {
@@ -13527,14 +13727,14 @@
      ]
     },
     "timing": {
-     "buildMs": 159.18808299999998,
-     "fuseMs": 1440.9890420000002,
-     "measureMs": 7843.1639159999995,
-     "totalMs": 9443.341041
+     "buildMs": 227.16075000000006,
+     "fuseMs": 1157.057542,
+     "measureMs": 6880.380833,
+     "totalMs": 8264.599125
     },
     "errors": []
    },
-   "wallMs": 9747,
+   "wallMs": 8636,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -13729,7 +13929,11 @@
       "ruleOfThirdsHeight": 1.9019074164980336,
       "thicknessEstimate": 0.7171430587768557,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.2679382776653558
+      }
      }
     ],
     "joint": {
@@ -13776,14 +13980,14 @@
      ]
     },
     "timing": {
-     "buildMs": 191.555,
-     "fuseMs": 1387.9900830000001,
-     "measureMs": 7625.243959,
-     "totalMs": 9204.789042
+     "buildMs": 215.89287499999995,
+     "fuseMs": 1228.4442920000001,
+     "measureMs": 7156.89125,
+     "totalMs": 8601.228417
     },
     "errors": []
    },
-   "wallMs": 9525,
+   "wallMs": 9004,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -13993,7 +14197,11 @@
       "ruleOfThirdsHeight": 0.830734582394883,
       "thicknessEstimate": 0.5496906200750264,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -14041,14 +14249,14 @@
      ]
     },
     "timing": {
-     "buildMs": 178.132542,
-     "fuseMs": 2124.507375,
-     "measureMs": 9677.20275,
-     "totalMs": 11979.842666999999
+     "buildMs": 224.20749999999998,
+     "fuseMs": 1836.0241669999998,
+     "measureMs": 8509.813041,
+     "totalMs": 10570.044708
     },
     "errors": []
    },
-   "wallMs": 12338,
+   "wallMs": 10956,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -14250,7 +14458,11 @@
       "ruleOfThirdsHeight": 1.31870895,
       "thicknessEstimate": 0.6267375458170026,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8791393
+      }
      }
     ],
     "joint": {
@@ -14298,14 +14510,14 @@
      ]
     },
     "timing": {
-     "buildMs": 169.15058299999998,
-     "fuseMs": 1829.697458,
-     "measureMs": 8368.806375,
-     "totalMs": 10367.654416
+     "buildMs": 144.54283399999997,
+     "fuseMs": 1602.786166,
+     "measureMs": 7403.238624999999,
+     "totalMs": 9150.567625
     },
     "errors": []
    },
-   "wallMs": 10778,
+   "wallMs": 9453,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -14509,7 +14721,11 @@
       "ruleOfThirdsHeight": 1.9019074164980336,
       "thicknessEstimate": 0.7171430587768557,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.2679382776653558
+      }
      }
     ],
     "joint": {
@@ -14557,14 +14773,14 @@
      ]
     },
     "timing": {
-     "buildMs": 201.482166,
-     "fuseMs": 1589.059167,
-     "measureMs": 7527.465792,
-     "totalMs": 9318.007125
+     "buildMs": 117.89416700000001,
+     "fuseMs": 1420.76325,
+     "measureMs": 7243.8942910000005,
+     "totalMs": 8782.551708
     },
     "errors": []
    },
-   "wallMs": 9728,
+   "wallMs": 9023,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -14790,7 +15006,11 @@
       "ruleOfThirdsHeight": 0.830734582394883,
       "thicknessEstimate": 0.5496906481048609,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -14840,14 +15060,14 @@
      ]
     },
     "timing": {
-     "buildMs": 144.665542,
-     "fuseMs": 3198.8617910000003,
-     "measureMs": 11374.034417,
-     "totalMs": 14717.56175
+     "buildMs": 150.93066700000003,
+     "fuseMs": 3138.8759170000003,
+     "measureMs": 10450.697833,
+     "totalMs": 13740.504417
     },
     "errors": []
    },
-   "wallMs": 15032,
+   "wallMs": 14083,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -15065,7 +15285,11 @@
       "ruleOfThirdsHeight": 1.31870895,
       "thicknessEstimate": 0.6267376744033899,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8791393
+      }
      }
     ],
     "joint": {
@@ -15115,14 +15339,14 @@
      ]
     },
     "timing": {
-     "buildMs": 188.53945800000002,
-     "fuseMs": 2616.94875,
-     "measureMs": 9297.365084,
-     "totalMs": 12102.853292
+     "buildMs": 128.95562500000003,
+     "fuseMs": 2378.03325,
+     "measureMs": 8172.150041999999,
+     "totalMs": 10679.138916999998
     },
     "errors": []
    },
-   "wallMs": 12478,
+   "wallMs": 10967,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -15342,7 +15566,11 @@
       "ruleOfThirdsHeight": 1.9019074164980336,
       "thicknessEstimate": 0.7171430587768555,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.2679382776653558
+      }
      }
     ],
     "joint": {
@@ -15392,14 +15620,14 @@
      ]
     },
     "timing": {
-     "buildMs": 212.66283300000003,
-     "fuseMs": 2405.83,
-     "measureMs": 8824.717,
-     "totalMs": 11443.209833
+     "buildMs": 249.351792,
+     "fuseMs": 2278.895042,
+     "measureMs": 8019.064249999999,
+     "totalMs": 10547.311084
     },
     "errors": []
    },
-   "wallMs": 11882,
+   "wallMs": 10913,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -15645,7 +15873,11 @@
       "ruleOfThirdsHeight": 0.830734582394883,
       "thicknessEstimate": 0.5496905800690879,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -15697,14 +15929,14 @@
      ]
     },
     "timing": {
-     "buildMs": 188.229084,
-     "fuseMs": 4901.37475,
-     "measureMs": 13189.780458,
-     "totalMs": 18279.384292
+     "buildMs": 204.74508300000002,
+     "fuseMs": 4586.246,
+     "measureMs": 11758.802333,
+     "totalMs": 16549.793416
     },
     "errors": []
    },
-   "wallMs": 18720,
+   "wallMs": 16909,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -15942,7 +16174,11 @@
       "ruleOfThirdsHeight": 1.31870895,
       "thicknessEstimate": 0.6267376232779194,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8791393
+      }
      }
     ],
     "joint": {
@@ -15994,14 +16230,14 @@
      ]
     },
     "timing": {
-     "buildMs": 178.67575,
-     "fuseMs": 4309.859834000001,
-     "measureMs": 11558.470583,
-     "totalMs": 16047.006167000001
+     "buildMs": 222.51279100000002,
+     "fuseMs": 4021.96175,
+     "measureMs": 10154.695209,
+     "totalMs": 14399.16975
     },
     "errors": []
    },
-   "wallMs": 16353,
+   "wallMs": 14699,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -16241,7 +16477,11 @@
       "ruleOfThirdsHeight": 1.9019074164980336,
       "thicknessEstimate": 0.7171430587768555,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.2679382776653558
+      }
      }
     ],
     "joint": {
@@ -16293,14 +16533,14 @@
      ]
     },
     "timing": {
-     "buildMs": 166.38849999999996,
-     "fuseMs": 2957.917417,
-     "measureMs": 9797.168583,
-     "totalMs": 12921.4745
+     "buildMs": 152.11270799999997,
+     "fuseMs": 2506.824209,
+     "measureMs": 9624.391916,
+     "totalMs": 12283.328833
     },
     "errors": []
    },
-   "wallMs": 13242,
+   "wallMs": 12560,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -16501,7 +16741,11 @@
       "ruleOfThirdsHeight": 0.8188830436947707,
       "thicknessEstimate": 0.5479310356368987,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -16548,14 +16792,14 @@
      ]
     },
     "timing": {
-     "buildMs": 138.518833,
-     "fuseMs": 2083.464708,
-     "measureMs": 6633.005500000001,
-     "totalMs": 8854.989041
+     "buildMs": 70.43466699999999,
+     "fuseMs": 1628.2173750000002,
+     "measureMs": 6152.097375,
+     "totalMs": 7850.749417
     },
     "errors": []
    },
-   "wallMs": 9150,
+   "wallMs": 8111,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -16748,7 +16992,11 @@
       "ruleOfThirdsHeight": 1.299895805,
       "thicknessEstimate": 0.6234809010474134,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8665972033333333
+      }
      }
     ],
     "joint": {
@@ -16795,14 +17043,14 @@
      ]
     },
     "timing": {
-     "buildMs": 129.254958,
-     "fuseMs": 1544.665125,
-     "measureMs": 6112.866792000001,
-     "totalMs": 7786.786875
+     "buildMs": 97.43279199999998,
+     "fuseMs": 1373.548958,
+     "measureMs": 5261.462375,
+     "totalMs": 6732.444125
     },
     "errors": []
    },
-   "wallMs": 8076,
+   "wallMs": 6999,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -16997,7 +17245,11 @@
       "ruleOfThirdsHeight": 1.874774166205653,
       "thicknessEstimate": 0.7124071121215823,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.249849444137102
+      }
      }
     ],
     "joint": {
@@ -17044,14 +17296,14 @@
      ]
     },
     "timing": {
-     "buildMs": 165.17100000000005,
-     "fuseMs": 1516.4273749999998,
-     "measureMs": 6046.678917,
-     "totalMs": 7728.277292
+     "buildMs": 135.67704199999997,
+     "fuseMs": 1293.647625,
+     "measureMs": 5141.742208,
+     "totalMs": 6571.066875
     },
     "errors": []
    },
-   "wallMs": 8163,
+   "wallMs": 6871,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -17261,7 +17513,11 @@
       "ruleOfThirdsHeight": 0.8188830436947707,
       "thicknessEstimate": 0.5479309470028482,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -17309,14 +17565,14 @@
      ]
     },
     "timing": {
-     "buildMs": 117.96645799999999,
-     "fuseMs": 1805.639709,
-     "measureMs": 7693.026,
-     "totalMs": 9616.632167
+     "buildMs": 135.07820899999996,
+     "fuseMs": 2212.3262080000004,
+     "measureMs": 7353.804832999999,
+     "totalMs": 9701.20925
     },
     "errors": []
    },
-   "wallMs": 9914,
+   "wallMs": 10154,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -17518,7 +17774,11 @@
       "ruleOfThirdsHeight": 1.299895805,
       "thicknessEstimate": 0.6234809431262631,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8665972033333333
+      }
      }
     ],
     "joint": {
@@ -17566,14 +17826,14 @@
      ]
     },
     "timing": {
-     "buildMs": 115.22625,
-     "fuseMs": 1536.8113749999998,
-     "measureMs": 7099.094417,
-     "totalMs": 8751.132042
+     "buildMs": 95.31287500000002,
+     "fuseMs": 1565.1989159999998,
+     "measureMs": 6216.2901249999995,
+     "totalMs": 7876.801916
     },
     "errors": []
    },
-   "wallMs": 9018,
+   "wallMs": 8232,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -17777,7 +18037,11 @@
       "ruleOfThirdsHeight": 1.874774166205653,
       "thicknessEstimate": 0.7124071121215823,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.249849444137102
+      }
      }
     ],
     "joint": {
@@ -17825,14 +18089,14 @@
      ]
     },
     "timing": {
-     "buildMs": 148.385875,
-     "fuseMs": 1580.8464589999999,
-     "measureMs": 6971.962458000001,
-     "totalMs": 8701.194792
+     "buildMs": 98.698375,
+     "fuseMs": 1199.651417,
+     "measureMs": 5953.317125,
+     "totalMs": 7251.6669170000005
     },
     "errors": []
    },
-   "wallMs": 9027,
+   "wallMs": 7554,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -18058,7 +18322,11 @@
       "ruleOfThirdsHeight": 0.8188830436947707,
       "thicknessEstimate": 0.5479309379405548,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -18108,14 +18376,14 @@
      ]
     },
     "timing": {
-     "buildMs": 146.32295899999997,
-     "fuseMs": 3511.6164999999996,
-     "measureMs": 10456.815291,
-     "totalMs": 14114.75475
+     "buildMs": 135.22441600000002,
+     "fuseMs": 2882.017709,
+     "measureMs": 9257.640875,
+     "totalMs": 12274.883
     },
     "errors": []
    },
-   "wallMs": 14442,
+   "wallMs": 12650,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -18333,7 +18601,11 @@
       "ruleOfThirdsHeight": 1.299895805,
       "thicknessEstimate": 0.6234809606520582,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8665972033333333
+      }
      }
     ],
     "joint": {
@@ -18383,14 +18655,14 @@
      ]
     },
     "timing": {
-     "buildMs": 151.051917,
-     "fuseMs": 2737.4581660000003,
-     "measureMs": 9231.692125,
-     "totalMs": 12120.202207999999
+     "buildMs": 109.30437500000002,
+     "fuseMs": 2349.992916,
+     "measureMs": 8300.585292,
+     "totalMs": 10759.882583
     },
     "errors": []
    },
-   "wallMs": 12471,
+   "wallMs": 11066,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -18610,7 +18882,11 @@
       "ruleOfThirdsHeight": 1.874774166205653,
       "thicknessEstimate": 0.7124071121215823,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.249849444137102
+      }
      }
     ],
     "joint": {
@@ -18660,14 +18936,14 @@
      ]
     },
     "timing": {
-     "buildMs": 164.66087499999998,
-     "fuseMs": 2472.272,
-     "measureMs": 9264.31625,
-     "totalMs": 11901.249125
+     "buildMs": 93.39804199999998,
+     "fuseMs": 2306.8414169999996,
+     "measureMs": 8200.734208,
+     "totalMs": 10600.973667
     },
     "errors": []
    },
-   "wallMs": 12311,
+   "wallMs": 10856,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -18913,7 +19189,11 @@
       "ruleOfThirdsHeight": 0.8188830436947707,
       "thicknessEstimate": 0.5479309760652498,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -18965,14 +19245,14 @@
      ]
     },
     "timing": {
-     "buildMs": 149.48195799999996,
-     "fuseMs": 4553.704917,
-     "measureMs": 12534.515124999998,
-     "totalMs": 17237.701999999997
+     "buildMs": 123.86179199999998,
+     "fuseMs": 4348.235333,
+     "measureMs": 12814.707209,
+     "totalMs": 17286.804334
     },
     "errors": []
    },
-   "wallMs": 17532,
+   "wallMs": 17606,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -19210,7 +19490,11 @@
       "ruleOfThirdsHeight": 1.299895805,
       "thicknessEstimate": 0.6234807579547885,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8665972033333333
+      }
      }
     ],
     "joint": {
@@ -19262,14 +19546,14 @@
      ]
     },
     "timing": {
-     "buildMs": 165.619958,
-     "fuseMs": 4129.035583999999,
-     "measureMs": 11767.240791,
-     "totalMs": 16061.896333
+     "buildMs": 142.35387500000002,
+     "fuseMs": 3782.5233329999996,
+     "measureMs": 12026.451959,
+     "totalMs": 15951.329167
     },
     "errors": []
    },
-   "wallMs": 16471,
+   "wallMs": 16280,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -19509,7 +19793,11 @@
       "ruleOfThirdsHeight": 1.874774166205653,
       "thicknessEstimate": 0.712407112121582,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.249849444137102
+      }
      }
     ],
     "joint": {
@@ -19561,14 +19849,14 @@
      ]
     },
     "timing": {
-     "buildMs": 142.358,
-     "fuseMs": 2124.22125,
-     "measureMs": 10308.499833,
-     "totalMs": 12575.079082999999
+     "buildMs": 137.029375,
+     "fuseMs": 2329.2222920000004,
+     "measureMs": 9671.588208000001,
+     "totalMs": 12137.839875
     },
     "errors": []
    },
-   "wallMs": 12893,
+   "wallMs": 12424,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -19769,7 +20057,11 @@
       "ruleOfThirdsHeight": 0.9358877160614114,
       "thicknessEstimate": 0.5666714530065675,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -19816,14 +20108,14 @@
      ]
     },
     "timing": {
-     "buildMs": 120.56370799999996,
-     "fuseMs": 1961.7869580000001,
-     "measureMs": 5426.257042,
-     "totalMs": 7508.6077080000005
+     "buildMs": 95.96308300000001,
+     "fuseMs": 1736.8806249999998,
+     "measureMs": 5466.361457999999,
+     "totalMs": 7299.205166
     },
     "errors": []
    },
-   "wallMs": 7803,
+   "wallMs": 7585,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -20016,7 +20308,11 @@
       "ruleOfThirdsHeight": 1.4856291449999999,
       "thicknessEstimate": 0.6531928847665713,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9904194299999999
+      }
      }
     ],
     "joint": {
@@ -20063,14 +20359,14 @@
      ]
     },
     "timing": {
-     "buildMs": 64.02666599999998,
-     "fuseMs": 1614.457625,
-     "measureMs": 4631.297917,
-     "totalMs": 6309.782208
+     "buildMs": 136.98195800000002,
+     "fuseMs": 1295.083125,
+     "measureMs": 4430.284167,
+     "totalMs": 5862.349249999999
     },
     "errors": []
    },
-   "wallMs": 6639,
+   "wallMs": 6228,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -20265,7 +20561,11 @@
       "ruleOfThirdsHeight": 2.1426479960124123,
       "thicknessEstimate": 0.7557086451502508,
       "prongsTouched": 3,
-      "prongCount": 3
+      "prongCount": 3,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4284319973416082
+      }
      }
     ],
     "joint": {
@@ -20312,14 +20612,14 @@
      ]
     },
     "timing": {
-     "buildMs": 146.36370800000003,
-     "fuseMs": 1374.22275,
-     "measureMs": 4769.410792000001,
-     "totalMs": 6289.99725
+     "buildMs": 75.16729099999998,
+     "fuseMs": 1264.9756670000002,
+     "measureMs": 5026.841042,
+     "totalMs": 6366.9839999999995
     },
     "errors": []
    },
-   "wallMs": 6627,
+   "wallMs": 6653,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -20529,7 +20829,11 @@
       "ruleOfThirdsHeight": 0.9358877160614114,
       "thicknessEstimate": 0.5666713714599609,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -20577,14 +20881,14 @@
      ]
     },
     "timing": {
-     "buildMs": 98.70345800000001,
-     "fuseMs": 1985.995917,
-     "measureMs": 7312.885292000001,
-     "totalMs": 9397.584667000001
+     "buildMs": 93.994125,
+     "fuseMs": 2407.912375,
+     "measureMs": 7227.012874999999,
+     "totalMs": 9728.919375
     },
     "errors": []
    },
-   "wallMs": 9789,
+   "wallMs": 10047,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -20786,7 +21090,11 @@
       "ruleOfThirdsHeight": 1.4856291449999999,
       "thicknessEstimate": 0.6531929969787598,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9904194299999999
+      }
      }
     ],
     "joint": {
@@ -20834,14 +21142,14 @@
      ]
     },
     "timing": {
-     "buildMs": 70.62308300000001,
-     "fuseMs": 1552.1354999999999,
-     "measureMs": 6635.082084,
-     "totalMs": 8257.840666999999
+     "buildMs": 103.46925000000002,
+     "fuseMs": 1652.540416,
+     "measureMs": 6602.118542,
+     "totalMs": 8358.128208
     },
     "errors": []
    },
-   "wallMs": 8587,
+   "wallMs": 8663,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -21045,7 +21353,11 @@
       "ruleOfThirdsHeight": 2.1426479960124123,
       "thicknessEstimate": 0.7557084560394287,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4284319973416082
+      }
      }
     ],
     "joint": {
@@ -21093,14 +21405,14 @@
      ]
     },
     "timing": {
-     "buildMs": 94.13679200000001,
-     "fuseMs": 1524.398333,
-     "measureMs": 6577.600292000001,
-     "totalMs": 8196.135417000001
+     "buildMs": 95.41620800000001,
+     "fuseMs": 1405.022333,
+     "measureMs": 7021.651499999999,
+     "totalMs": 8522.090041
     },
     "errors": []
    },
-   "wallMs": 8604,
+   "wallMs": 8802,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -21326,7 +21638,11 @@
       "ruleOfThirdsHeight": 0.9358877160614114,
       "thicknessEstimate": 0.5666714161390389,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -21376,14 +21692,14 @@
      ]
     },
     "timing": {
-     "buildMs": 136.294459,
-     "fuseMs": 3602.2900409999997,
-     "measureMs": 8557.147292,
-     "totalMs": 12295.731791999999
+     "buildMs": 153.43741699999998,
+     "fuseMs": 3185.332792,
+     "measureMs": 8276.9205,
+     "totalMs": 11615.690708999999
     },
     "errors": []
    },
-   "wallMs": 12610,
+   "wallMs": 11958,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -21601,7 +21917,11 @@
       "ruleOfThirdsHeight": 1.4856291449999999,
       "thicknessEstimate": 0.6531928847665704,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9904194299999999
+      }
      }
     ],
     "joint": {
@@ -21651,14 +21971,14 @@
      ]
     },
     "timing": {
-     "buildMs": 119.18175,
-     "fuseMs": 2799.764333,
-     "measureMs": 7141.622959,
-     "totalMs": 10060.569042000001
+     "buildMs": 208.11724999999998,
+     "fuseMs": 2580.7608330000003,
+     "measureMs": 7152.247667000001,
+     "totalMs": 9941.125750000001
     },
     "errors": []
    },
-   "wallMs": 10376,
+   "wallMs": 10264,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -21878,7 +22198,11 @@
       "ruleOfThirdsHeight": 2.1426479960124123,
       "thicknessEstimate": 0.7557086451502513,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4284319973416082
+      }
      }
     ],
     "joint": {
@@ -21928,14 +22252,14 @@
      ]
     },
     "timing": {
-     "buildMs": 94.68866700000001,
-     "fuseMs": 2519.237792,
-     "measureMs": 7293.661875000001,
-     "totalMs": 9907.588334
+     "buildMs": 136.02675000000005,
+     "fuseMs": 2459.108458,
+     "measureMs": 7483.889208999999,
+     "totalMs": 10079.024417
     },
     "errors": []
    },
-   "wallMs": 10253,
+   "wallMs": 10455,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -22181,7 +22505,11 @@
       "ruleOfThirdsHeight": 0.9358877160614114,
       "thicknessEstimate": 0.5666713637499774,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -22233,14 +22561,14 @@
      ]
     },
     "timing": {
-     "buildMs": 129.656542,
-     "fuseMs": 4393.1355,
-     "measureMs": 10446.671208,
-     "totalMs": 14969.46325
+     "buildMs": 149.62937499999998,
+     "fuseMs": 4467.683416,
+     "measureMs": 9819.757125,
+     "totalMs": 14437.069916
     },
     "errors": []
    },
-   "wallMs": 15295,
+   "wallMs": 14745,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -22478,7 +22806,11 @@
       "ruleOfThirdsHeight": 1.4856291449999999,
       "thicknessEstimate": 0.6531927755402789,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9904194299999999
+      }
      }
     ],
     "joint": {
@@ -22530,14 +22862,14 @@
      ]
     },
     "timing": {
-     "buildMs": 155.37670799999995,
-     "fuseMs": 3276.908375,
-     "measureMs": 9449.846209,
-     "totalMs": 12882.131292
+     "buildMs": 82.48654200000001,
+     "fuseMs": 3582.349916,
+     "measureMs": 8942.994959,
+     "totalMs": 12607.831417
     },
     "errors": []
    },
-   "wallMs": 13289,
+   "wallMs": 12928,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -22777,7 +23109,11 @@
       "ruleOfThirdsHeight": 2.1426479960124123,
       "thicknessEstimate": 0.755708591862942,
       "prongsTouched": 8,
-      "prongCount": 8
+      "prongCount": 8,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4284319973416082
+      }
      }
     ],
     "joint": {
@@ -22829,14 +23165,14 @@
      ]
     },
     "timing": {
-     "buildMs": 135.36720799999995,
-     "fuseMs": 2606.2987500000004,
-     "measureMs": 8968.008875,
-     "totalMs": 11709.674833000001
+     "buildMs": 167.26329200000004,
+     "fuseMs": 2791.80675,
+     "measureMs": 8750.99475,
+     "totalMs": 11710.064792
     },
     "errors": []
    },
-   "wallMs": 12179,
+   "wallMs": 12072,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -23152,7 +23488,11 @@
       "ruleOfThirdsHeight": 0.8789823707562668,
       "thicknessEstimate": 0.5575427180916903,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -23253,14 +23593,14 @@
      ]
     },
     "timing": {
-     "buildMs": 185.123,
-     "fuseMs": 6284.889958999999,
-     "measureMs": 15557.419125,
-     "totalMs": 22027.432084
+     "buildMs": 270.964875,
+     "fuseMs": 6057.309708999999,
+     "measureMs": 15168.271041000002,
+     "totalMs": 21496.545625000002
     },
     "errors": []
    },
-   "wallMs": 22367,
+   "wallMs": 21940,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -23568,7 +23908,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -23669,14 +24013,14 @@
      ]
     },
     "timing": {
-     "buildMs": 186.13341599999998,
-     "fuseMs": 5987.463209,
-     "measureMs": 12723.008249999999,
-     "totalMs": 18896.604875
+     "buildMs": 342.985167,
+     "fuseMs": 5744.2445,
+     "measureMs": 12887.175333000003,
+     "totalMs": 18974.405000000002
     },
     "errors": []
    },
-   "wallMs": 19231,
+   "wallMs": 19358,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -24031,7 +24375,11 @@
       "ruleOfThirdsHeight": 2.0123672775159838,
       "thicknessEstimate": 0.7355255929381395,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3415781850106558
+      }
      }
     ],
     "joint": {
@@ -24167,14 +24515,14 @@
      ]
     },
     "timing": {
-     "buildMs": 297.287334,
-     "fuseMs": 6328.590333,
-     "measureMs": 16263.841499999999,
-     "totalMs": 22889.719167
+     "buildMs": 331.749459,
+     "fuseMs": 5910.413666,
+     "measureMs": 16159.593292,
+     "totalMs": 22401.756417
     },
     "errors": []
    },
-   "wallMs": 23233,
+   "wallMs": 22809,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -24492,7 +24840,11 @@
       "ruleOfThirdsHeight": 0.8688299458350297,
       "thicknessEstimate": 0.5556413588039317,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -24593,14 +24945,14 @@
      ]
     },
     "timing": {
-     "buildMs": 318.187583,
-     "fuseMs": 6642.0635,
-     "measureMs": 14447.763041999999,
-     "totalMs": 21408.014125
+     "buildMs": 281.8542500000001,
+     "fuseMs": 6409.003333,
+     "measureMs": 14515.439208,
+     "totalMs": 21206.296791
     },
     "errors": []
    },
-   "wallMs": 21747,
+   "wallMs": 21533,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -24937,7 +25289,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -25041,14 +25397,14 @@
      ]
     },
     "timing": {
-     "buildMs": 436.24108299999995,
-     "fuseMs": 4723.577708000001,
-     "measureMs": 10794.363374999999,
-     "totalMs": 15954.182165999999
+     "buildMs": 345.97287500000004,
+     "fuseMs": 4385.922166,
+     "measureMs": 10766.405792,
+     "totalMs": 15498.300833
     },
     "errors": []
    },
-   "wallMs": 16297,
+   "wallMs": 15871,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -25441,7 +25797,11 @@
       "ruleOfThirdsHeight": 1.9891240267083965,
       "thicknessEstimate": 0.7319938607012979,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3260826844722644
+      }
      }
     ],
     "joint": {
@@ -25657,14 +26017,14 @@
      ]
     },
     "timing": {
-     "buildMs": 314.97499999999997,
-     "fuseMs": 5047.687083000001,
-     "measureMs": 11539.7575,
-     "totalMs": 16902.419583
+     "buildMs": 426.40412499999996,
+     "fuseMs": 4712.085125,
+     "measureMs": 11847.859790999999,
+     "totalMs": 16986.349041
     },
     "errors": []
    },
-   "wallMs": 17276,
+   "wallMs": 17380,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -25982,7 +26342,11 @@
       "ruleOfThirdsHeight": 0.8787367475726885,
       "thicknessEstimate": 0.557299366284824,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -26083,14 +26447,14 @@
      ]
     },
     "timing": {
-     "buildMs": 242.061375,
-     "fuseMs": 5719.503291999999,
-     "measureMs": 13373.883958000002,
-     "totalMs": 19335.448625
+     "buildMs": 378.52770799999996,
+     "fuseMs": 5752.972125,
+     "measureMs": 13883.753708,
+     "totalMs": 20015.253541000002
     },
     "errors": []
    },
-   "wallMs": 19740,
+   "wallMs": 20372,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -26427,7 +26791,11 @@
       "ruleOfThirdsHeight": 1.3949076375,
       "thicknessEstimate": 0.638886420805358,
       "prongsTouched": 2,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.929938425
+      }
      }
     ],
     "joint": {
@@ -26546,14 +26914,14 @@
      ]
     },
     "timing": {
-     "buildMs": 356.48125000000005,
-     "fuseMs": 5822.094875000001,
-     "measureMs": 13164.824125000001,
-     "totalMs": 19343.400250000002
+     "buildMs": 449.89662500000003,
+     "fuseMs": 5640.8565419999995,
+     "measureMs": 12950.887832999999,
+     "totalMs": 19041.641
     },
     "errors": []
    },
-   "wallMs": 19703,
+   "wallMs": 19408,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -26946,7 +27314,11 @@
       "ruleOfThirdsHeight": 2.011804940802897,
       "thicknessEstimate": 0.7354393764187819,
       "prongsTouched": 2,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.341203293868598
+      }
      }
     ],
     "joint": {
@@ -27181,14 +27553,14 @@
      ]
     },
     "timing": {
-     "buildMs": 370.134708,
-     "fuseMs": 4310.151959,
-     "measureMs": 13080.913375,
-     "totalMs": 17761.200042
+     "buildMs": 397.056833,
+     "fuseMs": 4208.612083,
+     "measureMs": 13084.384209,
+     "totalMs": 17690.053125
     },
     "errors": []
    },
-   "wallMs": 18079,
+   "wallMs": 18015,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -27506,7 +27878,11 @@
       "ruleOfThirdsHeight": 0.9675713460033473,
       "thicknessEstimate": 0.5716466903686525,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -27607,14 +27983,14 @@
      ]
     },
     "timing": {
-     "buildMs": 226.24716700000005,
-     "fuseMs": 5905.3994999999995,
-     "measureMs": 11835.277875,
-     "totalMs": 17966.924542
+     "buildMs": 230.753333,
+     "fuseMs": 6111.251042,
+     "measureMs": 12479.582499999999,
+     "totalMs": 18821.586874999997
     },
     "errors": []
    },
-   "wallMs": 18302,
+   "wallMs": 19168,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -27987,7 +28363,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -28180,14 +28560,14 @@
      ]
     },
     "timing": {
-     "buildMs": 303.94775,
-     "fuseMs": 6113.904,
-     "measureMs": 15225.016666,
-     "totalMs": 21642.868415999998
+     "buildMs": 224.63387500000005,
+     "fuseMs": 6613.224416,
+     "measureMs": 15912.804917,
+     "totalMs": 22750.663207999998
     },
     "errors": []
    },
-   "wallMs": 22089,
+   "wallMs": 23106,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -28625,7 +29005,11 @@
       "ruleOfThirdsHeight": 2.2151854009130587,
       "thicknessEstimate": 0.7675081982127807,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4767902672753725
+      }
      }
     ],
     "joint": {
@@ -28901,14 +29285,14 @@
      ]
     },
     "timing": {
-     "buildMs": 303.21475,
-     "fuseMs": 6473.18825,
-     "measureMs": 16914.16375,
-     "totalMs": 23690.56675
+     "buildMs": 295.69891700000005,
+     "fuseMs": 6478.2317920000005,
+     "measureMs": 17515.714041,
+     "totalMs": 24289.64475
     },
     "errors": []
    },
-   "wallMs": 24026,
+   "wallMs": 24610,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -29226,7 +29610,11 @@
       "ruleOfThirdsHeight": 0.830734582394883,
       "thicknessEstimate": 0.5496906481048609,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -29307,14 +29695,14 @@
      ]
     },
     "timing": {
-     "buildMs": 294.44008299999996,
-     "fuseMs": 5984.672542,
-     "measureMs": 17862.080458,
-     "totalMs": 24141.193083000002
+     "buildMs": 273.33941599999997,
+     "fuseMs": 6251.3095840000005,
+     "measureMs": 18628.19575,
+     "totalMs": 25152.84475
     },
     "errors": []
    },
-   "wallMs": 24498,
+   "wallMs": 25518,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -29633,7 +30021,11 @@
       "ruleOfThirdsHeight": 1.31870895,
       "thicknessEstimate": 0.6267376744033899,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8791393
+      }
      }
     ],
     "joint": {
@@ -29725,14 +30117,14 @@
      ]
     },
     "timing": {
-     "buildMs": 336.89666700000004,
-     "fuseMs": 5554.688749999999,
-     "measureMs": 14969.867417,
-     "totalMs": 20861.452834
+     "buildMs": 254.09454100000002,
+     "fuseMs": 5610.182875,
+     "measureMs": 16371.017459,
+     "totalMs": 22235.294875
     },
     "errors": []
    },
-   "wallMs": 21308,
+   "wallMs": 22559,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -30098,7 +30490,11 @@
       "ruleOfThirdsHeight": 1.9019074164980336,
       "thicknessEstimate": 0.7171430587768555,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.2679382776653558
+      }
      }
     ],
     "joint": {
@@ -30225,14 +30621,14 @@
      ]
     },
     "timing": {
-     "buildMs": 310.758916,
-     "fuseMs": 6153.890459,
-     "measureMs": 17341.933582999998,
-     "totalMs": 23806.582958
+     "buildMs": 284.41304199999996,
+     "fuseMs": 6117.008625,
+     "measureMs": 16930.082083,
+     "totalMs": 23331.50375
     },
     "errors": []
    },
-   "wallMs": 24192,
+   "wallMs": 23669,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -30550,7 +30946,11 @@
       "ruleOfThirdsHeight": 0.8188830436947707,
       "thicknessEstimate": 0.5479309379405548,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -30610,14 +31010,14 @@
      ]
     },
     "timing": {
-     "buildMs": 337.703416,
-     "fuseMs": 5914.710166999999,
-     "measureMs": 16183.493583000001,
-     "totalMs": 22435.907166
+     "buildMs": 285.59650000000005,
+     "fuseMs": 7505.606959,
+     "measureMs": 13566.31825,
+     "totalMs": 21357.521709
     },
     "errors": []
    },
-   "wallMs": 22861,
+   "wallMs": 21719,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -30954,7 +31354,11 @@
       "ruleOfThirdsHeight": 1.299895805,
       "thicknessEstimate": 0.6234809606520582,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8665972033333333
+      }
      }
     ],
     "joint": {
@@ -31033,14 +31437,14 @@
      ]
     },
     "timing": {
-     "buildMs": 323.15812500000004,
-     "fuseMs": 5152.869874999999,
-     "measureMs": 15115.589333,
-     "totalMs": 20591.617333
+     "buildMs": 258.959375,
+     "fuseMs": 6650.66125,
+     "measureMs": 14696.819040999999,
+     "totalMs": 21606.439666
     },
     "errors": []
    },
-   "wallMs": 20995,
+   "wallMs": 21908,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -31433,7 +31837,11 @@
       "ruleOfThirdsHeight": 1.874774166205653,
       "thicknessEstimate": 0.7124071121215823,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.249849444137102
+      }
      }
     ],
     "joint": {
@@ -31580,14 +31988,14 @@
      ]
     },
     "timing": {
-     "buildMs": 298.29933300000005,
-     "fuseMs": 5692.681958,
-     "measureMs": 19743.823500000002,
-     "totalMs": 25734.804791000002
+     "buildMs": 232.223875,
+     "fuseMs": 6782.257333,
+     "measureMs": 17442.86,
+     "totalMs": 24457.341207999998
     },
     "errors": []
    },
-   "wallMs": 26108,
+   "wallMs": 24742,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -31905,7 +32313,11 @@
       "ruleOfThirdsHeight": 0.9358877160614114,
       "thicknessEstimate": 0.5666714161390389,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -31969,14 +32381,14 @@
      ]
     },
     "timing": {
-     "buildMs": 262.02320899999995,
-     "fuseMs": 5057.507165999999,
-     "measureMs": 14277.929124999999,
-     "totalMs": 19597.459499999997
+     "buildMs": 207.81145899999999,
+     "fuseMs": 4380.007083,
+     "measureMs": 12175.152167,
+     "totalMs": 16762.970709
     },
     "errors": []
    },
-   "wallMs": 19983,
+   "wallMs": 17064,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -32313,7 +32725,11 @@
       "ruleOfThirdsHeight": 1.4856291449999999,
       "thicknessEstimate": 0.6531928847665704,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9904194299999999
+      }
      }
     ],
     "joint": {
@@ -32383,14 +32799,14 @@
      ]
     },
     "timing": {
-     "buildMs": 161.452334,
-     "fuseMs": 5031.713291,
-     "measureMs": 20994.521834,
-     "totalMs": 26187.687458999997
+     "buildMs": 155.59154199999998,
+     "fuseMs": 5011.268875,
+     "measureMs": 12055.097667,
+     "totalMs": 17221.958084
     },
     "errors": []
    },
-   "wallMs": 26623,
+   "wallMs": 17538,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -32774,7 +33190,11 @@
       "ruleOfThirdsHeight": 2.1426479960124123,
       "thicknessEstimate": 0.7557086451502513,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4284319973416082
+      }
      }
     ],
     "joint": {
@@ -32893,14 +33313,14 @@
      ]
     },
     "timing": {
-     "buildMs": 188.25187499999998,
-     "fuseMs": 5499.905457999999,
-     "measureMs": 38184.702959,
-     "totalMs": 43872.860292
+     "buildMs": 191.241625,
+     "fuseMs": 5139.710417,
+     "measureMs": 14609.51025,
+     "totalMs": 19940.462292
     },
     "errors": []
    },
-   "wallMs": 44339,
+   "wallMs": 20265,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -33126,7 +33546,11 @@
       "ruleOfThirdsHeight": 0.8789823707562668,
       "thicknessEstimate": 0.5575427180916903,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -33176,14 +33600,14 @@
      ]
     },
     "timing": {
-     "buildMs": 140.457291,
-     "fuseMs": 3937.0616250000003,
-     "measureMs": 14105.050749999999,
-     "totalMs": 18182.569666
+     "buildMs": 97.27866699999998,
+     "fuseMs": 3787.536875,
+     "measureMs": 7960.176874999999,
+     "totalMs": 11844.992417
     },
     "errors": []
    },
-   "wallMs": 18596,
+   "wallMs": 12129,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -33401,7 +33825,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -33451,14 +33879,14 @@
      ]
     },
     "timing": {
-     "buildMs": 164.64641699999999,
-     "fuseMs": 3271.624417,
-     "measureMs": 12201.856916,
-     "totalMs": 15638.12775
+     "buildMs": 97.11566699999997,
+     "fuseMs": 2827.085958,
+     "measureMs": 7256.0879589999995,
+     "totalMs": 10180.289584
     },
     "errors": []
    },
-   "wallMs": 16037,
+   "wallMs": 10450,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -33678,7 +34106,11 @@
       "ruleOfThirdsHeight": 2.0123672775159838,
       "thicknessEstimate": 0.7355255929381395,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3415781850106558
+      }
      }
     ],
     "joint": {
@@ -33728,14 +34160,14 @@
      ]
     },
     "timing": {
-     "buildMs": 156.42224999999996,
-     "fuseMs": 3149.6467079999998,
-     "measureMs": 15132.749416999999,
-     "totalMs": 18438.818375
+     "buildMs": 135.84854199999995,
+     "fuseMs": 2636.226708,
+     "measureMs": 6937.589167,
+     "totalMs": 9709.664417
     },
     "errors": []
    },
-   "wallMs": 18870,
+   "wallMs": 10030,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -33963,7 +34395,11 @@
       "ruleOfThirdsHeight": 0.8688299458350297,
       "thicknessEstimate": 0.5556413588039317,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -34013,14 +34449,14 @@
      ]
     },
     "timing": {
-     "buildMs": 249.006291,
-     "fuseMs": 4151.795542,
-     "measureMs": 24374.714999999997,
-     "totalMs": 28775.516832999998
+     "buildMs": 176.89245799999998,
+     "fuseMs": 3278.034333,
+     "measureMs": 8039.470958999999,
+     "totalMs": 11494.39775
     },
     "errors": []
    },
-   "wallMs": 29121,
+   "wallMs": 11794,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -34240,7 +34676,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -34290,14 +34730,14 @@
      ]
     },
     "timing": {
-     "buildMs": 205.48362500000002,
-     "fuseMs": 2641.094208,
-     "measureMs": 14075.621625000002,
-     "totalMs": 16922.199458000003
+     "buildMs": 215.70154200000002,
+     "fuseMs": 2151.946833,
+     "measureMs": 5317.815583,
+     "totalMs": 7685.463958
     },
     "errors": []
    },
-   "wallMs": 17418,
+   "wallMs": 7967,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -34519,7 +34959,11 @@
       "ruleOfThirdsHeight": 1.9891240267083965,
       "thicknessEstimate": 0.7319938607012979,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3260826844722644
+      }
      }
     ],
     "joint": {
@@ -34569,14 +35013,14 @@
      ]
     },
     "timing": {
-     "buildMs": 272.6446250000001,
-     "fuseMs": 6408.331708,
-     "measureMs": 18478.5585,
-     "totalMs": 25159.534832999998
+     "buildMs": 116.445458,
+     "fuseMs": 2080.150792,
+     "measureMs": 5309.52275,
+     "totalMs": 7506.119
     },
     "errors": []
    },
-   "wallMs": 25634,
+   "wallMs": 7785,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -34804,7 +35248,11 @@
       "ruleOfThirdsHeight": 0.8787367475726885,
       "thicknessEstimate": 0.557299366284824,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -34854,14 +35302,14 @@
      ]
     },
     "timing": {
-     "buildMs": 897.2564169999999,
-     "fuseMs": 11156.404583,
-     "measureMs": 29139.474667000002,
-     "totalMs": 41193.135667
+     "buildMs": 149.903917,
+     "fuseMs": 3292.452875,
+     "measureMs": 8406.083417,
+     "totalMs": 11848.440209
     },
     "errors": []
    },
-   "wallMs": 41953,
+   "wallMs": 12191,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -35081,7 +35529,11 @@
       "ruleOfThirdsHeight": 1.3949076375,
       "thicknessEstimate": 0.638886420805358,
       "prongsTouched": 2,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.929938425
+      }
      }
     ],
     "joint": {
@@ -35131,14 +35583,14 @@
      ]
     },
     "timing": {
-     "buildMs": 554.823667,
-     "fuseMs": 10985.924708,
-     "measureMs": 24684.6655,
-     "totalMs": 36225.413875
+     "buildMs": 122.85987499999996,
+     "fuseMs": 3493.987959,
+     "measureMs": 7700.805957999999,
+     "totalMs": 11317.653792
     },
     "errors": []
    },
-   "wallMs": 37018,
+   "wallMs": 11576,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -35360,7 +35812,11 @@
       "ruleOfThirdsHeight": 2.011804940802897,
       "thicknessEstimate": 0.7354393764187819,
       "prongsTouched": 2,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.341203293868598
+      }
      }
     ],
     "joint": {
@@ -35410,14 +35866,14 @@
      ]
     },
     "timing": {
-     "buildMs": 555.725041,
-     "fuseMs": 8099.428584,
-     "measureMs": 18203.594333,
-     "totalMs": 26858.747958
+     "buildMs": 142.21624999999997,
+     "fuseMs": 2269.8830000000003,
+     "measureMs": 5364.576041,
+     "totalMs": 7776.6752910000005
     },
     "errors": []
    },
-   "wallMs": 27873,
+   "wallMs": 8071,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -35645,7 +36101,11 @@
       "ruleOfThirdsHeight": 0.9675713460033473,
       "thicknessEstimate": 0.5716466903686525,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -35695,14 +36155,14 @@
      ]
     },
     "timing": {
-     "buildMs": 773.8319579999999,
-     "fuseMs": 10808.955542,
-     "measureMs": 21370.818916000004,
-     "totalMs": 32953.606416
+     "buildMs": 107.95824999999999,
+     "fuseMs": 2984.972958,
+     "measureMs": 7256.613083,
+     "totalMs": 10349.544291
     },
     "errors": []
    },
-   "wallMs": 33853,
+   "wallMs": 10661,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -35922,7 +36382,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -35972,14 +36436,14 @@
      ]
     },
     "timing": {
-     "buildMs": 831.8100000000001,
-     "fuseMs": 8830.289374999998,
-     "measureMs": 20393.683042,
-     "totalMs": 30055.782417
+     "buildMs": 131.52566599999997,
+     "fuseMs": 2308.5957089999997,
+     "measureMs": 6155.667207999999,
+     "totalMs": 8595.788583
     },
     "errors": []
    },
-   "wallMs": 31107,
+   "wallMs": 8869,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -36201,7 +36665,11 @@
       "ruleOfThirdsHeight": 2.2151854009130587,
       "thicknessEstimate": 0.7675081982127807,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4767902672753725
+      }
      }
     ],
     "joint": {
@@ -36251,14 +36719,14 @@
      ]
     },
     "timing": {
-     "buildMs": 576.195416,
-     "fuseMs": 7750.43925,
-     "measureMs": 18841.19825,
-     "totalMs": 27167.832916
+     "buildMs": 134.01016700000002,
+     "fuseMs": 2130.1426250000004,
+     "measureMs": 5608.25575,
+     "totalMs": 7872.408542
     },
     "errors": []
    },
-   "wallMs": 28495,
+   "wallMs": 8206,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -36486,7 +36954,11 @@
       "ruleOfThirdsHeight": 0.830734582394883,
       "thicknessEstimate": 0.5496906481048609,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -36536,14 +37008,14 @@
      ]
     },
     "timing": {
-     "buildMs": 746.8307090000001,
-     "fuseMs": 10697.679999999998,
-     "measureMs": 30849.644249999998,
-     "totalMs": 42294.154959
+     "buildMs": 136.23191699999998,
+     "fuseMs": 3458.57825,
+     "measureMs": 9485.830833,
+     "totalMs": 13080.641
     },
     "errors": []
    },
-   "wallMs": 43185,
+   "wallMs": 13361,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -36763,7 +37235,11 @@
       "ruleOfThirdsHeight": 1.31870895,
       "thicknessEstimate": 0.6267376744033899,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8791393
+      }
      }
     ],
     "joint": {
@@ -36813,14 +37289,14 @@
      ]
     },
     "timing": {
-     "buildMs": 660.216333,
-     "fuseMs": 8409.193542,
-     "measureMs": 28249.576541,
-     "totalMs": 37318.986416
+     "buildMs": 219.469,
+     "fuseMs": 2557.1622500000003,
+     "measureMs": 8540.64325,
+     "totalMs": 11317.2745
     },
     "errors": []
    },
-   "wallMs": 38451,
+   "wallMs": 11632,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -37042,7 +37518,11 @@
       "ruleOfThirdsHeight": 1.9019074164980336,
       "thicknessEstimate": 0.7171430587768555,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.2679382776653558
+      }
      }
     ],
     "joint": {
@@ -37092,14 +37572,14 @@
      ]
     },
     "timing": {
-     "buildMs": 793.352209,
-     "fuseMs": 9242.361541,
-     "measureMs": 25505.325292,
-     "totalMs": 35541.039042000004
+     "buildMs": 129.859667,
+     "fuseMs": 2546.9985,
+     "measureMs": 8030.530124999999,
+     "totalMs": 10707.388292
     },
     "errors": []
    },
-   "wallMs": 36407,
+   "wallMs": 11006,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -37327,7 +37807,11 @@
       "ruleOfThirdsHeight": 0.8188830436947707,
       "thicknessEstimate": 0.5479309379405548,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -37377,14 +37861,14 @@
      ]
     },
     "timing": {
-     "buildMs": 763.5684159999998,
-     "fuseMs": 12612.87875,
-     "measureMs": 27933.39,
-     "totalMs": 41309.837166
+     "buildMs": 88.47383399999998,
+     "fuseMs": 3879.105708,
+     "measureMs": 8705.588875,
+     "totalMs": 12673.168416999999
     },
     "errors": []
    },
-   "wallMs": 42454,
+   "wallMs": 12952,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -37604,7 +38088,11 @@
       "ruleOfThirdsHeight": 1.299895805,
       "thicknessEstimate": 0.6234809606520582,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8665972033333333
+      }
      }
     ],
     "joint": {
@@ -37654,14 +38142,14 @@
      ]
     },
     "timing": {
-     "buildMs": 390.192625,
-     "fuseMs": 11170.998792,
-     "measureMs": 26943.233916999998,
-     "totalMs": 38504.425334
+     "buildMs": 89.27099999999999,
+     "fuseMs": 2849.682041,
+     "measureMs": 7489.87075,
+     "totalMs": 10428.823791
     },
     "errors": []
    },
-   "wallMs": 39540,
+   "wallMs": 10704,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -37883,7 +38371,11 @@
       "ruleOfThirdsHeight": 1.874774166205653,
       "thicknessEstimate": 0.7124071121215823,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.249849444137102
+      }
      }
     ],
     "joint": {
@@ -37933,14 +38425,14 @@
      ]
     },
     "timing": {
-     "buildMs": 634.51825,
-     "fuseMs": 8939.319708,
-     "measureMs": 24787.50325,
-     "totalMs": 34361.341208000005
+     "buildMs": 152.430625,
+     "fuseMs": 2858.80075,
+     "measureMs": 7709.984125000001,
+     "totalMs": 10721.2155
     },
     "errors": []
    },
-   "wallMs": 35416,
+   "wallMs": 10996,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -38168,7 +38660,11 @@
       "ruleOfThirdsHeight": 0.9358877160614114,
       "thicknessEstimate": 0.5666714161390389,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -38218,14 +38714,14 @@
      ]
     },
     "timing": {
-     "buildMs": 420.7783330000001,
-     "fuseMs": 12006.733625,
-     "measureMs": 21938.740292000002,
-     "totalMs": 34366.25225
+     "buildMs": 161.929333,
+     "fuseMs": 3734.657875,
+     "measureMs": 7339.965625,
+     "totalMs": 11236.552833
     },
     "errors": []
    },
-   "wallMs": 35387,
+   "wallMs": 11529,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -38445,7 +38941,11 @@
       "ruleOfThirdsHeight": 1.4856291449999999,
       "thicknessEstimate": 0.6531928847665704,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9904194299999999
+      }
      }
     ],
     "joint": {
@@ -38495,14 +38995,14 @@
      ]
     },
     "timing": {
-     "buildMs": 485.13466600000004,
-     "fuseMs": 9992.351167,
-     "measureMs": 19470.450292,
-     "totalMs": 29947.936125
+     "buildMs": 95.30525,
+     "fuseMs": 2881.3204170000004,
+     "measureMs": 5973.342625,
+     "totalMs": 8949.968292
     },
     "errors": []
    },
-   "wallMs": 31017,
+   "wallMs": 9219,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -38724,7 +39224,11 @@
       "ruleOfThirdsHeight": 2.1426479960124123,
       "thicknessEstimate": 0.7557086451502513,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4284319973416082
+      }
      }
     ],
     "joint": {
@@ -38774,14 +39278,14 @@
      ]
     },
     "timing": {
-     "buildMs": 707.8900839999999,
-     "fuseMs": 8262.409625,
-     "measureMs": 19544.683208,
-     "totalMs": 28514.982916999998
+     "buildMs": 122.66699999999997,
+     "fuseMs": 2665.426542,
+     "measureMs": 5995.375083000001,
+     "totalMs": 8783.468625
     },
     "errors": []
    },
-   "wallMs": 29685,
+   "wallMs": 9041,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -39097,7 +39601,11 @@
       "ruleOfThirdsHeight": 0.8789823707562668,
       "thicknessEstimate": 0.5575427180916903,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -39108,7 +39616,11 @@
       "ruleOfThirdsHeight": 0.5449690698688855,
       "thicknessEstimate": 0.5051029399145318,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -39119,7 +39631,11 @@
       "ruleOfThirdsHeight": 0.5449690698688855,
       "thicknessEstimate": 0.5051029644786365,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -39179,14 +39695,14 @@
      ]
     },
     "timing": {
-     "buildMs": 723.8362079999999,
-     "fuseMs": 23974.982,
-     "measureMs": 61670.234207999994,
-     "totalMs": 86369.05241599999
+     "buildMs": 172.083917,
+     "fuseMs": 8269.096875,
+     "measureMs": 20185.384541,
+     "totalMs": 28626.565333000002
     },
     "errors": []
    },
-   "wallMs": 87297,
+   "wallMs": 28936,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -39494,7 +40010,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      },
      {
       "head": "side-right",
@@ -39505,7 +40025,11 @@
       "ruleOfThirdsHeight": 0.8650844748,
       "thicknessEstimate": 0.5552640668040205,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -39516,7 +40040,11 @@
       "ruleOfThirdsHeight": 0.8650844748,
       "thicknessEstimate": 0.5552641946686228,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -39587,14 +40115,14 @@
      ]
     },
     "timing": {
-     "buildMs": 744.1757080000001,
-     "fuseMs": 20640.892874999998,
-     "measureMs": 53136.020208,
-     "totalMs": 74521.088791
+     "buildMs": 168.85425000000004,
+     "fuseMs": 6744.392084,
+     "measureMs": 17792.073666,
+     "totalMs": 24705.32
     },
     "errors": []
    },
-   "wallMs": 75403,
+   "wallMs": 24996,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -39904,7 +40432,11 @@
       "ruleOfThirdsHeight": 2.0123672775159838,
       "thicknessEstimate": 0.7355255929381395,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3415781850106558
+      }
      },
      {
       "head": "side-right",
@@ -39915,7 +40447,11 @@
       "ruleOfThirdsHeight": 1.24766771205991,
       "thicknessEstimate": 0.614900219727962,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8317784747066067
+      }
      },
      {
       "head": "side-left",
@@ -39926,7 +40462,11 @@
       "ruleOfThirdsHeight": 1.24766771205991,
       "thicknessEstimate": 0.6149004288786695,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8317784747066067
+      }
      }
     ],
     "joint": {
@@ -39997,14 +40537,14 @@
      ]
     },
     "timing": {
-     "buildMs": 835.7629579999999,
-     "fuseMs": 21040.568292,
-     "measureMs": 58935.091958000005,
-     "totalMs": 80811.42320800001
+     "buildMs": 147.51708299999999,
+     "fuseMs": 6791.084709000001,
+     "measureMs": 18537.41925,
+     "totalMs": 25476.021042
     },
     "errors": []
    },
-   "wallMs": 81836,
+   "wallMs": 25791,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -40322,7 +40862,11 @@
       "ruleOfThirdsHeight": 0.8688299458350297,
       "thicknessEstimate": 0.5556413588039317,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -40333,7 +40877,11 @@
       "ruleOfThirdsHeight": 0.5386745664177184,
       "thicknessEstimate": 0.5040667637549001,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -40344,7 +40892,11 @@
       "ruleOfThirdsHeight": 0.5386745664177184,
       "thicknessEstimate": 0.504066576602578,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -40404,14 +40956,14 @@
      ]
     },
     "timing": {
-     "buildMs": 726.9113749999999,
-     "fuseMs": 25388.43925,
-     "measureMs": 61801.887375000006,
-     "totalMs": 87917.238
+     "buildMs": 260.818583,
+     "fuseMs": 8290.531874999999,
+     "measureMs": 20010.937708,
+     "totalMs": 28562.288166000002
     },
     "errors": []
    },
-   "wallMs": 89094,
+   "wallMs": 28927,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -40721,7 +41273,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      },
      {
       "head": "side-right",
@@ -40732,7 +41288,11 @@
       "ruleOfThirdsHeight": 0.8550925734,
       "thicknessEstimate": 0.5536388662177274,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -40743,7 +41303,11 @@
       "ruleOfThirdsHeight": 0.8550925734,
       "thicknessEstimate": 0.5536390754073743,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -40803,14 +41367,14 @@
      ]
     },
     "timing": {
-     "buildMs": 790.4090830000001,
-     "fuseMs": 18970.804333,
-     "measureMs": 47062.08925,
-     "totalMs": 66823.302666
+     "buildMs": 343.974834,
+     "fuseMs": 6050.626958,
+     "measureMs": 15895.903917000001,
+     "totalMs": 22290.505709
     },
     "errors": []
    },
-   "wallMs": 67924,
+   "wallMs": 22640,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -41122,7 +41686,11 @@
       "ruleOfThirdsHeight": 1.9891240267083965,
       "thicknessEstimate": 0.7319938607012979,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.3260826844722644
+      }
      },
      {
       "head": "side-right",
@@ -41133,7 +41701,11 @@
       "ruleOfThirdsHeight": 1.233256896559206,
       "thicknessEstimate": 0.6127734645511747,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.822171264372804
+      }
      },
      {
       "head": "side-left",
@@ -41144,7 +41716,11 @@
       "ruleOfThirdsHeight": 1.233256896559206,
       "thicknessEstimate": 0.6127732064762004,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.822171264372804
+      }
      }
     ],
     "joint": {
@@ -41213,14 +41789,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1376.354,
-     "fuseMs": 16672.265166,
-     "measureMs": 45178.770917,
-     "totalMs": 63227.390083000006
+     "buildMs": 277.409625,
+     "fuseMs": 5652.609667,
+     "measureMs": 15066.537375,
+     "totalMs": 20996.556667
     },
     "errors": []
    },
-   "wallMs": 64357,
+   "wallMs": 21267,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -41538,7 +42114,11 @@
       "ruleOfThirdsHeight": 0.8787367475726885,
       "thicknessEstimate": 0.557299366284824,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -41549,7 +42129,11 @@
       "ruleOfThirdsHeight": 0.5448167834950669,
       "thicknessEstimate": 0.5050777287992996,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -41560,7 +42144,11 @@
       "ruleOfThirdsHeight": 0.5448167834950669,
       "thicknessEstimate": 0.5050776417762446,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -41620,14 +42208,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1346.070667,
-     "fuseMs": 22699.970875,
-     "measureMs": 61622.322042,
-     "totalMs": 85668.363584
+     "buildMs": 233.981333,
+     "fuseMs": 7492.630792,
+     "measureMs": 19668.236083000003,
+     "totalMs": 27394.848208000003
     },
     "errors": []
    },
-   "wallMs": 86819,
+   "wallMs": 27683,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -41937,7 +42525,11 @@
       "ruleOfThirdsHeight": 1.3949076375,
       "thicknessEstimate": 0.638886420805358,
       "prongsTouched": 2,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.929938425
+      }
      },
      {
       "head": "side-right",
@@ -41948,7 +42540,11 @@
       "ruleOfThirdsHeight": 0.8648427352500001,
       "thicknessEstimate": 0.5552243649258641,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -41959,7 +42555,11 @@
       "ruleOfThirdsHeight": 0.8648427352500001,
       "thicknessEstimate": 0.5552244028729789,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -42019,14 +42619,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1339.67475,
-     "fuseMs": 20668.665333999998,
-     "measureMs": 54204.30070800001,
-     "totalMs": 76212.640792
+     "buildMs": 258.217209,
+     "fuseMs": 7066.217458,
+     "measureMs": 17815.439208,
+     "totalMs": 25139.873875
     },
     "errors": []
    },
-   "wallMs": 77422,
+   "wallMs": 25453,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -42338,7 +42938,11 @@
       "ruleOfThirdsHeight": 2.011804940802897,
       "thicknessEstimate": 0.7354393764187819,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.341203293868598
+      }
      },
      {
       "head": "side-right",
@@ -42349,7 +42953,11 @@
       "ruleOfThirdsHeight": 1.2473190632977962,
       "thicknessEstimate": 0.6148488448288671,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8315460421985308
+      }
      },
      {
       "head": "side-left",
@@ -42360,7 +42968,11 @@
       "ruleOfThirdsHeight": 1.2473190632977962,
       "thicknessEstimate": 0.6148486656742027,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8315460421985308
+      }
      }
     ],
     "joint": {
@@ -42429,14 +43041,14 @@
      ]
     },
     "timing": {
-     "buildMs": 934.83575,
-     "fuseMs": 16543.651416999997,
-     "measureMs": 48489.56975,
-     "totalMs": 65968.056917
+     "buildMs": 195.31841699999998,
+     "fuseMs": 5731.811957999999,
+     "measureMs": 15977.212542000001,
+     "totalMs": 21904.342917
     },
     "errors": []
    },
-   "wallMs": 67019,
+   "wallMs": 22211,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -42754,7 +43366,11 @@
       "ruleOfThirdsHeight": 0.9675713460033473,
       "thicknessEstimate": 0.5716466903686525,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -42765,7 +43381,11 @@
       "ruleOfThirdsHeight": 0.5998942345220754,
       "thicknessEstimate": 0.5140409743005062,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -42776,7 +43396,11 @@
       "ruleOfThirdsHeight": 0.5998942345220754,
       "thicknessEstimate": 0.5140409497364016,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -42836,14 +43460,14 @@
      ]
     },
     "timing": {
-     "buildMs": 653.9900829999999,
-     "fuseMs": 19312.787042,
-     "measureMs": 54224.61537500001,
-     "totalMs": 74191.3925
+     "buildMs": 172.981583,
+     "fuseMs": 6367.3708750000005,
+     "measureMs": 18958.152792,
+     "totalMs": 25498.50525
     },
     "errors": []
    },
-   "wallMs": 75056,
+   "wallMs": 25840,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -43153,7 +43777,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      },
      {
       "head": "side-right",
@@ -43164,7 +43792,11 @@
       "ruleOfThirdsHeight": 0.95227273895,
       "thicknessEstimate": 0.5688994492707852,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -43175,7 +43807,11 @@
       "ruleOfThirdsHeight": 0.95227273895,
       "thicknessEstimate": 0.5688993037184154,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -43233,14 +43869,14 @@
      ]
     },
     "timing": {
-     "buildMs": 952.005167,
-     "fuseMs": 16763.839667,
-     "measureMs": 51557.050458,
-     "totalMs": 69272.895292
+     "buildMs": 239.252958,
+     "fuseMs": 5665.289375,
+     "measureMs": 17811.357582999997,
+     "totalMs": 23715.899916
     },
     "errors": []
    },
-   "wallMs": 70360,
+   "wallMs": 23977,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -43552,7 +44188,11 @@
       "ruleOfThirdsHeight": 2.2151854009130587,
       "thicknessEstimate": 0.7675081982127807,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4767902672753725
+      }
      },
      {
       "head": "side-right",
@@ -43563,7 +44203,11 @@
       "ruleOfThirdsHeight": 1.3734149485660962,
       "thicknessEstimate": 0.6354413171238034,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9156099657107308
+      }
      },
      {
       "head": "side-left",
@@ -43574,7 +44218,11 @@
       "ruleOfThirdsHeight": 1.3734149485660962,
       "thicknessEstimate": 0.635441155281967,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9156099657107308
+      }
      }
     ],
     "joint": {
@@ -43643,14 +44291,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1037.906458,
-     "fuseMs": 15598.9565,
-     "measureMs": 52280.95179200001,
-     "totalMs": 68917.81475
+     "buildMs": 195.674958,
+     "fuseMs": 5133.048167,
+     "measureMs": 17369.170458,
+     "totalMs": 22697.893583
     },
     "errors": []
    },
-   "wallMs": 69974,
+   "wallMs": 22971,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -43968,7 +44616,11 @@
       "ruleOfThirdsHeight": 0.830734582394883,
       "thicknessEstimate": 0.5496906481048609,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -43979,7 +44631,11 @@
       "ruleOfThirdsHeight": 0.5150554410848275,
       "thicknessEstimate": 0.5001575052520895,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -43990,7 +44646,11 @@
       "ruleOfThirdsHeight": 0.5150554410848275,
       "thicknessEstimate": 0.5001578463062555,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -44050,14 +44710,14 @@
      ]
     },
     "timing": {
-     "buildMs": 762.4557500000001,
-     "fuseMs": 25005.817583,
-     "measureMs": 62628.57725,
-     "totalMs": 88396.85058299999
+     "buildMs": 217.737292,
+     "fuseMs": 8479.270583,
+     "measureMs": 22083.848667,
+     "totalMs": 30780.856542
     },
     "errors": []
    },
-   "wallMs": 89437,
+   "wallMs": 31127,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -44367,7 +45027,11 @@
       "ruleOfThirdsHeight": 1.31870895,
       "thicknessEstimate": 0.6267376744033899,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8791393
+      }
      },
      {
       "head": "side-right",
@@ -44378,7 +45042,11 @@
       "ruleOfThirdsHeight": 0.8175995490000001,
       "thicknessEstimate": 0.5477438439000968,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -44389,7 +45057,11 @@
       "ruleOfThirdsHeight": 0.8175995490000001,
       "thicknessEstimate": 0.547743718972592,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -44449,14 +45121,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1032.260875,
-     "fuseMs": 18989.720666,
-     "measureMs": 54107.616792,
-     "totalMs": 74129.598333
+     "buildMs": 196.576792,
+     "fuseMs": 6319.4265829999995,
+     "measureMs": 18574.388625,
+     "totalMs": 25090.392
     },
     "errors": []
    },
-   "wallMs": 75077,
+   "wallMs": 25384,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -44768,7 +45440,11 @@
       "ruleOfThirdsHeight": 1.9019074164980336,
       "thicknessEstimate": 0.7171430587768555,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.2679382776653558
+      }
      },
      {
       "head": "side-right",
@@ -44779,7 +45455,11 @@
       "ruleOfThirdsHeight": 1.179182598228781,
       "thicknessEstimate": 0.6047033755620301,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7861217321525206
+      }
      },
      {
       "head": "side-left",
@@ -44790,7 +45470,11 @@
       "ruleOfThirdsHeight": 1.179182598228781,
       "thicknessEstimate": 0.6047032789708429,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7861217321525206
+      }
      }
     ],
     "joint": {
@@ -44861,14 +45545,14 @@
      ]
     },
     "timing": {
-     "buildMs": 980.7331250000001,
-     "fuseMs": 20920.220125,
-     "measureMs": 56746.890708000006,
-     "totalMs": 78647.84395800001
+     "buildMs": 229.44283399999998,
+     "fuseMs": 7013.868624999999,
+     "measureMs": 19814.093041,
+     "totalMs": 27057.4045
     },
     "errors": []
    },
-   "wallMs": 79575,
+   "wallMs": 27391,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -45186,7 +45870,11 @@
       "ruleOfThirdsHeight": 0.8188830436947707,
       "thicknessEstimate": 0.5479309379405548,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -45197,7 +45885,11 @@
       "ruleOfThirdsHeight": 0.5077074870907579,
       "thicknessEstimate": 0.49893468801874663,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -45208,7 +45900,11 @@
       "ruleOfThirdsHeight": 0.5077074870907579,
       "thicknessEstimate": 0.4989347492336913,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -45268,14 +45964,14 @@
      ]
     },
     "timing": {
-     "buildMs": 822.8525,
-     "fuseMs": 25313.010417,
-     "measureMs": 61291.38475,
-     "totalMs": 87427.247667
+     "buildMs": 191.573584,
+     "fuseMs": 8490.857624999999,
+     "measureMs": 22238.030166000004,
+     "totalMs": 30920.461375000003
     },
     "errors": []
    },
-   "wallMs": 88408,
+   "wallMs": 31245,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -45585,7 +46281,11 @@
       "ruleOfThirdsHeight": 1.299895805,
       "thicknessEstimate": 0.6234809606520582,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8665972033333333
+      }
      },
      {
       "head": "side-right",
@@ -45596,7 +46296,11 @@
       "ruleOfThirdsHeight": 0.8059353991000001,
       "thicknessEstimate": 0.5460051739658716,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -45607,7 +46311,11 @@
       "ruleOfThirdsHeight": 0.8059353991000001,
       "thicknessEstimate": 0.546005301205797,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -45667,14 +46375,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1147.5811669999998,
-     "fuseMs": 19653.7975,
-     "measureMs": 52912.98075,
-     "totalMs": 73714.359417
+     "buildMs": 168.11070899999999,
+     "fuseMs": 6674.80675,
+     "measureMs": 18353.683416,
+     "totalMs": 25196.600875
     },
     "errors": []
    },
-   "wallMs": 74807,
+   "wallMs": 25524,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -45986,7 +46694,11 @@
       "ruleOfThirdsHeight": 1.874774166205653,
       "thicknessEstimate": 0.7124071121215823,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.249849444137102
+      }
      },
      {
       "head": "side-right",
@@ -45997,7 +46709,11 @@
       "ruleOfThirdsHeight": 1.1623599830475049,
       "thicknessEstimate": 0.6021634224595913,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7749066553650032
+      }
      },
      {
       "head": "side-left",
@@ -46008,7 +46724,11 @@
       "ruleOfThirdsHeight": 1.1623599830475049,
       "thicknessEstimate": 0.6021631713655602,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7749066553650032
+      }
      }
     ],
     "joint": {
@@ -46079,14 +46799,14 @@
      ]
     },
     "timing": {
-     "buildMs": 929.1103749999999,
-     "fuseMs": 18463.325208000002,
-     "measureMs": 59425.73058399999,
-     "totalMs": 78818.16616699999
+     "buildMs": 318.29166699999996,
+     "fuseMs": 5975.99625,
+     "measureMs": 19684.613250000002,
+     "totalMs": 25978.901167
     },
     "errors": []
    },
-   "wallMs": 79974,
+   "wallMs": 26338,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -46404,7 +47124,11 @@
       "ruleOfThirdsHeight": 0.9358877160614114,
       "thicknessEstimate": 0.5666714161390389,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -46415,7 +47139,11 @@
       "ruleOfThirdsHeight": 0.580250383958075,
       "thicknessEstimate": 0.5108652168969311,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -46426,7 +47154,11 @@
       "ruleOfThirdsHeight": 0.580250383958075,
       "thicknessEstimate": 0.5108653166189642,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -46486,14 +47218,14 @@
      ]
     },
     "timing": {
-     "buildMs": 729.0808750000001,
-     "fuseMs": 18260.305,
-     "measureMs": 65475.534875,
-     "totalMs": 84464.92075
+     "buildMs": 204.981333,
+     "fuseMs": 6874.819917,
+     "measureMs": 21944.636875000004,
+     "totalMs": 29024.438125
     },
     "errors": []
    },
-   "wallMs": 85310,
+   "wallMs": 29334,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -46803,7 +47535,11 @@
       "ruleOfThirdsHeight": 1.4856291449999999,
       "thicknessEstimate": 0.6531928847665704,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.9904194299999999
+      }
      },
      {
       "head": "side-right",
@@ -46814,7 +47550,11 @@
       "ruleOfThirdsHeight": 0.9210900699,
       "thicknessEstimate": 0.5643246442066251,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -46825,7 +47565,11 @@
       "ruleOfThirdsHeight": 0.9210900699,
       "thicknessEstimate": 0.5643242463687875,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -46885,14 +47629,14 @@
      ]
     },
     "timing": {
-     "buildMs": 760.1595,
-     "fuseMs": 16543.299792,
-     "measureMs": 57960.196667,
-     "totalMs": 75263.655959
+     "buildMs": 177.415208,
+     "fuseMs": 6081.432583000001,
+     "measureMs": 19835.909459,
+     "totalMs": 26094.75725
     },
     "errors": []
    },
-   "wallMs": 76399,
+   "wallMs": 26474,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -47204,7 +47948,11 @@
       "ruleOfThirdsHeight": 2.1426479960124123,
       "thicknessEstimate": 0.7557086451502513,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.4284319973416082
+      }
      },
      {
       "head": "side-right",
@@ -47215,7 +47963,11 @@
       "ruleOfThirdsHeight": 1.3284417575276957,
       "thicknessEstimate": 0.6281573765903641,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8856278383517971
+      }
      },
      {
       "head": "side-left",
@@ -47226,7 +47978,11 @@
       "ruleOfThirdsHeight": 1.3284417575276957,
       "thicknessEstimate": 0.6281573401067839,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.8856278383517971
+      }
      }
     ],
     "joint": {
@@ -47297,14 +48053,14 @@
      ]
     },
     "timing": {
-     "buildMs": 681.0146669999999,
-     "fuseMs": 15479.636625000001,
-     "measureMs": 64188.830040999994,
-     "totalMs": 80349.481333
+     "buildMs": 187.461084,
+     "fuseMs": 5507.947291,
+     "measureMs": 21704.593917,
+     "totalMs": 27400.002292
     },
     "errors": []
    },
-   "wallMs": 81374,
+   "wallMs": 27712,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -47500,14 +48256,14 @@
      ]
     },
     "timing": {
-     "buildMs": 2362.693875,
-     "fuseMs": 4021.937791,
-     "measureMs": 12710.090167000002,
-     "totalMs": 19094.721833
+     "buildMs": 731.461,
+     "fuseMs": 1432.387,
+     "measureMs": 4104.090375,
+     "totalMs": 6267.938375000001
     },
     "errors": []
    },
-   "wallMs": 19917,
+   "wallMs": 6604,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -47695,14 +48451,14 @@
      ]
     },
     "timing": {
-     "buildMs": 2427.9242080000004,
-     "fuseMs": 4791.501459,
-     "measureMs": 12743.199750000002,
-     "totalMs": 19962.625417000003
+     "buildMs": 771.3556669999999,
+     "fuseMs": 1664.519917,
+     "measureMs": 4101.084041,
+     "totalMs": 6536.9596249999995
     },
     "errors": []
    },
-   "wallMs": 20729,
+   "wallMs": 6817,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -47892,14 +48648,14 @@
      ]
     },
     "timing": {
-     "buildMs": 2761.506708,
-     "fuseMs": 3658.6543750000005,
-     "measureMs": 12692.244667,
-     "totalMs": 19112.40575
+     "buildMs": 849.8165420000001,
+     "fuseMs": 1515.822,
+     "measureMs": 3941.778458,
+     "totalMs": 6307.4169999999995
     },
     "errors": []
    },
-   "wallMs": 19963,
+   "wallMs": 6568,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -48097,14 +48853,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6674.773666,
-     "fuseMs": 7440.503125,
-     "measureMs": 22274.049000000003,
-     "totalMs": 36389.325791
+     "buildMs": 2248.2480830000004,
+     "fuseMs": 2160.8465,
+     "measureMs": 7228.21975,
+     "totalMs": 11637.314333
     },
     "errors": []
    },
-   "wallMs": 37329,
+   "wallMs": 11908,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -48294,14 +49050,14 @@
      ]
     },
     "timing": {
-     "buildMs": 7052.1304580000005,
-     "fuseMs": 8146.934291999999,
-     "measureMs": 21705.587041,
-     "totalMs": 36904.651791
+     "buildMs": 2203.7129999999997,
+     "fuseMs": 2465.329375,
+     "measureMs": 6890.650000000001,
+     "totalMs": 11559.692375
     },
     "errors": []
    },
-   "wallMs": 37759,
+   "wallMs": 11902,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -48493,14 +49249,14 @@
      ]
     },
     "timing": {
-     "buildMs": 7075.8759580000005,
-     "fuseMs": 8977.017666999998,
-     "measureMs": 20990.469916000002,
-     "totalMs": 37043.363541
+     "buildMs": 2179.8292500000002,
+     "fuseMs": 2892.07025,
+     "measureMs": 6720.475291,
+     "totalMs": 11792.374791
     },
     "errors": []
    },
-   "wallMs": 38097,
+   "wallMs": 12100,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -48698,14 +49454,14 @@
      ]
     },
     "timing": {
-     "buildMs": 7350.493584,
-     "fuseMs": 8680.249333,
-     "measureMs": 23604.485124999996,
-     "totalMs": 39635.228041999995
+     "buildMs": 2187.492667,
+     "fuseMs": 3046.704916,
+     "measureMs": 7953.861584,
+     "totalMs": 13188.059167000001
     },
     "errors": []
    },
-   "wallMs": 40625,
+   "wallMs": 13461,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -48895,14 +49651,14 @@
      ]
     },
     "timing": {
-     "buildMs": 7000.32425,
-     "fuseMs": 9437.978042,
-     "measureMs": 23863.148457999996,
-     "totalMs": 40301.450749999996
+     "buildMs": 2334.461708,
+     "fuseMs": 2925.0025,
+     "measureMs": 7616.5149169999995,
+     "totalMs": 12875.979125
     },
     "errors": []
    },
-   "wallMs": 41339,
+   "wallMs": 13216,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -49094,14 +49850,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6544.337833,
-     "fuseMs": 9824.796875,
-     "measureMs": 23426.324625,
-     "totalMs": 39795.459333
+     "buildMs": 2056.862917,
+     "fuseMs": 3219.5163330000005,
+     "measureMs": 7368.496083,
+     "totalMs": 12644.875333
     },
     "errors": []
    },
-   "wallMs": 40672,
+   "wallMs": 12965,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -49299,14 +50055,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6375.892667,
-     "fuseMs": 9006.34275,
-     "measureMs": 26531.305208,
-     "totalMs": 41913.540625
+     "buildMs": 2158.0372500000003,
+     "fuseMs": 2575.8944579999998,
+     "measureMs": 8189.686958,
+     "totalMs": 12923.618666
     },
     "errors": []
    },
-   "wallMs": 42994,
+   "wallMs": 13194,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -49496,14 +50252,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6451.29225,
-     "fuseMs": 9492.211709,
-     "measureMs": 28332.699458,
-     "totalMs": 44276.203417
+     "buildMs": 1962.5551249999999,
+     "fuseMs": 2681.115709,
+     "measureMs": 8889.059915999998,
+     "totalMs": 13532.730749999999
     },
     "errors": []
    },
-   "wallMs": 45266,
+   "wallMs": 13860,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -49695,14 +50451,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6753.439958,
-     "fuseMs": 8918.551042000001,
-     "measureMs": 27480.190791,
-     "totalMs": 43152.181791
+     "buildMs": 1856.9671250000001,
+     "fuseMs": 2653.274125,
+     "measureMs": 8903.677042,
+     "totalMs": 13413.918292
     },
     "errors": []
    },
-   "wallMs": 44199,
+   "wallMs": 13708,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -49900,14 +50656,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6524.2515,
-     "fuseMs": 8310.234958000001,
-     "measureMs": 27346.231375,
-     "totalMs": 42180.717833
+     "buildMs": 2356.256959,
+     "fuseMs": 2633.492333,
+     "measureMs": 8463.555208000002,
+     "totalMs": 13453.3045
     },
     "errors": []
    },
-   "wallMs": 43317,
+   "wallMs": 13742,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -50097,14 +50853,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6827.656833000001,
-     "fuseMs": 9196.626292,
-     "measureMs": 26181.410249999997,
-     "totalMs": 42205.693374999995
+     "buildMs": 2236.3841249999996,
+     "fuseMs": 2789.0441670000005,
+     "measureMs": 8903.814417000001,
+     "totalMs": 13929.242709
     },
     "errors": []
    },
-   "wallMs": 43222,
+   "wallMs": 14237,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -50296,14 +51052,14 @@
      ]
     },
     "timing": {
-     "buildMs": 6880.633834,
-     "fuseMs": 10026.069541,
-     "measureMs": 27541.591249999998,
-     "totalMs": 44448.294624999995
+     "buildMs": 2386.036,
+     "fuseMs": 2706.1792499999997,
+     "measureMs": 8929.416667,
+     "totalMs": 14021.631916999999
     },
     "errors": []
    },
-   "wallMs": 45597,
+   "wallMs": 14324,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -50501,14 +51257,14 @@
      ]
     },
     "timing": {
-     "buildMs": 2344.137291,
-     "fuseMs": 3602.8325,
-     "measureMs": 10240.482959,
-     "totalMs": 16187.45275
+     "buildMs": 609.937625,
+     "fuseMs": 978.138166,
+     "measureMs": 3705.317459,
+     "totalMs": 5293.39325
     },
     "errors": []
    },
-   "wallMs": 17097,
+   "wallMs": 5558,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -50698,14 +51454,14 @@
      ]
     },
     "timing": {
-     "buildMs": 2451.526125,
-     "fuseMs": 3259.2833750000004,
-     "measureMs": 10473.286625,
-     "totalMs": 16184.096125
+     "buildMs": 562.963708,
+     "fuseMs": 877.833709,
+     "measureMs": 3142.6298749999996,
+     "totalMs": 4583.427291999999
     },
     "errors": []
    },
-   "wallMs": 17144,
+   "wallMs": 4832,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -50897,14 +51653,14 @@
      ]
     },
     "timing": {
-     "buildMs": 2518.1832919999997,
-     "fuseMs": 3724.688625,
-     "measureMs": 10379.713291000002,
-     "totalMs": 16622.585208
+     "buildMs": 647.2230000000001,
+     "fuseMs": 974.946584,
+     "measureMs": 3300.7572499999997,
+     "totalMs": 4922.926834
     },
     "errors": []
    },
-   "wallMs": 17477,
+   "wallMs": 5210,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -51102,14 +51858,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1465.170958,
-     "fuseMs": 3669.3316670000004,
-     "measureMs": 6876.246749999999,
-     "totalMs": 12010.749375
+     "buildMs": 300.546917,
+     "fuseMs": 1370.180458,
+     "measureMs": 2327.845375,
+     "totalMs": 3998.57275
     },
     "errors": []
    },
-   "wallMs": 12875,
+   "wallMs": 4308,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -51299,14 +52055,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1421.8686249999998,
-     "fuseMs": 3615.6337500000004,
-     "measureMs": 7350.492624999999,
-     "totalMs": 12387.994999999999
+     "buildMs": 403.523333,
+     "fuseMs": 1407.530667,
+     "measureMs": 2619.8497919999995,
+     "totalMs": 4430.903791999999
     },
     "errors": []
    },
-   "wallMs": 13239,
+   "wallMs": 4743,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -51498,14 +52254,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1548.5207499999997,
-     "fuseMs": 2953.9993329999998,
-     "measureMs": 6326.164625,
-     "totalMs": 10828.684708
+     "buildMs": 446.36800000000005,
+     "fuseMs": 1207.394708,
+     "measureMs": 2278.716209,
+     "totalMs": 3932.4789170000004
     },
     "errors": []
    },
-   "wallMs": 11783,
+   "wallMs": 4239,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -51723,7 +52479,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -51773,14 +52533,14 @@
      ]
     },
     "timing": {
-     "buildMs": 490.0727499999999,
-     "fuseMs": 6667.496417,
-     "measureMs": 24710.748125,
-     "totalMs": 31868.317292
+     "buildMs": 135.50074999999998,
+     "fuseMs": 2503.614084,
+     "measureMs": 7843.660458,
+     "totalMs": 10482.775292
     },
     "errors": []
    },
-   "wallMs": 32923,
+   "wallMs": 10771,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -51998,7 +52758,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -52048,14 +52812,14 @@
      ]
     },
     "timing": {
-     "buildMs": 687.855375,
-     "fuseMs": 8689.569166,
-     "measureMs": 21459.506125,
-     "totalMs": 30836.930666
+     "buildMs": 114.33141700000002,
+     "fuseMs": 2474.8759999999997,
+     "measureMs": 7842.856125,
+     "totalMs": 10432.063542
     },
     "errors": []
    },
-   "wallMs": 31680,
+   "wallMs": 10702,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -52273,7 +53037,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -52323,14 +53091,14 @@
      ]
     },
     "timing": {
-     "buildMs": 756.5915,
-     "fuseMs": 8211.377708,
-     "measureMs": 21327.002625,
-     "totalMs": 30294.971833
+     "buildMs": 136.812708,
+     "fuseMs": 3233.213667,
+     "measureMs": 9620.714708,
+     "totalMs": 12990.741083
     },
     "errors": []
    },
-   "wallMs": 31121,
+   "wallMs": 13252,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -52548,7 +53316,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -52598,14 +53370,14 @@
      ]
     },
     "timing": {
-     "buildMs": 797.531458,
-     "fuseMs": 7293.964834,
-     "measureMs": 21294.599333,
-     "totalMs": 29386.095624999998
+     "buildMs": 105.28937500000004,
+     "fuseMs": 2210.166542,
+     "measureMs": 6415.967124999999,
+     "totalMs": 8731.423042
     },
     "errors": []
    },
-   "wallMs": 30386,
+   "wallMs": 8992,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -52823,7 +53595,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -52873,14 +53649,14 @@
      ]
     },
     "timing": {
-     "buildMs": 591.0395000000001,
-     "fuseMs": 5697.08225,
-     "measureMs": 18337.64175,
-     "totalMs": 24625.7635
+     "buildMs": 133.322291,
+     "fuseMs": 1546.5575,
+     "measureMs": 5786.958375,
+     "totalMs": 7466.838166
     },
     "errors": []
    },
-   "wallMs": 26022,
+   "wallMs": 7786,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -53098,7 +53874,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -53148,14 +53928,14 @@
      ]
     },
     "timing": {
-     "buildMs": 451.0720829999998,
-     "fuseMs": 6211.429584,
-     "measureMs": 19457.559500000003,
-     "totalMs": 26120.061167
+     "buildMs": 137.05525,
+     "fuseMs": 1916.452375,
+     "measureMs": 6073.793707999999,
+     "totalMs": 8127.301332999999
     },
     "errors": []
    },
-   "wallMs": 27454,
+   "wallMs": 8455,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -53373,7 +54153,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -53423,14 +54207,14 @@
      ]
     },
     "timing": {
-     "buildMs": 643.2812079999999,
-     "fuseMs": 9864.977292,
-     "measureMs": 23580.777541999996,
-     "totalMs": 34089.036042
+     "buildMs": 121.48029100000002,
+     "fuseMs": 2966.781417,
+     "measureMs": 7388.079333,
+     "totalMs": 10476.341041
     },
     "errors": []
    },
-   "wallMs": 35313,
+   "wallMs": 10751,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -53648,7 +54432,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -53698,14 +54486,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1184.6979999999999,
-     "fuseMs": 15352.395625,
-     "measureMs": 29212.412167000002,
-     "totalMs": 45749.505792
+     "buildMs": 418.483291,
+     "fuseMs": 4657.161959,
+     "measureMs": 9504.093208,
+     "totalMs": 14579.738458
     },
     "errors": []
    },
-   "wallMs": 46908,
+   "wallMs": 14858,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -53923,7 +54711,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -53973,14 +54765,14 @@
      ]
     },
     "timing": {
-     "buildMs": 2797.169958,
-     "fuseMs": 6594.9255,
-     "measureMs": 23315.052042000003,
-     "totalMs": 32707.147500000003
+     "buildMs": 787.4244170000001,
+     "fuseMs": 2166.6077910000004,
+     "measureMs": 7415.111417,
+     "totalMs": 10369.143625
     },
     "errors": []
    },
-   "wallMs": 33815,
+   "wallMs": 10743,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -54198,7 +54990,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -54248,14 +55044,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1030.925667,
-     "fuseMs": 14580.939583,
-     "measureMs": 30240.616334,
-     "totalMs": 45852.481584
+     "buildMs": 229.009,
+     "fuseMs": 5004.0673750000005,
+     "measureMs": 10127.125499999998,
+     "totalMs": 15360.201874999999
     },
     "errors": []
    },
-   "wallMs": 46959,
+   "wallMs": 15642,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -54569,7 +55365,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -54652,14 +55452,14 @@
      ]
     },
     "timing": {
-     "buildMs": 12567.071875000001,
-     "fuseMs": 9593.81025,
-     "measureMs": 107349.92624999999,
-     "totalMs": 129510.808375
+     "buildMs": 4504.361,
+     "fuseMs": 3135.688875,
+     "measureMs": 36250.758042,
+     "totalMs": 43890.807917
     },
     "errors": []
    },
-   "wallMs": 130475,
+   "wallMs": 44171,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -55037,7 +55837,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -55127,14 +55931,14 @@
      ]
     },
     "timing": {
-     "buildMs": 20400.823249999998,
-     "fuseMs": 8801.009834,
-     "measureMs": 152200.401666,
-     "totalMs": 181402.23475
+     "buildMs": 7215.098584,
+     "fuseMs": 2797.520708000001,
+     "measureMs": 59154.32541700001,
+     "totalMs": 69166.944709
     },
     "errors": []
    },
-   "wallMs": 182356,
+   "wallMs": 69515,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -55680,7 +56484,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -55792,16 +56600,16 @@
      ]
     },
     "timing": {
-     "buildMs": 41522.842832999995,
-     "fuseMs": 12263.397209000002,
-     "measureMs": 227925.326166,
-     "totalMs": 281711.566208
+     "buildMs": 14772.647666,
+     "fuseMs": 4078.8682500000014,
+     "measureMs": 94229.51525,
+     "totalMs": 113081.031166
     },
     "errors": [
      "metal ∩ stone 12: intersection 0.35960725803282667 exceeds the smaller input 0.35920748244660633 and 0.05219043539856797 of it lies outside"
     ]
    },
-   "wallMs": 282515,
+   "wallMs": 113364,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -56019,7 +56827,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -56069,14 +56881,14 @@
      ]
     },
     "timing": {
-     "buildMs": 457.4961669999999,
-     "fuseMs": 6135.980583,
-     "measureMs": 21279.590500000002,
-     "totalMs": 27873.06725
+     "buildMs": 75.78491700000001,
+     "fuseMs": 1949.26325,
+     "measureMs": 6982.696875,
+     "totalMs": 9007.745042
     },
     "errors": []
    },
-   "wallMs": 28822,
+   "wallMs": 9334,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -56294,7 +57106,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -56344,14 +57160,14 @@
      ]
     },
     "timing": {
-     "buildMs": 446.04762500000004,
-     "fuseMs": 7477.996833000001,
-     "measureMs": 22781.972999999998,
-     "totalMs": 30706.017458000002
+     "buildMs": 112.45191599999998,
+     "fuseMs": 2511.8290840000004,
+     "measureMs": 7213.703875000001,
+     "totalMs": 9837.984875
     },
     "errors": []
    },
-   "wallMs": 31601,
+   "wallMs": 10140,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -56586,7 +57402,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -56636,14 +57456,14 @@
      ]
     },
     "timing": {
-     "buildMs": 408.000667,
-     "fuseMs": 6683.465749999999,
-     "measureMs": 20711.679333,
-     "totalMs": 27803.14575
+     "buildMs": 114.305,
+     "fuseMs": 2285.7429159999997,
+     "measureMs": 6771.064249999999,
+     "totalMs": 9171.112165999999
     },
     "errors": []
    },
-   "wallMs": 28854,
+   "wallMs": 9460,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -56872,7 +57692,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -56922,14 +57746,14 @@
      ]
     },
     "timing": {
-     "buildMs": 447.77879200000007,
-     "fuseMs": 6554.428167,
-     "measureMs": 20287.386083,
-     "totalMs": 27289.593042
+     "buildMs": 70.953959,
+     "fuseMs": 2163.4020410000003,
+     "measureMs": 6894.42525,
+     "totalMs": 9128.78125
     },
     "errors": []
    },
-   "wallMs": 28138,
+   "wallMs": 9392,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -57158,7 +57982,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -57208,14 +58036,14 @@
      ]
     },
     "timing": {
-     "buildMs": 437.1021669999999,
-     "fuseMs": 5838.868291000001,
-     "measureMs": 20985.834959,
-     "totalMs": 27261.805417
+     "buildMs": 130.220375,
+     "fuseMs": 2199.389208,
+     "measureMs": 7017.1005829999995,
+     "totalMs": 9346.710166
     },
     "errors": []
    },
-   "wallMs": 28265,
+   "wallMs": 9658,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -57444,7 +58272,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -57494,14 +58326,14 @@
      ]
     },
     "timing": {
-     "buildMs": 593.193833,
-     "fuseMs": 5941.886875,
-     "measureMs": 20399.075084,
-     "totalMs": 26934.155792
+     "buildMs": 147.764792,
+     "fuseMs": 2066.112375,
+     "measureMs": 7356.074083,
+     "totalMs": 9569.95125
     },
     "errors": []
    },
-   "wallMs": 27832,
+   "wallMs": 9887,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -57730,7 +58562,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -57780,14 +58616,14 @@
      ]
     },
     "timing": {
-     "buildMs": 429.05716699999994,
-     "fuseMs": 6030.671541,
-     "measureMs": 20662.828666999998,
-     "totalMs": 27122.557374999997
+     "buildMs": 121.069333,
+     "fuseMs": 2178.69475,
+     "measureMs": 6863.85425,
+     "totalMs": 9163.618333
     },
     "errors": []
    },
-   "wallMs": 28134,
+   "wallMs": 9446,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -58016,7 +58852,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -58066,14 +58906,14 @@
      ]
     },
     "timing": {
-     "buildMs": 433.03783399999986,
-     "fuseMs": 6548.4505,
-     "measureMs": 20098.996708,
-     "totalMs": 27080.485042
+     "buildMs": 103.81804199999999,
+     "fuseMs": 2140.190083,
+     "measureMs": 6886.099375,
+     "totalMs": 9130.107499999998
     },
     "errors": []
    },
-   "wallMs": 28062,
+   "wallMs": 9401,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -58302,7 +59142,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -58352,14 +59196,14 @@
      ]
     },
     "timing": {
-     "buildMs": 565.6088749999999,
-     "fuseMs": 6628.367875,
-     "measureMs": 19206.366208,
-     "totalMs": 26400.342957999997
+     "buildMs": 97.310709,
+     "fuseMs": 2223.761708,
+     "measureMs": 6819.225583000001,
+     "totalMs": 9140.298
     },
     "errors": []
    },
-   "wallMs": 27218,
+   "wallMs": 9414,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -58588,7 +59432,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -58638,14 +59486,14 @@
      ]
     },
     "timing": {
-     "buildMs": 418.98462500000005,
-     "fuseMs": 6266.389542,
-     "measureMs": 20345.891166,
-     "totalMs": 27031.265333
+     "buildMs": 88.67158299999997,
+     "fuseMs": 2115.9350000000004,
+     "measureMs": 6639.122375,
+     "totalMs": 8843.728958
     },
     "errors": []
    },
-   "wallMs": 27868,
+   "wallMs": 9130,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -58874,7 +59722,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -58924,14 +59776,14 @@
      ]
     },
     "timing": {
-     "buildMs": 411.47462499999995,
-     "fuseMs": 5782.581292,
-     "measureMs": 20369.873708,
-     "totalMs": 26563.929625
+     "buildMs": 92.43129200000001,
+     "fuseMs": 2011.8940410000002,
+     "measureMs": 6990.995375,
+     "totalMs": 9095.320708000001
     },
     "errors": []
    },
-   "wallMs": 27430,
+   "wallMs": 9381,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -59160,7 +60012,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -59210,14 +60066,14 @@
      ]
     },
     "timing": {
-     "buildMs": 484.72295799999995,
-     "fuseMs": 5751.79425,
-     "measureMs": 20305.262833,
-     "totalMs": 26541.780040999998
+     "buildMs": 96.65324999999999,
+     "fuseMs": 1954.7328329999998,
+     "measureMs": 6939.433332999999,
+     "totalMs": 8990.819415999998
     },
     "errors": []
    },
-   "wallMs": 27330,
+   "wallMs": 9278,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -59446,7 +60302,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -59496,14 +60356,14 @@
      ]
     },
     "timing": {
-     "buildMs": 411.2962919999999,
-     "fuseMs": 6066.896791,
-     "measureMs": 20804.150459,
-     "totalMs": 27282.343542000002
+     "buildMs": 152.43987499999997,
+     "fuseMs": 2150.57075,
+     "measureMs": 6786.455083000001,
+     "totalMs": 9089.465708
     },
     "errors": []
    },
-   "wallMs": 28197,
+   "wallMs": 9414,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -59732,7 +60592,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -59782,14 +60646,14 @@
      ]
     },
     "timing": {
-     "buildMs": 489.128959,
-     "fuseMs": 5919.473833,
-     "measureMs": 20331.108208,
-     "totalMs": 26739.711
+     "buildMs": 138.46162499999997,
+     "fuseMs": 2207.706167,
+     "measureMs": 6542.470458,
+     "totalMs": 8888.63825
     },
     "errors": []
    },
-   "wallMs": 27632,
+   "wallMs": 9230,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -60024,7 +60888,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -60074,14 +60942,14 @@
      ]
     },
     "timing": {
-     "buildMs": 465.307042,
-     "fuseMs": 6417.732666,
-     "measureMs": 20799.644333999997,
-     "totalMs": 27682.684042
+     "buildMs": 96.96720799999997,
+     "fuseMs": 2155.639667,
+     "measureMs": 6875.7303329999995,
+     "totalMs": 9128.337207999999
     },
     "errors": []
    },
-   "wallMs": 28500,
+   "wallMs": 9394,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -60316,7 +61184,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -60366,14 +61238,14 @@
      ]
     },
     "timing": {
-     "buildMs": 463.58179100000007,
-     "fuseMs": 6024.558792,
-     "measureMs": 20345.448666999997,
-     "totalMs": 26833.589249999997
+     "buildMs": 99.68254199999998,
+     "fuseMs": 2092.846708,
+     "measureMs": 6239.752250000001,
+     "totalMs": 8432.281500000001
     },
     "errors": []
    },
-   "wallMs": 27765,
+   "wallMs": 8715,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -60602,7 +61474,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -60652,14 +61528,14 @@
      ]
     },
     "timing": {
-     "buildMs": 388.269625,
-     "fuseMs": 5609.921832999999,
-     "measureMs": 20431.264167,
-     "totalMs": 26429.455625000002
+     "buildMs": 135.77675,
+     "fuseMs": 1984.385,
+     "measureMs": 6822.718167000001,
+     "totalMs": 8942.879917
     },
     "errors": []
    },
-   "wallMs": 27314,
+   "wallMs": 9234,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -60888,7 +61764,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 2
+      }
      }
     ],
     "joint": {
@@ -60938,14 +61818,14 @@
      ]
     },
     "timing": {
-     "buildMs": 521.103625,
-     "fuseMs": 5999.789083,
-     "measureMs": 20670.954542,
-     "totalMs": 27191.84725
+     "buildMs": 106.54075,
+     "fuseMs": 1942.6272079999999,
+     "measureMs": 6965.372,
+     "totalMs": 9014.539958
     },
     "errors": []
    },
-   "wallMs": 28114,
+   "wallMs": 9284,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -61174,7 +62054,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -61224,14 +62108,14 @@
      ]
     },
     "timing": {
-     "buildMs": 440.703,
-     "fuseMs": 6037.300499999999,
-     "measureMs": 20120.1585,
-     "totalMs": 26598.162
+     "buildMs": 150.025084,
+     "fuseMs": 2268.189875,
+     "measureMs": 6542.210625,
+     "totalMs": 8960.425583999999
     },
     "errors": []
    },
-   "wallMs": 27460,
+   "wallMs": 9278,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -61460,7 +62344,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -61510,14 +62398,14 @@
      ]
     },
     "timing": {
-     "buildMs": 544.446334,
-     "fuseMs": 6446.318291,
-     "measureMs": 19405.248,
-     "totalMs": 26396.012625
+     "buildMs": 132.23112500000002,
+     "fuseMs": 2119.8271250000003,
+     "measureMs": 6530.173667000001,
+     "totalMs": 8782.231917000001
     },
     "errors": []
    },
-   "wallMs": 27264,
+   "wallMs": 9041,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -61746,7 +62634,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -61796,14 +62688,14 @@
      ]
     },
     "timing": {
-     "buildMs": 410.74,
-     "fuseMs": 6541.439667,
-     "measureMs": 19081.400875,
-     "totalMs": 26033.580542
+     "buildMs": 90.16366699999998,
+     "fuseMs": 2137.002333,
+     "measureMs": 6742.349167,
+     "totalMs": 8969.515167
     },
     "errors": []
    },
-   "wallMs": 27018,
+   "wallMs": 9276,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -62032,7 +62924,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -62082,14 +62978,14 @@
      ]
     },
     "timing": {
-     "buildMs": 470.09637499999997,
-     "fuseMs": 5771.710584,
-     "measureMs": 19625.988708,
-     "totalMs": 25867.795667000002
+     "buildMs": 130.316208,
+     "fuseMs": 2127.8244999999997,
+     "measureMs": 6639.497292,
+     "totalMs": 8897.638
     },
     "errors": []
    },
-   "wallMs": 26778,
+   "wallMs": 9182,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -62318,7 +63214,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -62368,14 +63268,14 @@
      ]
     },
     "timing": {
-     "buildMs": 520.0278749999999,
-     "fuseMs": 5731.527583,
-     "measureMs": 22514.564833,
-     "totalMs": 28766.120291
+     "buildMs": 102.94591600000001,
+     "fuseMs": 1947.600167,
+     "measureMs": 7292.826833000001,
+     "totalMs": 9343.372916
     },
     "errors": []
    },
-   "wallMs": 29862,
+   "wallMs": 9623,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -62604,7 +63504,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.93019836
+      }
      }
     ],
     "joint": {
@@ -62654,14 +63558,14 @@
      ]
     },
     "timing": {
-     "buildMs": 411.91762500000004,
-     "fuseMs": 5559.627542,
-     "measureMs": 22347.380833000003,
-     "totalMs": 28318.926
+     "buildMs": 96.53012500000003,
+     "fuseMs": 2017.017417,
+     "measureMs": 7325.291625,
+     "totalMs": 9438.839167
     },
     "errors": []
    },
-   "wallMs": 29195,
+   "wallMs": 9700,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -62898,7 +63802,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -62948,14 +63856,14 @@
      ]
     },
     "timing": {
-     "buildMs": 399.2884160000001,
-     "fuseMs": 5226.156833999999,
-     "measureMs": 16302.890625,
-     "totalMs": 21928.335874999997
+     "buildMs": 97.28800000000001,
+     "fuseMs": 1876.5552079999998,
+     "measureMs": 5151.950833,
+     "totalMs": 7125.794041
     },
     "errors": []
    },
-   "wallMs": 22887,
+   "wallMs": 7404,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -63186,7 +64094,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -63236,14 +64148,14 @@
      ]
     },
     "timing": {
-     "buildMs": 531.8775830000001,
-     "fuseMs": 5269.744500000001,
-     "measureMs": 16127.2145,
-     "totalMs": 21928.836583
+     "buildMs": 176.40275000000003,
+     "fuseMs": 1888.175667,
+     "measureMs": 4988.7515,
+     "totalMs": 7053.329917
     },
     "errors": []
    },
-   "wallMs": 22841,
+   "wallMs": 7373,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -63480,7 +64392,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -63530,14 +64446,14 @@
      ]
     },
     "timing": {
-     "buildMs": 425.32008299999984,
-     "fuseMs": 5247.578792,
-     "measureMs": 16630.268417,
-     "totalMs": 22303.167292
+     "buildMs": 115.698792,
+     "fuseMs": 1785.570208,
+     "measureMs": 5954.170125,
+     "totalMs": 7855.439125
     },
     "errors": []
    },
-   "wallMs": 23086,
+   "wallMs": 8117,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -63768,7 +64684,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -63818,14 +64738,14 @@
      ]
     },
     "timing": {
-     "buildMs": 468.301791,
-     "fuseMs": 4864.326916999999,
-     "measureMs": 16882.014708000002,
-     "totalMs": 22214.643416
+     "buildMs": 109.91291599999997,
+     "fuseMs": 1618.584417,
+     "measureMs": 5939.488333,
+     "totalMs": 7667.9856660000005
     },
     "errors": []
    },
-   "wallMs": 23165,
+   "wallMs": 7936,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -64056,7 +64976,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -64106,14 +65030,14 @@
      ]
     },
     "timing": {
-     "buildMs": 657.7007500000001,
-     "fuseMs": 6954.593584,
-     "measureMs": 11979.356500000002,
-     "totalMs": 19591.650834
+     "buildMs": 111.87616699999998,
+     "fuseMs": 1910.4993330000002,
+     "measureMs": 5190.646583,
+     "totalMs": 7213.022083000001
     },
     "errors": []
    },
-   "wallMs": 20566,
+   "wallMs": 7495,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -64344,7 +65268,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -64394,14 +65322,14 @@
      ]
     },
     "timing": {
-     "buildMs": 451.5435410000001,
-     "fuseMs": 3750.1648750000004,
-     "measureMs": 13018.497959,
-     "totalMs": 17220.206374999998
+     "buildMs": 120.74004200000002,
+     "fuseMs": 1908.42925,
+     "measureMs": 5453.398125,
+     "totalMs": 7482.567417
     },
     "errors": []
    },
-   "wallMs": 17904,
+   "wallMs": 7758,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -64632,7 +65560,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -64682,14 +65614,14 @@
      ]
     },
     "timing": {
-     "buildMs": 561.4455,
-     "fuseMs": 3385.023625,
-     "measureMs": 13492.417167,
-     "totalMs": 17438.886292
+     "buildMs": 147.33395900000002,
+     "fuseMs": 1588.105208,
+     "measureMs": 6367.303083,
+     "totalMs": 8102.742249999999
     },
     "errors": []
    },
-   "wallMs": 18159,
+   "wallMs": 8356,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -64920,7 +65852,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -64970,14 +65906,14 @@
      ]
     },
     "timing": {
-     "buildMs": 329.118916,
-     "fuseMs": 2725.389542,
-     "measureMs": 13734.560375000001,
-     "totalMs": 16789.068833
+     "buildMs": 142.00912499999998,
+     "fuseMs": 1543.888125,
+     "measureMs": 6352.246542000001,
+     "totalMs": 8038.143792000001
     },
     "errors": []
    },
-   "wallMs": 17377,
+   "wallMs": 8372,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -65208,7 +66144,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -65258,14 +66198,14 @@
      ]
     },
     "timing": {
-     "buildMs": 300.660917,
-     "fuseMs": 3352.326542,
-     "measureMs": 11824.700458,
-     "totalMs": 15477.687917
+     "buildMs": 149.73733399999998,
+     "fuseMs": 2094.9542500000002,
+     "measureMs": 5159.845333,
+     "totalMs": 7404.536917
     },
     "errors": []
    },
-   "wallMs": 16066,
+   "wallMs": 7753,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -65496,7 +66436,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -65546,14 +66490,14 @@
      ]
     },
     "timing": {
-     "buildMs": 579.3437500000001,
-     "fuseMs": 4673.509040999999,
-     "measureMs": 9545.624209000001,
-     "totalMs": 14798.477
+     "buildMs": 148.10200000000003,
+     "fuseMs": 2106.985708,
+     "measureMs": 5050.585,
+     "totalMs": 7305.672708
     },
     "errors": []
    },
-   "wallMs": 15626,
+   "wallMs": 7571,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -65784,7 +66728,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -65834,14 +66782,14 @@
      ]
     },
     "timing": {
-     "buildMs": 497.34504100000004,
-     "fuseMs": 3402.6767090000003,
-     "measureMs": 11778.784415999999,
-     "totalMs": 15678.806165999998
+     "buildMs": 167.542416,
+     "fuseMs": 1875.5387499999997,
+     "measureMs": 5772.966334000001,
+     "totalMs": 7816.0475
     },
     "errors": []
    },
-   "wallMs": 16918,
+   "wallMs": 8061,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -66072,7 +67020,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -66122,14 +67074,14 @@
      ]
     },
     "timing": {
-     "buildMs": 447.815708,
-     "fuseMs": 3190.9551250000004,
-     "measureMs": 11885.225583999998,
-     "totalMs": 15523.996416999998
+     "buildMs": 194.23424999999997,
+     "fuseMs": 1607.531,
+     "measureMs": 6215.764792000001,
+     "totalMs": 8017.530042000001
     },
     "errors": []
    },
-   "wallMs": 16495,
+   "wallMs": 8330,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -66366,7 +67318,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -66416,14 +67372,14 @@
      ]
     },
     "timing": {
-     "buildMs": 235.02170799999993,
-     "fuseMs": 3436.1894169999996,
-     "measureMs": 9478.764292,
-     "totalMs": 13149.975417
+     "buildMs": 90.06654200000003,
+     "fuseMs": 1664.584292,
+     "measureMs": 5560.519625,
+     "totalMs": 7315.170459
     },
     "errors": []
    },
-   "wallMs": 13730,
+   "wallMs": 7583,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -66660,7 +67616,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -66710,14 +67670,14 @@
      ]
     },
     "timing": {
-     "buildMs": 322.461583,
-     "fuseMs": 3158.824584,
-     "measureMs": 9572.841375,
-     "totalMs": 13054.127542
+     "buildMs": 111.52541699999998,
+     "fuseMs": 1953.9537079999998,
+     "measureMs": 5373.469375000001,
+     "totalMs": 7438.9484999999995
     },
     "errors": []
    },
-   "wallMs": 13516,
+   "wallMs": 7700,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -66954,7 +67914,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -67004,14 +67968,14 @@
      ]
     },
     "timing": {
-     "buildMs": 245.870292,
-     "fuseMs": 2652.687291,
-     "measureMs": 11137.842875,
-     "totalMs": 14036.400458
+     "buildMs": 132.01629200000002,
+     "fuseMs": 1680.393041,
+     "measureMs": 6232.457833999999,
+     "totalMs": 8044.867166999999
     },
     "errors": []
    },
-   "wallMs": 14512,
+   "wallMs": 8311,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -67248,7 +68212,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -67298,14 +68266,14 @@
      ]
     },
     "timing": {
-     "buildMs": 241.90908299999995,
-     "fuseMs": 2578.057167,
-     "measureMs": 10914.854292,
-     "totalMs": 13734.820542
+     "buildMs": 127.75804099999999,
+     "fuseMs": 1681.1673750000002,
+     "measureMs": 6248.125249999999,
+     "totalMs": 8057.050665999999
     },
     "errors": []
    },
-   "wallMs": 14195,
+   "wallMs": 8368,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -67536,7 +68504,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -67586,14 +68558,14 @@
      ]
     },
     "timing": {
-     "buildMs": 268.09579199999996,
-     "fuseMs": 3254.4709169999996,
-     "measureMs": 9004.946166000002,
-     "totalMs": 12527.512875
+     "buildMs": 142.9115,
+     "fuseMs": 2436.517333,
+     "measureMs": 6235.94625,
+     "totalMs": 8815.375082999999
     },
     "errors": []
    },
-   "wallMs": 13182,
+   "wallMs": 9127,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -67824,7 +68796,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 2
+      }
      }
     ],
     "joint": {
@@ -67874,14 +68850,14 @@
      ]
     },
     "timing": {
-     "buildMs": 235.29575000000006,
-     "fuseMs": 3292.152959,
-     "measureMs": 8996.90575,
-     "totalMs": 12524.354459
+     "buildMs": 103.583417,
+     "fuseMs": 2270.8742500000003,
+     "measureMs": 5036.389,
+     "totalMs": 7410.846667000001
     },
     "errors": []
    },
-   "wallMs": 12954,
+   "wallMs": 7701,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -68112,7 +69088,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -68162,14 +69142,14 @@
      ]
     },
     "timing": {
-     "buildMs": 235.32866699999994,
-     "fuseMs": 2765.973458,
-     "measureMs": 10929.295250000001,
-     "totalMs": 13930.597375000001
+     "buildMs": 147.25775000000002,
+     "fuseMs": 1585.9182079999998,
+     "measureMs": 6178.549792000001,
+     "totalMs": 7911.7257500000005
     },
     "errors": []
    },
-   "wallMs": 14352,
+   "wallMs": 8205,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -68400,7 +69380,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 2
+      }
      }
     ],
     "joint": {
@@ -68450,14 +69434,14 @@
      ]
     },
     "timing": {
-     "buildMs": 264.51454200000006,
-     "fuseMs": 2805.822,
-     "measureMs": 10860.187208,
-     "totalMs": 13930.52375
+     "buildMs": 91.910125,
+     "fuseMs": 1354.933375,
+     "measureMs": 6678.355958,
+     "totalMs": 8125.199458
     },
     "errors": []
    },
-   "wallMs": 14357,
+   "wallMs": 8395,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -68688,7 +69672,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -68738,14 +69726,14 @@
      ]
     },
     "timing": {
-     "buildMs": 213.97391699999997,
-     "fuseMs": 2971.655791,
-     "measureMs": 9458.864917,
-     "totalMs": 12644.494625000001
+     "buildMs": 99.746792,
+     "fuseMs": 1812.7118329999998,
+     "measureMs": 5591.354667,
+     "totalMs": 7503.813292
     },
     "errors": []
    },
-   "wallMs": 13087,
+   "wallMs": 7773,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -68976,7 +69964,11 @@
       "ruleOfThirdsHeight": 1.37918157,
       "thicknessEstimate": 0.6364593505859375,
       "prongsTouched": 4,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 0.91945438
+      }
      }
     ],
     "joint": {
@@ -69026,14 +70018,14 @@
      ]
     },
     "timing": {
-     "buildMs": 220.71787500000005,
-     "fuseMs": 3145.557417,
-     "measureMs": 9833.085125,
-     "totalMs": 13199.360417
+     "buildMs": 145.63970799999998,
+     "fuseMs": 2008.4989170000003,
+     "measureMs": 5530.477707999999,
+     "totalMs": 7684.616333
     },
     "errors": []
    },
-   "wallMs": 13643,
+   "wallMs": 7945,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -69264,7 +70256,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -69314,14 +70310,14 @@
      ]
     },
     "timing": {
-     "buildMs": 245.16499999999996,
-     "fuseMs": 2671.4763749999997,
-     "measureMs": 11446.63325,
-     "totalMs": 14363.274625
+     "buildMs": 114.55345899999998,
+     "fuseMs": 1524.4892909999999,
+     "measureMs": 6662.131542000001,
+     "totalMs": 8301.174292000002
     },
     "errors": []
    },
-   "wallMs": 14789,
+   "wallMs": 8544,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -69552,7 +70548,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.25,
+       "galleryThickness": 1.0239491816666666
+      }
      }
     ],
     "joint": {
@@ -69602,14 +70602,14 @@
      ]
     },
     "timing": {
-     "buildMs": 300.077083,
-     "fuseMs": 2823.82625,
-     "measureMs": 11139.384709,
-     "totalMs": 14263.288042
+     "buildMs": 120.55129199999999,
+     "fuseMs": 1797.1794999999997,
+     "measureMs": 6292.781833,
+     "totalMs": 8210.512625
     },
     "errors": []
    },
-   "wallMs": 14708,
+   "wallMs": 8545,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -69879,7 +70879,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -69929,14 +70933,14 @@
      ]
     },
     "timing": {
-     "buildMs": 298.907708,
-     "fuseMs": 4025.702125,
-     "measureMs": 46546.815749999994,
-     "totalMs": 50871.425583
+     "buildMs": 111.00616600000001,
+     "fuseMs": 2462.2885420000002,
+     "measureMs": 7233.868208,
+     "totalMs": 9807.162916
     },
     "errors": []
    },
-   "wallMs": 51447,
+   "wallMs": 10093,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -70201,7 +71205,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 2
+      }
      }
     ],
     "joint": {
@@ -70251,14 +71259,14 @@
      ]
     },
     "timing": {
-     "buildMs": 281.234958,
-     "fuseMs": 3961.745167,
-     "measureMs": 48540.074833,
-     "totalMs": 52783.054958
+     "buildMs": 131.55779199999998,
+     "fuseMs": 2236.0366670000003,
+     "measureMs": 6988.095916,
+     "totalMs": 9355.690375
     },
     "errors": []
    },
-   "wallMs": 53312,
+   "wallMs": 9628,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -70530,7 +71538,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -70580,14 +71592,14 @@
      ]
     },
     "timing": {
-     "buildMs": 307.773542,
-     "fuseMs": 2719.87075,
-     "measureMs": 45796.93875,
-     "totalMs": 48824.583042000006
+     "buildMs": 105.54675000000003,
+     "fuseMs": 1524.06225,
+     "measureMs": 5978.716834,
+     "totalMs": 7608.325834
     },
     "errors": []
    },
-   "wallMs": 49340,
+   "wallMs": 7886,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -70854,7 +71866,11 @@
       "ruleOfThirdsHeight": 1.5359237725,
       "thicknessEstimate": 0.6609115600585938,
       "prongsTouched": 0,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 2
+      }
      }
     ],
     "joint": {
@@ -70904,14 +71920,14 @@
      ]
     },
     "timing": {
-     "buildMs": 303.88858300000004,
-     "fuseMs": 2680.016417,
-     "measureMs": 45825.871667,
-     "totalMs": 48809.776667
+     "buildMs": 123.77383300000002,
+     "fuseMs": 1651.9548750000001,
+     "measureMs": 5390.825333,
+     "totalMs": 7166.554041
     },
     "errors": []
    },
-   "wallMs": 49315,
+   "wallMs": 7463,
    "invariants": {
     "I1": {
      "status": "FAIL",
@@ -71273,7 +72289,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -71374,14 +72394,14 @@
      ]
     },
     "timing": {
-     "buildMs": 560.583042,
-     "fuseMs": 40435.819583,
-     "measureMs": 22008.274334,
-     "totalMs": 63004.676959000004
+     "buildMs": 253.79399999999998,
+     "fuseMs": 4828.276124999999,
+     "measureMs": 7651.216666000001,
+     "totalMs": 12733.286791
     },
     "errors": []
    },
-   "wallMs": 63523,
+   "wallMs": 13030,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -71738,7 +72758,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 2
+      }
      }
     ],
     "joint": {
@@ -71839,14 +72863,14 @@
      ]
     },
     "timing": {
-     "buildMs": 356.10595900000004,
-     "fuseMs": 43161.653957999995,
-     "measureMs": 18164.386083000005,
-     "totalMs": 61682.146
+     "buildMs": 194.994208,
+     "fuseMs": 4383.908084000001,
+     "measureMs": 7422.5410409999995,
+     "totalMs": 12001.443333
     },
     "errors": []
    },
-   "wallMs": 62155,
+   "wallMs": 12277,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -72208,7 +73232,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-right",
@@ -72219,7 +73247,11 @@
       "ruleOfThirdsHeight": 0.8650844748,
       "thicknessEstimate": 0.5552640668040205,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.7
+      }
      },
      {
       "head": "side-left",
@@ -72230,7 +73262,11 @@
       "ruleOfThirdsHeight": 0.8650844748,
       "thicknessEstimate": 0.5552641946686228,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.1,
+       "galleryThickness": 0.7
+      }
      }
     ],
     "joint": {
@@ -72301,14 +73337,14 @@
      ]
     },
     "timing": {
-     "buildMs": 391.612625,
-     "fuseMs": 46503.772792,
-     "measureMs": 23538.635165999993,
-     "totalMs": 70434.02058299999
+     "buildMs": 257.9845,
+     "fuseMs": 5310.393625,
+     "measureMs": 11557.485499999999,
+     "totalMs": 17125.863624999998
     },
     "errors": []
    },
-   "wallMs": 70918,
+   "wallMs": 17425,
    "invariants": {
     "I1": {
      "status": "PASS",
@@ -72665,7 +73701,11 @@
       "ruleOfThirdsHeight": 1.39529754,
       "thicknessEstimate": 0.6389502974088841,
       "prongsTouched": 6,
-      "prongCount": 6
+      "prongCount": 6,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 2
+      }
      },
      {
       "head": "side-right",
@@ -72676,7 +73716,11 @@
       "ruleOfThirdsHeight": 0.8650844748,
       "thicknessEstimate": 0.5552640668040205,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 2
+      }
      },
      {
       "head": "side-left",
@@ -72687,7 +73731,11 @@
       "ruleOfThirdsHeight": 0.8650844748,
       "thicknessEstimate": 0.5552641946686228,
       "prongsTouched": 4,
-      "prongCount": 4
+      "prongCount": 4,
+      "bench": {
+       "galleryClearance": 0.6,
+       "galleryThickness": 2
+      }
      }
     ],
     "joint": {
@@ -72758,14 +73806,14 @@
      ]
     },
     "timing": {
-     "buildMs": 1018.8296249999985,
-     "fuseMs": 15859.811416000004,
-     "measureMs": 22751.721917000003,
-     "totalMs": 39630.362958000005
+     "buildMs": 236.88324999999998,
+     "fuseMs": 5086.573665999999,
+     "measureMs": 11375.373834,
+     "totalMs": 16698.83075
     },
     "errors": []
    },
-   "wallMs": 70121,
+   "wallMs": 16969,
    "invariants": {
     "I1": {
      "status": "PASS",
