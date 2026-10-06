@@ -617,6 +617,97 @@ export function placeAccents(
   return out;
 }
 
+// ------------------------------------------------------------------- roles --
+
+/**
+ * What each unfused part is, so the structure audit can ask questions of the
+ * right solid: how far a prong sinks into the band, whether the gallery
+ * reaches every prong, whether a stone overlaps the metal holding it.
+ *
+ * A parallel array rather than a field on the shape, because the shapes are
+ * OCCT handles that booleans consume and return anew; a tag stored on one
+ * would not survive the fuse. Same length and order as the array it labels.
+ */
+export type HeadName = "centre" | "side-left" | "side-right";
+export type PartRoleName =
+  | "band" | "prong" | "gallery" | "base" | "bridge" | "strut" | "collar"
+  | "halo-seat" | "halo-rail" | "bearer" | "other";
+export type PartRole = { role: PartRoleName; head?: HeadName; index?: number };
+
+/**
+ * A stone's role, and where its culet and axis ended up in the ring's frame.
+ *
+ * The culet and the culet-to-table axis are carried rather than recovered
+ * from the solid afterwards: a step cut has a culet face, not a point, and
+ * which way a stone faces is a fact about how it was placed, not something to
+ * guess from its facets.
+ */
+export type StoneRole = {
+  role: "centre" | "side" | "halo" | "accent";
+  head?: HeadName;
+  culet: V3;
+  axis: V3;
+};
+
+/** A head's own frame in the ring: culet at the origin, table up its axis. */
+export type HeadFrame = {
+  head: HeadName;
+  culet: V3;
+  axis: V3;
+  /** The head's local +X, where prong 0 points on every cut but the princess. */
+  xDir: V3;
+  cut: GemCut;
+  girdleR: number;
+  prongCount: number;
+  /** Prong directions about the axis, radians from xDir. */
+  prongAngles: number[];
+  style: SettingStyle;
+};
+
+/**
+ * A placement, written once and applied to shapes and points alike.
+ *
+ * The audit needs to know where a head's culet and axis went, and the only
+ * way that stays true is if the points move by the very steps the shapes do.
+ * Two hand-written copies of a rotate-then-translate drift the first time
+ * someone edits one of them.
+ */
+type Step = { rot: number; about: V3 } | { move: V3 };
+
+function placeShape<T extends Shape3D>(sh: T, steps: Step[]): T {
+  let out = sh;
+  for (const st of steps) {
+    out = ("rot" in st
+      ? out.rotate(st.rot, [0, 0, 0], st.about)
+      : out.translate(st.move)) as T;
+  }
+  return out;
+}
+
+/** The same steps on a point, or on a direction (which ignores translation). */
+function placePoint(p: V3, steps: Step[], direction = false): V3 {
+  let [x, y, z] = p;
+  for (const st of steps) {
+    if ("move" in st) {
+      if (!direction) { x += st.move[0]; y += st.move[1]; z += st.move[2]; }
+      continue;
+    }
+    // Rodrigues, right-handed about a unit axis through the origin, which is
+    // what OCCT's gp_Trsf.SetRotation does for shape.rotate(deg, origin, axis).
+    const t = (st.rot * Math.PI) / 180, c = Math.cos(t), sn = Math.sin(t);
+    const L = Math.hypot(...st.about);
+    const [kx, ky, kz] = [st.about[0] / L, st.about[1] / L, st.about[2] / L];
+    const dot = kx * x + ky * y + kz * z;
+    const cx = ky * z - kz * y, cy = kz * x - kx * z, cz = kx * y - ky * x;
+    [x, y, z] = [
+      x * c + cx * sn + kx * dot * (1 - c),
+      y * c + cy * sn + ky * dot * (1 - c),
+      z * c + cz * sn + kz * dot * (1 - c),
+    ];
+  }
+  return [x, y, z];
+}
+
 // -------------------------------------------------------------------- head --
 
 /**
@@ -746,12 +837,24 @@ function outlineWire(o: Pt[], girdleR: number, scale: number, z: number): Wire {
  * gets claws on its points and a princess on its corners, and the gallery rail
  * carries them at the height they actually need support.
  */
+export type BuiltHead = {
+  metal: Shape3D[];
+  stones: Shape3D[];
+  /** Parallel to metal; `head` is left for the caller, who knows which head. */
+  metalRoles: PartRole[];
+  /** Parallel to stones, in the head's own frame. */
+  stoneRoles: StoneRole[];
+  prongAngles: number[];
+};
+
 export function buildHead(
   cut: GemCut, girdleR: number, prongCount: number, style: SettingStyle
-): { metal: Shape3D[]; stones: Shape3D[] } {
+): BuiltHead {
   const o = gemOutline(cut);
   const { pavH, girdleH, crownH } = gemDims(girdleR);
   const centre = buildGem(cut, girdleR);
+  // Every stone is built culet-down at the origin, table up +Z.
+  const centreRole: StoneRole = { role: "centre", culet: [0, 0, 0], axis: [0, 0, 1] };
 
   if (style === "bezel") {
     // A collar following the stone's outline, wrapping the girdle: the outer
@@ -787,7 +890,15 @@ export function buildHead(
       [0, 0, -0.65], [0, 0, pavH * 0.95 + 0.05],
       Math.max(0.15, girdleR * 0.42 - wallT), girdleR * 1.05 - wallT
     )) as Shape3D;
-    return { metal: [collar, gallery], stones: [centre] };
+    // The under-gallery is tagged "base", not "gallery": it is what carries
+    // the collar up from the shank, and the gallery rules (rule-of-thirds
+    // height, a rail every prong touches) are rules for a prong head's rail.
+    return {
+      metal: [collar, gallery], stones: [centre],
+      metalRoles: [{ role: "collar" }, { role: "base" }],
+      stoneRoles: [centreRole],
+      prongAngles: [],
+    };
   }
 
   const prongR = prongDiameterFor(girdleR) / 2;
@@ -796,14 +907,19 @@ export function buildHead(
 
   const metal: Shape3D[] = [];
   const stones: Shape3D[] = [centre];
-  const add = (s: Shape3D) => { metal.push(s); };
+  const metalRoles: PartRole[] = [];
+  const stoneRoles: StoneRole[] = [centreRole];
+  const prongAngles: number[] = [];
+  const add = (s: Shape3D, role: PartRole) => { metal.push(s); metalRoles.push(role); };
 
   for (let i = 0; i < prongCount; i++) {
     const a = (i / prongCount) * Math.PI * 2 + (cut === "princess" ? Math.PI / 4 : 0);
     const edge = radiusAtAngle(o, a) * girdleR;
     const baseR = edge * 0.30;
     const c = Math.cos(a), sn = Math.sin(a);
-    add(prong([baseR * c, baseR * sn, baseZ], [edge * 0.98 * c, edge * 0.98 * sn, topZ], prongR));
+    add(prong([baseR * c, baseR * sn, baseZ], [edge * 0.98 * c, edge * 0.98 * sn, topZ], prongR),
+      { role: "prong", index: i });
+    prongAngles.push(a);
   }
 
   // Gallery rail, at the radius the prongs occupy at that height.
@@ -812,7 +928,7 @@ export function buildHead(
     prongR * 0.75,
     meanEdge * 0.30 + (meanEdge * 0.98 - meanEdge * 0.30) * 0.55,
     baseZ + (topZ - baseZ) * 0.55
-  ));
+  ), { role: "gallery" });
 
   if (style === "halo") {
     // A ring of accent stones following the centre stone's outline — so a pear
@@ -830,13 +946,15 @@ export function buildHead(
       const r = radiusAtAngle(o, a) * girdleR + haloR * 1.15;
       const c = Math.cos(a), sn = Math.sin(a);
       stones.push(accent.clone().translate([r * c, r * sn, seatZ]) as Shape3D);
+      stoneRoles.push({ role: "halo", culet: [r * c, r * sn, seatZ], axis: [0, 0, 1] });
       add(makeCylinder(
         haloR * 0.85, haloR * 1.1,
         [r * c, r * sn, seatZ - haloR * 0.35], [0, 0, 1]
-      ));
+      ), { role: "halo-seat", index: i });
     }
     const railZ = pavH + girdleH - girdleR * 0.30;
-    add(outlineRail(o, girdleR, haloR * 1.15, haloR * 0.55, railZ, haloR * 1.1));
+    add(outlineRail(o, girdleR, haloR * 1.15, haloR * 0.55, railZ, haloR * 1.1),
+      { role: "halo-rail" });
 
     // Bearers from the centre basket out to the halo rail.
     //
@@ -861,11 +979,12 @@ export function buildHead(
       // just the tool, silently deleting a 207mm3 ring and leaving a 0.5mm3
       // sliver. The collapse only showed up on a marquise, which is exactly the
       // kind of bug that ships.
-      add(makeCylinder(haloR * 0.42, len, [c * inner, sn * inner, railZ], [c, sn, 0]));
+      add(makeCylinder(haloR * 0.42, len, [c * inner, sn * inner, railZ], [c, sn, 0]),
+        { role: "bearer", index: i });
     }
   }
 
-  return { metal, stones };
+  return { metal, stones, metalRoles, stoneRoles, prongAngles };
 }
 
 /**
@@ -888,30 +1007,46 @@ export function buildHead(
  */
 function buildSideStones(
   girdleR: number, outerR: number, splay: number
-): { metal: Shape3D[]; stones: Shape3D[] } {
+): {
+  metal: Shape3D[]; stones: Shape3D[];
+  metalRoles: PartRole[]; stoneRoles: StoneRole[]; heads: HeadFrame[];
+} {
   const sideR = girdleR * 0.62;
   const metal: Shape3D[] = [];
   const stones: Shape3D[] = [];
+  const metalRoles: PartRole[] = [];
+  const stoneRoles: StoneRole[] = [];
+  const heads: HeadFrame[] = [];
 
   for (const sgn of [-1, 1]) {
     const theta = Math.PI / 2 + sgn * splay;
+    // sgn -1 lands at +X, sgn +1 at -X; named as the ring is seen from +Z.
+    const name: HeadName = sgn < 0 ? "side-right" : "side-left";
     const head = buildHead("round", sideR, 4, "prong");
     // Stand it on the shank's radius, looking outward — the same move the pavé
     // accents make, because a side stone is set into the shoulder, not perched
     // on top of the ring like the centre.
-    const place = <T extends Shape3D>(sh: T): T => sh
-      .rotate(90, [0, 0, 0], [0, 1, 0])
-      .rotate((theta * 180) / Math.PI, [0, 0, 0], [0, 0, 1])
-      .translate([
-        Math.cos(theta) * (outerR - 0.3),
-        Math.sin(theta) * (outerR - 0.3),
-        0,
-      ]) as T;
+    const steps: Step[] = [
+      { rot: 90, about: [0, 1, 0] },
+      { rot: (theta * 180) / Math.PI, about: [0, 0, 1] },
+      { move: [Math.cos(theta) * (outerR - 0.3), Math.sin(theta) * (outerR - 0.3), 0] },
+    ];
+    const place = <T extends Shape3D>(sh: T): T => placeShape(sh, steps);
 
     metal.push(...head.metal.map(place));
     stones.push(...head.stones.map(place));
+    metalRoles.push(...head.metalRoles.map((r) => ({ ...r, head: name })));
+    stoneRoles.push(...head.stoneRoles.map((r) => ({
+      ...r, role: "side" as const, head: name,
+      culet: placePoint(r.culet, steps), axis: placePoint(r.axis, steps, true),
+    })));
+    heads.push({
+      head: name, culet: placePoint([0, 0, 0], steps),
+      axis: placePoint([0, 0, 1], steps, true), xDir: placePoint([1, 0, 0], steps, true),
+      cut: "round", girdleR: sideR, prongCount: 4, prongAngles: head.prongAngles, style: "prong",
+    });
   }
-  return { metal, stones };
+  return { metal, stones, metalRoles, stoneRoles, heads };
 }
 
 // -------------------------------------------------------------------- ring --
@@ -950,6 +1085,12 @@ export type RingMetrics = {
 export type RingParts = {
   metalParts: Shape3D[];
   stones: Shape3D[];
+  /** What each metal part is; same length and order as metalParts. */
+  metalRoles: PartRole[];
+  /** What each stone is and where it faces; same length and order as stones. */
+  stoneRoles: StoneRole[];
+  /** Every head's frame in the ring, centre first. */
+  heads: HeadFrame[];
   dims: RingDims;
 };
 
@@ -1024,6 +1165,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   }
   let band = bands[0];
   const accents: Shape3D[] = [];
+  const accentRoles: StoneRole[] = [];
 
   if (shankStones !== "none") {
     const L = shankStoneLayout(shankStones, outerR, bandWidth);
@@ -1035,22 +1177,51 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
     }
     accents.push(...placeAccents(L.count, L.stoneR,
       (i) => ({ angle: L.angleAt(i), radius: L.seatCentre })));
+    // placeAccents stands each stone on its radius looking outward, culet
+    // pavH inside the seat centre.
+    const pavH = gemDims(L.stoneR).pavH;
+    for (let i = 0; i < L.count; i++) {
+      const a = L.angleAt(i);
+      accentRoles.push({
+        role: "accent",
+        culet: [Math.cos(a) * (L.seatCentre - pavH), Math.sin(a) * (L.seatCentre - pavH), 0],
+        axis: [Math.cos(a), Math.sin(a), 0],
+      });
+    }
   }
 
   const head = buildHead(cut, girdleR, prongCount, style === "three_stone" ? "prong" : style);
 
   // Stand the head up at +Y on top of the band: rotate its Z axis onto +Y, then
   // lift it to sit on the shank.
-  const stand = <T extends Shape3D>(sh: T): T =>
-    sh.rotate(-90, [0, 0, 0], [1, 0, 0]).translate([0, outerR - 0.35, 0]) as T;
+  const standSteps: Step[] = [
+    { rot: -90, about: [1, 0, 0] },
+    { move: [0, outerR - 0.35, 0] },
+  ];
+  const stand = <T extends Shape3D>(sh: T): T => placeShape(sh, standSteps);
 
   const metalParts = [...bands, ...head.metal.map(stand)];
+  const metalRoles: PartRole[] = [
+    ...bands.map((): PartRole => ({ role: "band" })),
+    ...head.metalRoles.map((r): PartRole => ({ ...r, head: "centre" })),
+  ];
+  const heads: HeadFrame[] = [{
+    head: "centre",
+    culet: placePoint([0, 0, 0], standSteps),
+    axis: placePoint([0, 0, 1], standSteps, true),
+    xDir: placePoint([1, 0, 0], standSteps, true),
+    cut, girdleR, prongCount: style === "bezel" ? 0 : prongCount,
+    prongAngles: head.prongAngles, style,
+  }];
   void band;
 
   if (style === "three_stone") {
     const sides = buildSideStones(girdleR, outerR, 0.45);
     metalParts.push(...sides.metal);
+    metalRoles.push(...sides.metalRoles);
     accents.push(...sides.stones);
+    accentRoles.push(...sides.stoneRoles);
+    heads.push(...sides.heads);
   }
 
   if (style === "cathedral") {
@@ -1064,6 +1235,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
         [sgn * girdleR * 0.42, outerR + d.pavH * 0.55, 0],
         bandWidth * 0.30, bandWidth * 0.18
       ));
+      metalRoles.push({ role: "strut", head: "centre", index: sgn < 0 ? 0 : 1 });
     }
   }
 
@@ -1072,6 +1244,15 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
     // Head stones stand up with the head; shank accents are already in the
     // ring's own frame and must not be moved with it.
     stones: [...head.stones.map(stand), ...accents],
+    metalRoles,
+    stoneRoles: [
+      ...head.stoneRoles.map((r): StoneRole => ({
+        ...r, head: "centre",
+        culet: placePoint(r.culet, standSteps), axis: placePoint(r.axis, standSteps, true),
+      })),
+      ...accentRoles,
+    ],
+    heads,
     dims: {
       innerR, outerR, bandWidth, thickness,
       girdleR, stoneHeight: d.totalH,

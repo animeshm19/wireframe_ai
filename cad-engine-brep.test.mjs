@@ -13,7 +13,7 @@ import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import opencascade from "replicad-opencascadejs";
-import { setOC, measureVolume } from "replicad";
+import { setOC, measureVolume, measureDistanceBetween, makeVertex } from "replicad";
 
 let mesh, brep, pick;
 
@@ -499,4 +499,91 @@ test("a lasso becomes the region the designer drew", () => {
   const tiny = pick.toRegions(sweep(100, 102), "metal", B)[0];
   assert.ok(deg(tiny.end) - deg(tiny.start) >= 12,
     `a tiny pick must be widened, got ${deg(tiny.start)}-${deg(tiny.end)}`);
+});
+
+/* ------------------------------------------------------------ roles (S0) */
+
+test("every part and stone carries a role, for every setting", () => {
+  // The structure audit asks questions of individual parts (how far does
+  // prong 3 sink into the band?), so it has to know which part is which.
+  // Parallel arrays: a length mismatch would silently label the wrong solid.
+  const cases = [
+    {}, { setting: "bezel" }, { setting: "halo" }, { setting: "cathedral" },
+    { setting: "three_stone" }, { shankStones: "pave" }, { shankStyle: "split" },
+    { setting: "three_stone", shankStones: "pave" }, { setting: "halo", gemShape: "marquise" },
+    { gemShape: "princess", prongCount: 4 }, { setting: "bezel", gemShape: "emerald" },
+  ];
+  for (const spec of cases) {
+    const p = brep.buildRingParts(spec);
+    const tag = JSON.stringify(spec);
+    assert.equal(p.metalRoles.length, p.metalParts.length, `${tag} metalRoles`);
+    assert.equal(p.stoneRoles.length, p.stones.length, `${tag} stoneRoles`);
+    assert.equal(p.metalRoles[0].role, "band", `${tag} band first`);
+    assert.equal(p.stoneRoles[0].role, "centre", `${tag} centre stone first`);
+    assert.equal(p.heads[0].head, "centre", `${tag} centre head first`);
+
+    const n = (role, head) => p.metalRoles.filter((r) => r.role === role && (!head || r.head === head)).length;
+    const setting = spec.setting ?? "prong";
+    if (setting === "bezel") {
+      assert.equal(n("collar"), 1, tag);
+      assert.equal(n("base"), 1, tag);
+      assert.equal(n("prong"), 0, tag);
+    } else {
+      assert.equal(n("prong", "centre"), spec.prongCount ?? 6, `${tag} prongs`);
+      assert.equal(n("gallery", "centre"), 1, `${tag} gallery`);
+      // Prong indices are 0..n-1 in order, matching the head's prong angles.
+      assert.deepEqual(p.metalRoles.filter((r) => r.role === "prong" && r.head === "centre").map((r) => r.index),
+        [...Array(spec.prongCount ?? 6).keys()]);
+      assert.equal(p.heads[0].prongAngles.length, spec.prongCount ?? 6);
+    }
+    if (setting === "halo") {
+      const halo = p.stoneRoles.filter((r) => r.role === "halo").length;
+      assert.ok(halo >= 10, tag);
+      assert.equal(n("halo-seat"), halo, `${tag} one seat per halo stone`);
+      assert.equal(n("halo-rail"), 1, tag);
+      assert.equal(n("bearer"), 4, tag);
+    }
+    if (setting === "cathedral") assert.equal(n("strut"), 2, tag);
+    if (setting === "three_stone") {
+      for (const h of ["side-left", "side-right"]) {
+        assert.equal(n("prong", h), 4, `${tag} ${h} prongs`);
+        assert.equal(n("gallery", h), 1, `${tag} ${h} gallery`);
+        assert.equal(p.stoneRoles.filter((r) => r.role === "side" && r.head === h).length, 1);
+        assert.ok(p.heads.some((f) => f.head === h), `${tag} ${h} frame`);
+      }
+    }
+    if (spec.shankStones) {
+      assert.ok(p.stoneRoles.filter((r) => r.role === "accent").length > 3, `${tag} accents`);
+    }
+    assert.ok(p.metalRoles.every((r) => r.role === "band" || r.head), `${tag} every head part names its head`);
+  }
+});
+
+test("each stone's recorded culet and axis are where the stone actually is", () => {
+  // The culet and axis are carried through the same placement steps as the
+  // solid. If they ever drift apart, every clearance the audit reports is
+  // measured from the wrong point. Two checks, both against the real solid:
+  // the culet lies on the stone, and nothing of the stone is below it.
+  for (const spec of [{}, { setting: "three_stone" }, { setting: "halo", gemShape: "pear" },
+    { shankStones: "pave" }, { gemShape: "emerald" }, { gemShape: "princess", setting: "bezel" }]) {
+    const p = brep.buildRingParts(spec);
+    p.stones.forEach((stone, i) => {
+      const { culet, axis, role } = p.stoneRoles[i];
+      const tag = `${JSON.stringify(spec)} stone ${i} (${role})`;
+      assert.ok(Math.abs(Math.hypot(...axis) - 1) < 1e-9, `${tag} axis is a unit vector`);
+      const d = measureDistanceBetween(makeVertex(culet), stone);
+      assert.ok(d < 1e-6, `${tag}: culet is ${d.toExponential(2)}mm off the stone`);
+      const v = stone.mesh({ tolerance: 0.05, angularTolerance: 30 }).vertices;
+      let lowest = Infinity;
+      for (let k = 0; k < v.length; k += 3) {
+        lowest = Math.min(lowest,
+          (v[k] - culet[0]) * axis[0] + (v[k + 1] - culet[1]) * axis[1] + (v[k + 2] - culet[2]) * axis[2]);
+      }
+      // Float32 mesh coordinates on a ~10mm ring: a few 1e-6 of rounding.
+      assert.ok(lowest > -1e-5, `${tag}: stone reaches ${lowest}mm below its culet`);
+    });
+    // The centre head's frame agrees with the centre stone's.
+    assert.deepEqual(p.heads[0].culet, p.stoneRoles[0].culet);
+    assert.deepEqual(p.heads[0].axis, p.stoneRoles[0].axis);
+  }
 });
