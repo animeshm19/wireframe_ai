@@ -25,6 +25,7 @@ import {
   brilliantTopology, gemDims, gemOutline, radiusAtAngle, outlineRadius, girdleRadiusFor,
   type GemCut, type SettingStyle, type BandProfile, type V3, type Pt,
 } from "./cad-engine.js";
+import { prongDiameterFor } from "./setting-standards.js";
 
 // ------------------------------------------------------------------ kernel --
 
@@ -789,7 +790,7 @@ export function buildHead(
     return { metal: [collar, gallery], stones: [centre] };
   }
 
-  const prongR = 0.28 + girdleR * 0.045;
+  const prongR = prongDiameterFor(girdleR) / 2;
   const baseZ = -0.6;
   const topZ = pavH + girdleH + crownH * 0.5;
 

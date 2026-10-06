@@ -1,4 +1,5 @@
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec";
+import { prongDiameterFor } from "./setting-standards";
 
 /**
  * Shared ring geometry engine (P1-S1).
@@ -703,7 +704,7 @@ export function checkManufacturability(
   }
 
   const girdleR = metrics.girdleDiameter / 2;
-  const prongDia = (0.28 + girdleR * 0.045) * 2;
+  const prongDia = prongDiameterFor(girdleR);
   if ((p.setting ?? "prong") !== "bezel" && prongDia < lim.minProngDia) {
     issues.push({
       severity: "error",
