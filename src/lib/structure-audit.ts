@@ -119,6 +119,38 @@ export type StructureAudit = {
   errors: string[];
 };
 
+/** STL and STEP checks of the merged metal, exactly as the app exports it. */
+async function exportChecks(
+  metal: Shape3D, stones: Shape3D[], opts: AuditOptions, errors: string[],
+): Promise<{ stl: StlCheck | null; step: StructureAudit["step"] }> {
+  let stl: StlCheck | null = null;
+  if (opts.stl !== false) {
+    try {
+      stl = checkStl(new Uint8Array(await toSTL(metal, opts.stlTolerance ?? 0.01).arrayBuffer()));
+    } catch (e) { errors.push(`STL threw ${(e as Error)?.message ?? e}`); }
+  }
+
+  let step: StructureAudit["step"] = null;
+  if (opts.step !== false) {
+    try {
+      const count = (text: string, re: RegExp) => (text.match(re) ?? []).length;
+      const full = await toSTEP(metal, stones).text();
+      // A metal-only file too, so "metal is one solid" is read from the STEP
+      // rather than assumed from which entity came first in the combined one.
+      const alone = await toSTEP(metal, null).text();
+      step = {
+        manifoldSolidBreps: count(full, /MANIFOLD_SOLID_BREP/g),
+        metalSolidBreps: count(alone, /MANIFOLD_SOLID_BREP/g),
+        advancedFaces: count(full, /ADVANCED_FACE/g),
+        metalAdvancedFaces: count(alone, /ADVANCED_FACE/g),
+        triangulated: count(full, /TRIANGULATED_FACE|TESSELLATED_\w+|FACETED_BREP/g),
+        names: [...full.matchAll(/PRODUCT\('([^']*)'/g)].map((m) => m[1]),
+      };
+    } catch (e) { errors.push(`STEP threw ${(e as Error)?.message ?? e}`); }
+  }
+  return { stl, step };
+}
+
 export type AuditOptions = {
   stl?: boolean;
   step?: boolean;
@@ -137,14 +169,26 @@ export async function auditStructure(
 ): Promise<StructureAudit> {
   const errors: string[] = [];
   const t0 = performance.now();
-  const parts = buildRingParts(spec, { seats: true });
+  const fused = buildRingParts(spec, { seats: true });
   const t1 = performance.now();
-  // fuseMetal consumes nothing it is given, so the unfused parts stay usable
-  // for the per-part questions below.
-  const { metal, dropped } = fuseMetal(parts.metalParts);
+  const { metal, dropped } = fuseMetal(fused.metalParts);
   const t2 = performance.now();
 
-  const { metalParts, stones, metalRoles, stoneRoles, heads, dims } = parts;
+  // The files first, straight off the fuse, as the app exports them: every
+  // boolean the audit runs afterwards can retune tolerances on the shapes it
+  // touches, and the STL and STEP measured must be the ones a customer gets.
+  const { stl, step } = await exportChecks(metal, fused.stones, opts, errors);
+
+  // A second, untouched build for the per-part questions. OCCT's fuse adjusts
+  // tolerances on its INPUTS: measured in S0, slicing a gallery after
+  // fuseMetal had seen it returned an empty section on a pear cathedral and a
+  // 0.25 ct oval halo, where the same slice of a fresh part read 0.6389 and
+  // 0.5556 mm. The build is deterministic, so this is the same ring.
+  const parts = buildRingParts(spec, { seats: true });
+  const { metalParts, metalRoles, stoneRoles, heads, dims } = parts;
+  // Stones from the fused build: the culet and overlap questions are asked of
+  // the merged metal, which is the fused build's.
+  const stones = fused.stones;
   const gd = gemDims(dims.girdleR);
   const bench = resolveBench(spec.bench as Record<string, unknown> | undefined, {
     alloy: (spec.metalType as MetalType) ?? "platinum", girdleR: dims.girdleR, pavH: gd.pavH,
@@ -213,6 +257,12 @@ export async function auditStructure(
     stoneRoles.findIndex((r) => r.head === head && (r.role === "centre" || r.role === "side"));
   const sum = (xs: number[]) => xs.reduce((t, x) => t + x, 0);
 
+  // Sliced before any other boolean touches these parts (see the second build).
+  const sections = galleryIdx.map((g) => {
+    const r = metalRoles[g];
+    return sectionThickness(metalParts[g], heads.find((h) => h.head === r.head)!, `${r.head} gallery ${g}`);
+  });
+
   const prongAudits: ProngAudit[] = [];
   // Centre head first, then each side head, as the roles already order them.
   for (const i of idx((r) => r.role === "prong")) {
@@ -230,7 +280,7 @@ export async function auditStructure(
     });
   }
 
-  const galleryAudits: GalleryAudit[] = galleryIdx.map((g) => {
+  const galleryAudits: GalleryAudit[] = galleryIdx.map((g, k) => {
     const r = metalRoles[g];
     const part = metalParts[g];
     const frame = heads.find((h) => h.head === r.head)!;
@@ -245,7 +295,7 @@ export async function auditStructure(
       clearanceToStone: distance(part, held, `${tag} to stone`),
       centreHeightAboveCulet: dot(add(centroid, frame.culet, -1), frame.axis),
       ruleOfThirdsHeight: fgd.pavH * 0.5,
-      thicknessEstimate: sectionThickness(part, frame, tag),
+      thicknessEstimate: sections[k],
       prongsTouched: inProngs.filter((p) => p.inGallery > 0.02).length,
       prongCount: frame.prongCount,
     };
@@ -311,33 +361,6 @@ export async function auditStructure(
     }
   }
 
-  // -------------------------------------------------------- STL and STEP --
-  let stl: StlCheck | null = null;
-  if (opts.stl !== false) {
-    try {
-      stl = checkStl(new Uint8Array(await toSTL(metal, opts.stlTolerance ?? 0.01).arrayBuffer()));
-    } catch (e) { errors.push(`STL threw ${(e as Error)?.message ?? e}`); }
-  }
-
-  let step: StructureAudit["step"] = null;
-  if (opts.step !== false) {
-    try {
-      const count = (text: string, re: RegExp) => (text.match(re) ?? []).length;
-      const full = await toSTEP(metal, stones).text();
-      // A metal-only file too, so "metal is one solid" is read from the STEP
-      // rather than assumed from which entity came first in the combined one.
-      const alone = await toSTEP(metal, null).text();
-      step = {
-        manifoldSolidBreps: count(full, /MANIFOLD_SOLID_BREP/g),
-        metalSolidBreps: count(alone, /MANIFOLD_SOLID_BREP/g),
-        advancedFaces: count(full, /ADVANCED_FACE/g),
-        metalAdvancedFaces: count(alone, /ADVANCED_FACE/g),
-        triangulated: count(full, /TRIANGULATED_FACE|TESSELLATED_\w+|FACETED_BREP/g),
-        names: [...full.matchAll(/PRODUCT\('([^']*)'/g)].map((m) => m[1]),
-      };
-    } catch (e) { errors.push(`STEP threw ${(e as Error)?.message ?? e}`); }
-  }
-
   const t3 = performance.now();
   return {
     spec, bench,
@@ -361,9 +384,10 @@ export async function auditStructure(
 /**
  * Volume of a ∩ b, checked.
  *
- * An intersection can be no larger than either input, so one that is has
- * failed without throwing, which OCCT booleans do; it throws here instead of
- * being reported as a number. Skips the boolean when the boxes are apart,
+ * An intersection can be no larger than either input, so one that is (beyond
+ * measuring precision) has failed without throwing, which OCCT booleans do; it
+ * throws here instead of being reported as a number. A result within
+ * precision of the smaller input is reported as that input's volume. Skips the boolean when the boxes are apart,
  * which is most pairs and costs nothing to know.
  */
 export function overlapVolume(
@@ -372,10 +396,13 @@ export function overlapVolume(
   if (a.boundingBox.isOut(b.boundingBox)) return 0;
   const v = measureVolume(a.intersect(b));
   const limit = Math.min(volOf(a), volOf(b));
-  if (!(v >= 0) || v > limit + 1e-6) {
+  // 0.1%: OCCT's volume of a boolean result is that close to its inputs'. An
+  // accent buried whole in an eternity band measured 0.35961 against its own
+  // 0.35921 (S0), which is a real answer, not a failed boolean.
+  if (!(v >= 0) || v > limit * (1 + 1e-3) + 1e-6) {
     throw new Error(`intersection ${v} exceeds the smaller input ${limit}`);
   }
-  return v;
+  return Math.min(v, limit);
 }
 
 /**
