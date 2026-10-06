@@ -164,7 +164,8 @@ function fullMatrix() {
 
 const stage = opt("--stage", "S0");
 stageIndex(stage);
-const jobs = Math.max(1, Number(opt("--jobs", Math.max(1, cpus().length - 1))));
+const jobs = Math.max(1, Math.floor(Number(opt("--jobs", Math.max(1, cpus().length - 1)))));
+if (!Number.isFinite(jobs)) { console.error("--jobs takes a number"); process.exit(2); }
 const tag = opt("--tag", null);
 const compareTag = opt("--compare", null);
 const reportOnly = flag("--report-only");

@@ -369,3 +369,15 @@ test("?bench= harness override rejects junk", () => {
   `], { encoding: "utf8" }));
   assert.deepStrictEqual(own, { culetClearance: 0.5 });
 });
+
+test("bench: names from Object's prototype are not alloys or fields", () => {
+  // `in` answered yes to these, every bound became NaN and a 0.1mm prong
+  // passed with no warning (found in S0's review).
+  for (const alloy of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    const r = std.resolveBench({ prongDiameter: 0.1 }, { alloy, girdleR: 3, pavH: 2 });
+    assert.ok(Object.values(r.values).every(Number.isFinite), alloy);
+    assert.strictEqual(r.values.prongDiameter, MANUFACTURING_LIMITS.platinum.minProngDia, alloy);
+  }
+  assert.deepStrictEqual(std.parseBenchParam("toString:5,constructor:1,__proto__:2,bearingDepth:45"),
+    { bearingDepth: 45 });
+});

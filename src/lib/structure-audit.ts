@@ -74,6 +74,12 @@ export type GalleryAudit = {
   /** Prongs of the same head with more than 0.02 mm³ inside it. */
   prongsTouched: number;
   prongCount: number;
+  /**
+   * The bench values this head is judged by. Automatic values follow the
+   * stone, so a three-stone's side head (0.62 × the centre's girdle) gets its
+   * own gallery thickness rather than the centre stone's.
+   */
+  bench: { galleryClearance: number; galleryThickness: number };
 };
 
 export type StructureAudit = {
@@ -289,6 +295,9 @@ export async function auditStructure(
     const fgd = gemDims(frame.girdleR);
     const centroid = measureShapeVolumeProperties(part).centerOfMass as V3;
     const inProngs = prongAudits.filter((p) => p.head === r.head);
+    const own = resolveBench(spec.bench as Record<string, unknown> | undefined, {
+      alloy: (spec.metalType as MetalType) ?? "platinum", girdleR: frame.girdleR, pavH: fgd.pavH,
+    }).values;
     return {
       head: r.head!, part: g,
       inStone: common(part, held, `${tag} ∩ stone`),
@@ -298,6 +307,7 @@ export async function auditStructure(
       thicknessEstimate: sections[k],
       prongsTouched: inProngs.filter((p) => p.inGallery > 0.02).length,
       prongCount: frame.prongCount,
+      bench: { galleryClearance: own.galleryClearance, galleryThickness: own.galleryThickness },
     };
   });
 

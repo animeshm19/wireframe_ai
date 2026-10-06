@@ -49,7 +49,7 @@ export const FIXED_STANDARDS = {
     value: 0.5,
     unit: "fraction of girdle-to-culet height, from the culet",
     source: "https://www.ganoksin.com/article/cad-modeling-prong-settings/",
-    why: "placement rule, not a preference",
+    why: "a placement rule from the trade literature, which no bench preference overrides",
   },
   /**
    * A set prong's highest point stays below the table plane (value is the
@@ -73,7 +73,7 @@ export const FIXED_STANDARDS = {
     value: 0.05,
     unit: "mm",
     source: "UNSOURCED, a check tolerance",
-    why: "tolerance of a check, not a shape",
+    why: "it is the tolerance of a check and draws nothing on the ring",
   },
   /**
    * 1.0. The metal section just above the band, inside the head's footprint,
@@ -335,7 +335,10 @@ const boundOf = (b: Bound, alloy: MetalType) => (typeof b === "function" ? b(all
 
 /** A known alloy, or platinum: the same fallback the manufacturability check uses. */
 function alloyOf(a: unknown): MetalType {
-  return typeof a === "string" && a in MANUFACTURING_LIMITS ? (a as MetalType) : "platinum";
+  // Own keys only: `in` also answers yes to "constructor" or "toString", and an
+  // alloy read off the prototype has no limits, so every bound became NaN.
+  return typeof a === "string" && Object.prototype.hasOwnProperty.call(MANUFACTURING_LIMITS, a)
+    ? (a as MetalType) : "platinum";
 }
 
 /** A field's hard bounds for an alloy. */
@@ -442,7 +445,7 @@ export function parseBenchParam(raw: string | null | undefined): BenchOverrides 
     if (i <= 0) continue;
     const key = pair.slice(0, i).trim();
     const text = pair.slice(i + 1).trim();
-    if (!(key in FIELD_BY_KEY) || !text) continue;
+    if (!Object.prototype.hasOwnProperty.call(FIELD_BY_KEY, key) || !text) continue;
     const n = Number(text);
     if (Number.isFinite(n)) out[key as BenchKey] = n;
   }

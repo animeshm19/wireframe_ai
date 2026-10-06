@@ -138,13 +138,17 @@ export const INVARIANTS = [
     requiredFrom: () => "S2",
     evaluate: (r) => {
       if (!r.galleries.length) return na("no gallery");
-      const gc = r.bench.values.galleryClearance;
-      return all(r.galleries.flatMap((g) => [
+      return all(r.galleries.flatMap((g) => {
+        // Each head by its own values (a side head's automatic ones follow its
+        // smaller stone); reports from before S0's review carry none.
+        const gc = g.bench?.galleryClearance ?? r.bench.values.galleryClearance;
+        return [
         { ok: num(g.inStone) && g.inStone <= 0.001, why: `${g.head} gallery in stone ${fmt(g.inStone)} mm³` },
         { ok: num(g.clearanceToStone) && g.clearanceToStone >= gc - 0.02 && g.clearanceToStone <= gc + 0.10,
           why: `${g.head} gallery clearance ${fmt(g.clearanceToStone)}, needs ${fmt(gc - 0.02)} to ${fmt(gc + 0.10)}` },
         { ok: g.prongsTouched === g.prongCount, why: `${g.head} gallery touches ${g.prongsTouched} of ${g.prongCount} prongs` },
-      ]));
+        ];
+      }));
     },
   },
   {
@@ -153,14 +157,16 @@ export const INVARIANTS = [
     requiredFrom: () => "S2",
     evaluate: (r) => {
       if (!r.galleries.length) return na("no gallery");
-      const t = r.bench.values.galleryThickness;
-      return all(r.galleries.flatMap((g) => [
+      return all(r.galleries.flatMap((g) => {
+        const t = g.bench?.galleryThickness ?? r.bench.values.galleryThickness;
+        return [
         { ok: num(g.centreHeightAboveCulet) && Math.abs(g.centreHeightAboveCulet - g.ruleOfThirdsHeight) <= 0.05,
           why: `${g.head} gallery centre ${fmt(g.centreHeightAboveCulet)} above culet, rule says ${fmt(g.ruleOfThirdsHeight)}` },
         // 0.01 allows for the section being read off a 0.002 mm mesh.
         { ok: num(g.thicknessEstimate) && g.thicknessEstimate >= t - 0.01,
           why: `${g.head} gallery ${fmt(g.thicknessEstimate)} thick, needs ${fmt(t)}` },
-      ]));
+        ];
+      }));
     },
   },
   {
@@ -175,12 +181,20 @@ export const INVARIANTS = [
       ]));
     },
   },
+  // Known limits, for S3, which owns the joint: the disc is the prompt's
+  // (girdleR × 1.2 round the centre axis), so on a three-stone it also cuts
+  // the side heads and on a cathedral the struts (1 ct round: prong 3.89,
+  // three-stone 6.54, cathedral 6.78 mm²). And the prong sum uses the
+  // effective prongDiameter, which until S1 wires it can differ from the
+  // built one (0.25 ct: clamped 0.80 against 0.744 built), erring strict.
   {
     id: "I7",
     title: "joint section ≥ JOINT_AREA_RATIO × summed prong sections",
     requiredFrom: () => "S3",
     evaluate: (r) => {
-      if (!r.joint) return na("no prong head");
+      // A prong head whose joint could not be measured fails: a missing
+      // number is never a pass (the cause is in result.errors).
+      if (!r.joint) return r.prongs.some((p) => p.head === "centre") ? fail("joint not measured") : na("no prong head");
       const { jointSectionArea: a, prongSectionSum: p } = r.joint;
       return num(a) && a >= JOINT_AREA_RATIO * p
         ? pass(`${fmt(a)} vs ${fmt(p)}`) : fail(`joint ${fmt(a)} mm² vs prongs ${fmt(p)} mm²`);
