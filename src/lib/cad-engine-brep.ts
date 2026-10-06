@@ -473,8 +473,19 @@ function buildFacetedGem(cut: GemCut, girdleR: number): Shape3D {
   for (const f of faces) {
     const pts: V3[] = f.map((i) => points[i]);
     if (pts.length <= 3 || outOfPlane(pts) <= PLANAR_TOL) {
-      occFaces.push(polyFace(pts));
-      continue;
+      // OCCT's own flatness test is tighter than PLANAR_TOL, so a quad this
+      // check calls flat can still be refused. On a pear it is: one lower
+      // girdle facet sits 8.5e-5mm out of plane at 0.25ct, and every pear from
+      // 0.05 to 0.40ct failed to build at all with "Failed to build the face".
+      // A refused quad is divided exactly as a warped one is below; a stone
+      // whose faces all build takes the first branch and is unchanged.
+      try {
+        occFaces.push(polyFace(pts));
+        continue;
+      } catch (e) {
+        // A triangle that will not build is degenerate; there is nothing to divide.
+        if (pts.length <= 3) throw e;
+      }
     }
     for (let i = 1; i < pts.length - 1; i++) {
       occFaces.push(polyFace([pts[0], pts[i], pts[i + 1]]));

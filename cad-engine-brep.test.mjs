@@ -692,3 +692,20 @@ test("STL checker: a closed cube, a hole and a sliver", async () => {
     assert.equal(slivered.watertight, false);
   }
 });
+
+test("every cut builds at every carat the app accepts", () => {
+  // Every pear from 0.05 to 0.40ct used to throw "Failed to build the face":
+  // one facet was flat enough for the engine's planarity check and not for
+  // OCCT's. Found by the structure audit's full matrix (S0). Stones only, so
+  // one process is fine.
+  const sizes = [0.05, 0.1, 0.25, 0.3, 0.4, 0.5, 1, 3, 15];
+  for (const cut of ["round", "oval", "pear", "marquise", "cushion", "emerald", "princess"]) {
+    for (const ct of sizes) {
+      let v;
+      assert.doesNotThrow(() => { v = measureVolume(brep.buildGem(cut, mesh.girdleRadiusFor(cut, ct))); },
+        `${cut} at ${ct}ct`);
+      const want = (ct * 0.2) / 3.52 * 1000;
+      assert.ok(Math.abs(v - want) / want < 0.02, `${cut} at ${ct}ct weighs ${(v * 3.52 / 200).toFixed(3)}ct`);
+    }
+  }
+});
