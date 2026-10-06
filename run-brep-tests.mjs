@@ -84,8 +84,11 @@ const t0 = Date.now();
 for (const name of names) {
   const started = Date.now();
   const out = await new Promise((resolve) => {
+    // The reporter is pinned because the pass check below reads TAP. Node 23
+    // made `spec` the default even when stdout is a pipe, and under Node 24
+    // every test then "failed" with exit 0 and a green tick in its output.
     const p = spawn(process.execPath,
-      ["--test", "--test-name-pattern", `^${esc(name)}$`, FILE],
+      ["--test", "--test-reporter=tap", "--test-name-pattern", `^${esc(name)}$`, FILE],
       { stdio: ["ignore", "pipe", "pipe"] });
     let buf = "";
     p.stdout.on("data", (d) => (buf += d));
