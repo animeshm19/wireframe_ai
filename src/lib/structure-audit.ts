@@ -384,10 +384,10 @@ export async function auditStructure(
 /**
  * Volume of a ∩ b, checked.
  *
- * An intersection can be no larger than either input, so one that is (beyond
- * measuring precision) has failed without throwing, which OCCT booleans do; it
- * throws here instead of being reported as a number. A result within
- * precision of the smaller input is reported as that input's volume. Skips the boolean when the boxes are apart,
+ * An intersection can be no larger than either input, so one that is has
+ * failed without throwing, which OCCT booleans do, unless the smaller input is
+ * wholly inside the other (checked below). A failure throws here instead of
+ * being reported as a number. Skips the boolean when the boxes are apart,
  * which is most pairs and costs nothing to know.
  */
 export function overlapVolume(
@@ -396,13 +396,18 @@ export function overlapVolume(
   if (a.boundingBox.isOut(b.boundingBox)) return 0;
   const v = measureVolume(a.intersect(b));
   const limit = Math.min(volOf(a), volOf(b));
-  // 0.1%: OCCT's volume of a boolean result is that close to its inputs'. An
-  // accent buried whole in an eternity band measured 0.35961 against its own
-  // 0.35921 (S0), which is a real answer, not a failed boolean.
-  if (!(v >= 0) || v > limit * (1 + 1e-3) + 1e-6) {
-    throw new Error(`intersection ${v} exceeds the smaller input ${limit}`);
-  }
-  return Math.min(v, limit);
+  if (!(v >= 0)) throw new Error(`intersection volume ${v}`);
+  if (v <= limit + 1e-6) return v;
+  // Larger than the smaller input. Either the boolean failed, or the smaller
+  // solid lies wholly inside the other and OCCT's volume of the result is a
+  // hair off: an accent buried under the head of an eternity band measured
+  // 0.35961 mm³ against its own 0.35921 (S0). The complementary cut decides
+  // which, rather than a looser tolerance: if nothing of the smaller solid is
+  // left outside the other, the overlap is all of it.
+  const [small, big] = volOf(a) <= volOf(b) ? [a, b] : [b, a];
+  const outside = measureVolume(small.cut(big));
+  if (outside >= 0 && outside <= limit * 1e-3) return limit;
+  throw new Error(`intersection ${v} exceeds the smaller input ${limit} and ${outside} of it lies outside`);
 }
 
 /**

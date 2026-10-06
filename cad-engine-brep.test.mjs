@@ -619,6 +619,11 @@ test("audit overlap and gap match closed form on two cylinders", async () => {
   assert.ok(Math.abs(measureDistanceBetween(c1, c3) - 0.7) < 1e-6, "gap 0.7");
   // Overlapping solids are 0 apart, which is what clearanceToStone relies on.
   assert.ok(measureDistanceBetween(c1, c2) < 1e-9, "touching or overlapping is 0");
+
+  // One solid wholly inside another: the overlap is all of the smaller one.
+  const inner = makeCylinder(0.5, 1, [0, 0, 1], [0, 0, 1]);
+  const whole = audit.overlapVolume(inner, c1);
+  assert.ok(Math.abs(whole - Math.PI * 0.25) < 1e-6, `contained ${whole} vs ${Math.PI * 0.25}`);
 });
 
 test("audit signed depth is right inside and outside known solids", async () => {
