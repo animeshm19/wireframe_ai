@@ -15,6 +15,7 @@ import { spawnSync } from "node:child_process";
 export const SRC = [
   "src/lib/cad-engine.ts", "src/lib/cad-engine-brep.ts", "src/lib/studio-pick.ts",
   "src/lib/ring-spec.ts", "src/lib/finishes.ts", "src/lib/setting-standards.ts",
+  "src/lib/structure-audit.ts", "src/lib/stl-check.ts",
 ];
 const OUT = ".brepcheck";
 

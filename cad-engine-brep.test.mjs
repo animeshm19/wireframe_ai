@@ -587,3 +587,108 @@ test("each stone's recorded culet and axis are where the stone actually is", () 
     assert.deepEqual(p.heads[0].axis, p.stoneRoles[0].axis);
   }
 });
+
+/* -------------------------------------------- the structure audit's tools */
+//
+// The audit is the source of truth for the whole ring-structure series, so
+// its instruments are proved against shapes whose answers are closed form
+// before any ring is measured with them.
+
+test("audit overlap and gap match closed form on two cylinders", async () => {
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const { makeCylinder } = await import("replicad");
+  const r = 1, h = 40;
+  // Two long cylinders crossing at right angles: the Steinmetz solid, 16r³/3.
+  const a = makeCylinder(r, h, [0, 0, -h / 2], [0, 0, 1]);
+  const b = makeCylinder(r, h, [-h / 2, 0, 0], [1, 0, 0]);
+  const steinmetz = (16 * r ** 3) / 3;
+  const got = audit.overlapVolume(a, b);
+  assert.ok(Math.abs(got - steinmetz) / steinmetz < 0.005, `Steinmetz ${got} vs ${steinmetz}`);
+
+  // Two parallel cylinders d apart overlap in a lens: area × height.
+  const d = 1.2, H = 3;
+  const c1 = makeCylinder(r, H, [0, 0, 0], [0, 0, 1]);
+  const c2 = makeCylinder(r, H, [d, 0, 0], [0, 0, 1]);
+  const lens = (2 * r * r * Math.acos(d / (2 * r)) - (d / 2) * Math.sqrt(4 * r * r - d * d)) * H;
+  const lensGot = audit.overlapVolume(c1, c2);
+  assert.ok(Math.abs(lensGot - lens) / lens < 0.005, `lens ${lensGot} vs ${lens}`);
+
+  // The same pair 2.7 apart: no overlap, and a 0.7 gap between the surfaces.
+  const c3 = makeCylinder(r, H, [2.7, 0, 0], [0, 0, 1]);
+  assert.equal(audit.overlapVolume(c1, c3), 0);
+  assert.ok(Math.abs(measureDistanceBetween(c1, c3) - 0.7) < 1e-6, "gap 0.7");
+  // Overlapping solids are 0 apart, which is what clearanceToStone relies on.
+  assert.ok(measureDistanceBetween(c1, c2) < 1e-9, "touching or overlapping is 0");
+});
+
+test("audit signed depth is right inside and outside known solids", async () => {
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const { makeBox, makeSphere } = await import("replicad");
+  const box = makeBox([-5, -5, -5], [5, 5, 5]);
+  const near = (got, want, msg) => assert.ok(Math.abs(got - want) < 1e-6, `${msg}: ${got} vs ${want}`);
+  let r = audit.signedDepth([0, 0, 3.65], box);
+  assert.equal(r.inside, true);
+  near(r.depth, -1.35, "1.35 below the top face");
+  r = audit.signedDepth([1, -4.2, 0], box);
+  near(r.depth, -0.8, "nearest face, not the top");
+  r = audit.signedDepth([0, 0, 7], box);
+  assert.equal(r.inside, false);
+  near(r.depth, 2, "outside is positive");
+  r = audit.signedDepth([0, 0, 5], box);
+  near(r.depth, 0, "on the surface is 0");
+  // A culet inside a sphere, the curved case.
+  const ball = makeSphere(2).translate([1, 1, 1]);
+  r = audit.signedDepth([1, 1, 1.5], ball);
+  assert.equal(r.inside, true);
+  near(r.depth, -1.5, "0.5 from the centre of a radius-2 ball");
+  r = audit.signedDepth([1, 1, 4], ball);
+  near(r.depth, 1, "1 outside the ball");
+});
+
+test("STL checker: a closed cube, a hole and a sliver", async () => {
+  const { checkStl } = await import("./.brepcheck/stl-check.js");
+  const V = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+  const T = [
+    [0,2,1],[0,3,2], [4,5,6],[4,6,7], [0,1,5],[0,5,4],
+    [1,2,6],[1,6,5], [2,3,7],[2,7,6], [3,0,4],[3,4,7],
+  ];
+  const ascii = (tris) => "solid cube\n" + tris.map((t) =>
+    " facet normal 0 0 0\n  outer loop\n" + t.map((i) => `   vertex ${V[i].join(" ")}\n`).join("") +
+    "  endloop\n endfacet\n").join("") + "endsolid cube\n";
+  const binary = (tris) => {
+    const buf = Buffer.alloc(84 + tris.length * 50);
+    buf.write("solid but binary", 0);            // OCCT's headers say "solid" too
+    buf.writeUInt32LE(tris.length, 80);
+    tris.forEach((t, k) => t.forEach((i, j) => V[i].forEach((x, c) =>
+      buf.writeFloatLE(x, 84 + k * 50 + 12 + j * 12 + c * 4))));
+    return new Uint8Array(buf);
+  };
+
+  for (const enc of [ascii, binary]) {
+    const ok = checkStl(enc(T));
+    assert.equal(ok.format, enc === ascii ? "ascii" : "binary");
+    assert.equal(ok.triangles, 12);
+    assert.equal(ok.vertices, 8);
+    assert.equal(ok.edges, 18);
+    assert.equal(ok.edgesNot2, 0);
+    assert.equal(ok.zeroArea, 0);
+    assert.equal(ok.components, 1);
+    assert.equal(ok.watertight, true);
+
+    const holed = checkStl(enc(T.slice(1)));
+    assert.equal(holed.openEdges, 3, "a missing triangle leaves its three edges open");
+    assert.equal(holed.edgesNot2, 3);
+    assert.equal(holed.watertight, false);
+
+    // A zero-area triangle sharing two of the cube's corners: the kind OCCT
+    // leaves at a prong tip. Its edge 0-0 is used once and 0-2 four times.
+    const slivered = checkStl(enc([...T, [0, 0, 2]]));
+    assert.equal(slivered.zeroArea, 1);
+    assert.equal(slivered.triangles, 13);
+    assert.deepEqual(slivered.edgeUse, { 1: 1, 2: 17, 4: 1 });
+    assert.equal(slivered.components, 2, "the sliver is not part of the closed surface");
+    assert.deepEqual(slivered.componentSizes, [12, 1]);
+    assert.equal(slivered.edgesNot2IgnoringZeroArea, 0, "the cube itself is still closed");
+    assert.equal(slivered.watertight, false);
+  }
+});
