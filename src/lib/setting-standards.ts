@@ -207,7 +207,10 @@ export const BENCH_FIELDS = [
     help: "Room between each prong and the lower half of the stone, under the seat. It lets the stone drop in square and keeps metal off the facets; too much and the prongs stand away from the stone.",
     group: "Clearances",
     unit: "mm",
-    default: 0.25, min: 0.10, max: 0.60, step: 0.05,
+    // Max narrowed from 0.60 in S1 (STRUCTURE-LOG, "Bench bounds changed"):
+    // on the default ring the legs can keep at most 0.432 mm below the seat
+    // until S3 gives the head a base (measured 0.440 to 0.456 at 0.6 asked).
+    default: 0.25, min: 0.10, max: 0.40, step: 0.05,
     source: "UNSOURCED, reuses the gallery figure",
     status: "our default",
     wiredIn: "S1",

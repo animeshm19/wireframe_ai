@@ -166,7 +166,8 @@ test("bench fields match the S0 table exactly", () => {
     bearingDepth:      ["% of prong", 40, 20, 50, [30, 50], "sourced range, our point value", "S1", "Seat"],
     seatTolerance:     ["mm", 0.05, 0, 0.20, undefined, "our default", "S1", "Seat"],
     culetClearance:    ["mm", 0.30, 0.10, 1.50, undefined, "our default", "S1", "Clearances"],
-    pavilionClearance: ["mm", 0.25, 0.10, 0.60, undefined, "our default", "S1", "Clearances"],
+    // Max 0.60 -> 0.40 in S1, with measured evidence (STRUCTURE-LOG, "Bench bounds changed").
+    pavilionClearance: ["mm", 0.25, 0.10, 0.40, undefined, "our default", "S1", "Clearances"],
     prongDiameter:     ["mm", "auto", "minProngDia", 2.0, undefined, "our default", "S1", "Prongs"],
     asCastProngHeight: ["mm above table", 2.0, 0.75, 5.0, [0.75, 5.0], "sourced range, our point value", "S1", "Prongs"],
     galleryClearance:  ["mm", 0.25, 0.10, 0.60, [0.20, 0.30], "sourced range, our point value", "S2", "Gallery"],
