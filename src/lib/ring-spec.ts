@@ -132,6 +132,11 @@ if (_q?.get("profile")) _override.bandProfile = _q.get("profile") as BandProfile
   if (carat !== null) _override.gemSize = carat;
   const width = _num("width");
   if (width !== null) _override.bandWidth = width;
+  // `?prongs=4`: a whole number of prongs the engine builds (3 to 8), or
+  // nothing. A fraction or an out-of-range count would be rounded or clamped
+  // somewhere downstream and the page would show a ring nobody asked for.
+  const prongs = _num("prongs");
+  if (prongs !== null && Number.isInteger(prongs) && prongs >= 3 && prongs <= 8) _override.prongCount = prongs;
 }
 
 const _BASE_SPEC: RingSpec = {

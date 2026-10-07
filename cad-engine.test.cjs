@@ -381,3 +381,24 @@ test("bench: names from Object's prototype are not alloys or fields", () => {
   assert.deepStrictEqual(std.parseBenchParam("toString:5,constructor:1,__proto__:2,bearingDepth:45"),
     { bearingDepth: 45 });
 });
+
+test("?prongs= harness override takes a whole count from 3 to 8, nothing else", () => {
+  const { execFileSync } = require("node:child_process");
+  const run = (search) => JSON.parse(execFileSync(process.execPath, ["-e", `
+    globalThis.location = { search: ${JSON.stringify(search)} };
+    const r = require("./.cadcheck/ring-spec.js");
+    process.stdout.write(JSON.stringify({ d: r.DEFAULT_SPEC.prongCount, w: r.withDefaults({}).prongCount }));
+  `], { encoding: "utf8" }));
+  assert.deepStrictEqual(run("?prongs=4"), { d: 4, w: 4 });
+  assert.deepStrictEqual(run("?prongs=8"), { d: 8, w: 8 });
+  for (const junk of ["abc", "2", "9", "4.5", "", "-6", "Infinity", "NaN"]) {
+    assert.deepStrictEqual(run(`?prongs=${junk}`), { d: 6, w: 6 }, `?prongs=${junk} must be ignored`);
+  }
+  // A real spec's own count outranks the URL's.
+  const own = JSON.parse(execFileSync(process.execPath, ["-e", `
+    globalThis.location = { search: "?prongs=4" };
+    const r = require("./.cadcheck/ring-spec.js");
+    process.stdout.write(JSON.stringify(r.withDefaults({ prongCount: 3 }).prongCount));
+  `], { encoding: "utf8" }));
+  assert.strictEqual(own, 3);
+});
