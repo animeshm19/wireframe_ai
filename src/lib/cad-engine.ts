@@ -1,4 +1,5 @@
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec";
+import { prongDiameterFor } from "./setting-standards";
 
 /**
  * Shared ring geometry engine (P1-S1).
@@ -179,6 +180,8 @@ export function radiusAtAngle(o: Pt[], angle: number): number {
 
 /** Round-brilliant proportions, as fractions of girdle DIAMETER. */
 const TABLE = 0.57, CROWN = 0.145, GIRDLE = 0.03, PAVILION = 0.43;
+/** The table's width as a fraction of the girdle's, for the B-rep head layout. */
+export const TABLE_SCALE = TABLE;
 
 export type GemDims = {
   girdleR: number; pavH: number; girdleH: number; crownH: number; totalH: number;
@@ -703,7 +706,7 @@ export function checkManufacturability(
   }
 
   const girdleR = metrics.girdleDiameter / 2;
-  const prongDia = (0.28 + girdleR * 0.045) * 2;
+  const prongDia = prongDiameterFor(girdleR);
   if ((p.setting ?? "prong") !== "bezel" && prongDia < lim.minProngDia) {
     issues.push({
       severity: "error",

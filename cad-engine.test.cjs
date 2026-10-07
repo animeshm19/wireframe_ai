@@ -142,3 +142,382 @@ test("manufacturability: silver demands more metal than platinum", () => {
   const ag = checkManufacturability({ ...params, metalType: "silver" }, metrics);
   assert.ok(ag.length >= pt.length, "silver should be at least as strict as platinum");
 });
+
+/* ------------------------------------------------- bench settings (S0) */
+//
+// setting-standards.ts is pure and compiles into .cadcheck through
+// cad-engine's import of prongDiameterFor, so it is tested here without a
+// kernel.
+
+const std = require("./.cadcheck/setting-standards.js");
+const { girdleRadiusFor } = require("./.cadcheck/cad-engine.js");
+const ALLOYS = ["platinum", "white_gold", "18k_gold", "14k_rose", "silver"];
+const ctxFor = (carat, alloy = "platinum", cut = "round") => {
+  const girdleR = girdleRadiusFor(cut, carat);
+  return { alloy, girdleR, pavH: gemDims(girdleR).pavH };
+};
+const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`);
+
+test("bench fields match the S0 table exactly", () => {
+  // The table in claude/tasks/S0 prompt v2, row for row. A later prompt that
+  // narrows a bound changes this table on purpose and logs it under "Bench
+  // bounds changed"; nothing else should.
+  const T = {
+    bearingDepth:      ["% of prong", 40, 20, 50, [30, 50], "sourced range, our point value", "S1", "Seat"],
+    seatTolerance:     ["mm", 0.05, 0, 0.20, undefined, "our default", "S1", "Seat"],
+    culetClearance:    ["mm", 0.30, 0.10, 1.50, undefined, "our default", "S1", "Clearances"],
+    // Max 0.60 -> 0.40 in S1, with measured evidence (STRUCTURE-LOG, "Bench bounds changed").
+    pavilionClearance: ["mm", 0.25, 0.10, 0.40, undefined, "our default", "S1", "Clearances"],
+    prongDiameter:     ["mm", "auto", "minProngDia", 2.0, undefined, "our default", "S1", "Prongs"],
+    asCastProngHeight: ["mm above table", 2.0, 0.75, 5.0, [0.75, 5.0], "sourced range, our point value", "S1", "Prongs"],
+    galleryClearance:  ["mm", 0.25, 0.10, 0.60, [0.20, 0.30], "sourced range, our point value", "S2", "Gallery"],
+    galleryThickness:  ["mm", "auto", "minWall", 2.0, undefined, "sourced default", "S2", "Gallery"],
+    filletRadius:      ["mm", 0.30, 0.10, 0.80, undefined, "our default", "S3", "Finishing"],
+    setTipHeight:      ["fraction of crown height", 0.5, 0.3, 0.8, undefined, "sourced default", "S4", "Prongs"],
+    minBendRadius:     ["× prong diameter", 1.0, 0.5, 3.0, undefined, "our default", "S4", "Prongs"],
+  };
+  assert.deepStrictEqual(std.BENCH_FIELDS.map((f) => f.key), Object.keys(T), "every field, in order");
+  for (const f of std.BENCH_FIELDS) {
+    const [unit, def, min, max, pr, status, wiredIn, group] = T[f.key];
+    assert.strictEqual(f.unit, unit, `${f.key} unit`);
+    assert.strictEqual(f.default, def, `${f.key} default`);
+    for (const alloy of ALLOYS) {
+      const b = std.benchBounds(f.key, alloy);
+      const want = typeof min === "string" ? MANUFACTURING_LIMITS[alloy][min] : min;
+      assert.strictEqual(b.min, want, `${f.key} min for ${alloy}`);
+      assert.strictEqual(b.max, max, `${f.key} max`);
+    }
+    assert.deepStrictEqual(f.publishedRange, pr, `${f.key} published range`);
+    assert.strictEqual(f.status, status, `${f.key} status`);
+    assert.strictEqual(f.wiredIn, wiredIn, `${f.key} wiredIn`);
+    assert.strictEqual(f.group, group, `${f.key} group`);
+    assert.ok(f.source && f.label && f.help && f.step > 0 && f.appliesTo.length, `${f.key} is complete`);
+    if (f.default === "auto") assert.ok(f.autoRule && typeof f.auto === "function", `${f.key} auto rule`);
+  }
+  assert.deepStrictEqual(std.PROVISIONAL_INPUTS.map((f) => f.key),
+    std.BENCH_FIELDS.filter((f) => f.status !== "sourced default").map((f) => f.key));
+  assert.ok(!std.PROVISIONAL_INPUTS.some((f) => f.key === "galleryThickness" || f.key === "setTipHeight"));
+  for (const k of ["GALLERY_RULE_OF_THIRDS", "AS_SET_TIP_BELOW_TABLE", "AS_SET_CONTACT_TOL_MM",
+    "JOINT_AREA_RATIO", "GALLERY_CLEARANCE_COLOURED_MM"]) {
+    assert.ok(std.FIXED_STANDARDS[k] && std.FIXED_STANDARDS[k].source && std.FIXED_STANDARDS[k].why, k);
+  }
+  assert.strictEqual(std.FIXED_STANDARDS.AS_SET_CONTACT_TOL_MM.value, 0.05);
+  assert.strictEqual(std.FIXED_STANDARDS.JOINT_AREA_RATIO.value, 1.0);
+  assert.strictEqual(std.FIXED_STANDARDS.GALLERY_CLEARANCE_COLOURED_MM.value, 0.40);
+});
+
+test("bench copy passes the site's copy rules", () => {
+  // The same patterns scripts/audit.mjs fails rendered text on. Labels and
+  // help are shown to users in the Studio's bench panel (S5).
+  const RULES = [
+    /—/, /\b[\w' ]{2,40}, (not|never) (a |an |the )?[\w'-]+/i,
+    /\b(mathematical precision|synthesi[sz]e|algebraic|micron-accurate|seamless|unlock|elevate|empower|cutting-edge|revolution|harness|leverage|robust|next-gen|game-changer|effortless|rigorous)\b/i,
+    /\bjewelry\b|\bcenter\b|\bcolor\b|\bcustomi[sz]e\b/i,
+  ];
+  for (const f of std.BENCH_FIELDS) {
+    for (const text of [f.label, f.help]) {
+      for (const re of RULES) assert.ok(!re.test(text), `${f.key}: "${text}" breaks ${re}`);
+    }
+  }
+});
+
+test("prongDiameterFor is the engine's formula, unchanged", () => {
+  near(std.prongDiameterFor(3.245), 0.852, 0.0005, "1ct round girdle");
+  near(std.prongDiameterFor(girdleRadiusFor("round", 2)), 0.928, 0.0005, "2ct round girdle");
+  for (const g of [1, 2.5, 3.245, 4.7, 8]) {
+    assert.strictEqual(std.prongDiameterFor(g), (0.28 + g * 0.045) * 2, `bit-identical at ${g}`);
+  }
+});
+
+test("resolveBench: defaults, with nothing customised", () => {
+  const ctx = ctxFor(1);
+  const r = std.resolveBench(undefined, ctx);
+  assert.deepStrictEqual(r.warnings, []);
+  assert.deepStrictEqual(r.customised, []);
+  assert.strictEqual(r.values.bearingDepth, 40);
+  assert.strictEqual(r.values.culetClearance, 0.30);
+  near(r.values.prongDiameter, 0.852, 0.0005, "auto prong");
+  near(r.values.galleryThickness, ctx.pavH / 3, 1e-12, "auto gallery is a third of the pavilion");
+  assert.deepStrictEqual(Object.keys(r.values), std.BENCH_KEYS);
+  assert.deepStrictEqual(std.resolveBench({}, ctx), r, "an empty object is the same as none");
+});
+
+test("resolveBench: every field clamps at both bounds and says so", () => {
+  for (const alloy of ALLOYS) {
+    const ctx = ctxFor(1, alloy);
+    for (const f of std.BENCH_FIELDS) {
+      const { min, max } = std.benchBounds(f.key, alloy);
+      for (const [asked, want] of [[min - 1, min], [max + 1, max]]) {
+        const r = std.resolveBench({ [f.key]: asked }, ctx);
+        assert.strictEqual(r.values[f.key], want, `${alloy} ${f.key} ${asked}`);
+        assert.ok(r.warnings.some((w) => w.key === f.key && w.kind === "clamped"),
+          `${alloy} ${f.key} ${asked} is reported as clamped`);
+      }
+      // At the bound itself nothing is clamped.
+      for (const v of [min, max]) {
+        const r = std.resolveBench({ [f.key]: v }, ctx);
+        assert.strictEqual(r.values[f.key], v);
+        assert.ok(!r.warnings.some((w) => w.key === f.key && w.kind === "clamped"), `${f.key}=${v}`);
+      }
+    }
+  }
+  const r = std.resolveBench({ culetClearance: 0.8 }, ctxFor(1));
+  assert.strictEqual(r.values.culetClearance, 0.8);
+  assert.deepStrictEqual(r.customised, ["culetClearance"]);
+});
+
+test("resolveBench: outside the published range warns but is kept", () => {
+  const r = std.resolveBench({ bearingDepth: 25, galleryClearance: 0.5 }, ctxFor(1));
+  assert.strictEqual(r.values.bearingDepth, 25);
+  assert.strictEqual(r.values.galleryClearance, 0.5);
+  assert.deepStrictEqual(r.warnings.map((w) => [w.key, w.kind]),
+    [["bearingDepth", "outside-published"], ["galleryClearance", "outside-published"]]);
+  assert.deepStrictEqual(r.customised, ["bearingDepth", "galleryClearance"]);
+});
+
+test("resolveBench: auto fields at 0.25, 1 and 3 ct for every alloy", () => {
+  for (const alloy of ALLOYS) {
+    const lim = MANUFACTURING_LIMITS[alloy];
+    for (const ct of [0.25, 1, 3]) {
+      const ctx = ctxFor(ct, alloy);
+      const r = std.resolveBench(undefined, ctx);
+      const formula = (0.28 + 0.045 * ctx.girdleR) * 2;
+      const prong = Math.min(2, Math.max(lim.minProngDia, formula));
+      const gallery = Math.min(2, Math.max(lim.minWall, ctx.pavH / 3));
+      assert.strictEqual(r.values.prongDiameter, prong, `${alloy} ${ct}ct prong`);
+      assert.strictEqual(r.values.galleryThickness, gallery, `${alloy} ${ct}ct gallery`);
+      // A clamped automatic value is reported, and is not the user's change.
+      assert.strictEqual(r.warnings.some((w) => w.key === "prongDiameter" && w.kind === "clamped"),
+        formula < lim.minProngDia, `${alloy} ${ct}ct prong clamp reported`);
+      assert.deepStrictEqual(r.customised, [], `${alloy} ${ct}ct nothing customised`);
+    }
+  }
+  // The case that matters: a quarter carat's formula prong is under every
+  // alloy's floor, so the automatic value never reaches the engine as such.
+  const q = ctxFor(0.25);
+  assert.ok(std.prongDiameterFor(q.girdleR) < 0.8);
+  assert.strictEqual(std.resolveBench(undefined, q).values.prongDiameter, 0.8);
+});
+
+test("resolveBench: junk is ignored and it never throws", () => {
+  const ctx = ctxFor(1);
+  const clean = std.resolveBench(undefined, ctx);
+  const junk = [
+    { bearingDepth: NaN }, { bearingDepth: "45" }, { bearingDepth: Infinity },
+    { bearingDepth: -Infinity }, { bearingDepth: null }, { bearingDepth: {} },
+    { noSuchField: 3 }, { __proto__: { bearingDepth: 49 } }, null, 42, "bearingDepth:45", [],
+  ];
+  for (const j of junk) {
+    let r;
+    assert.doesNotThrow(() => { r = std.resolveBench(j, ctx); }, JSON.stringify(j));
+    assert.deepStrictEqual(r, clean, `${String(j && JSON.stringify(j))} changes nothing`);
+  }
+  // A missing or broken context still yields values: defaults for platinum.
+  assert.doesNotThrow(() => std.resolveBench({ culetClearance: 0.5 }, undefined));
+  assert.doesNotThrow(() => std.resolveBench(undefined, { alloy: "unobtainium", girdleR: NaN, pavH: "x" }));
+  const r = std.resolveBench(undefined, { alloy: "unobtainium", girdleR: 3.245, pavH: 2.79 });
+  assert.strictEqual(std.benchBounds("prongDiameter", "unobtainium").min, MANUFACTURING_LIMITS.platinum.minProngDia);
+  assert.ok(Object.values(r.values).every(Number.isFinite));
+});
+
+test("parseBenchParam drops junk and keeps real numbers", () => {
+  assert.deepStrictEqual(
+    std.parseBenchParam("bearingDepth:45, culetClearance:0.6,seatTolerance:abc,bogus:1,:3,galleryClearance:,filletRadius:Infinity,setTipHeight"),
+    { bearingDepth: 45, culetClearance: 0.6 });
+  assert.deepStrictEqual(std.parseBenchParam("bearingDepth:99"), { bearingDepth: 99 },
+    "out of bounds is kept for resolveBench to clamp and report");
+  for (const j of [null, undefined, "", ",,,", 7]) assert.deepStrictEqual(std.parseBenchParam(j), {});
+});
+
+test("bench settings never come from the AI or the prompt parser", () => {
+  const { readFileSync } = require("node:fs");
+  assert.ok(!/bench/i.test(readFileSync("functions/ring-schema.js", "utf8")),
+    "the extraction schema must not offer bench fields");
+  const { parseSpecFromPrompt, withDefaults } = require("./.cadcheck/ring-spec.js");
+  for (const p of [
+    "1ct round, 6 prongs, deep seats, bearing depth 45%, culet clearance 0.6mm, bench settings",
+    "platinum solitaire with tall prongs and a 1mm gap under the culet",
+  ]) {
+    assert.ok(!("bench" in parseSpecFromPrompt(p)), p);
+  }
+  // withDefaults leaves it absent rather than inventing an empty one.
+  assert.ok(!("bench" in withDefaults({})), "absent by default");
+  assert.ok(!("bench" in withDefaults(null)));
+  assert.deepStrictEqual(withDefaults({ bench: { culetClearance: 0.5 } }).bench, { culetClearance: 0.5 });
+});
+
+test("?bench= harness override rejects junk", () => {
+  // ring-spec reads location once at load, so each case is a fresh process.
+  const { execFileSync } = require("node:child_process");
+  const run = (search) => JSON.parse(execFileSync(process.execPath, ["-e", `
+    globalThis.location = { search: ${JSON.stringify(search)} };
+    const r = require("./.cadcheck/ring-spec.js");
+    process.stdout.write(JSON.stringify({ d: r.DEFAULT_SPEC.bench ?? null, w: r.withDefaults({}).bench ?? null }));
+  `], { encoding: "utf8" }));
+  assert.deepStrictEqual(
+    run("?bench=bearingDepth:45,culetClearance:abc,seatTolerance:NaN,filletRadius:Infinity,a:1:2,galleryClearance:,%3Cx%3E:1"),
+    { d: { bearingDepth: 45 }, w: { bearingDepth: 45 } });
+  assert.deepStrictEqual(run("?bench=culetClearance:0.6,carat:2"), {
+    d: { culetClearance: 0.6, carat: 2 }, w: { culetClearance: 0.6, carat: 2 },
+  }, "unknown keys pass the harness and are dropped by resolveBench (tested above)");
+  assert.deepStrictEqual(run("?bench=culetClearance:abc"), { d: null, w: null }, "all junk: no bench at all");
+  assert.deepStrictEqual(run("?carat=2"), { d: null, w: null }, "no ?bench: absent");
+  // A real spec's own bench outranks the URL's, as every other override does.
+  const own = JSON.parse(execFileSync(process.execPath, ["-e", `
+    globalThis.location = { search: "?bench=bearingDepth:45" };
+    const r = require("./.cadcheck/ring-spec.js");
+    process.stdout.write(JSON.stringify(r.withDefaults({ bench: { culetClearance: 0.5 } }).bench));
+  `], { encoding: "utf8" }));
+  assert.deepStrictEqual(own, { culetClearance: 0.5 });
+});
+
+test("bench: names from Object's prototype are not alloys or fields", () => {
+  // `in` answered yes to these, every bound became NaN and a 0.1mm prong
+  // passed with no warning (found in S0's review).
+  for (const alloy of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    const r = std.resolveBench({ prongDiameter: 0.1 }, { alloy, girdleR: 3, pavH: 2 });
+    assert.ok(Object.values(r.values).every(Number.isFinite), alloy);
+    assert.strictEqual(r.values.prongDiameter, MANUFACTURING_LIMITS.platinum.minProngDia, alloy);
+  }
+  assert.deepStrictEqual(std.parseBenchParam("toString:5,constructor:1,__proto__:2,bearingDepth:45"),
+    { bearingDepth: 45 });
+});
+
+/* ---------------------------------------------------- head layout (S1) */
+
+const layout = require("./.cadcheck/head-layout.js");
+const { brilliantTopology } = require("./.cadcheck/cad-engine.js");
+
+test("?prongs= harness override takes a whole count from 3 to 8, nothing else", () => {
+  const { execFileSync } = require("node:child_process");
+  const run = (search) => JSON.parse(execFileSync(process.execPath, ["-e", `
+    globalThis.location = { search: ${JSON.stringify(search)} };
+    const r = require("./.cadcheck/ring-spec.js");
+    process.stdout.write(JSON.stringify({ d: r.DEFAULT_SPEC.prongCount, w: r.withDefaults({}).prongCount }));
+  `], { encoding: "utf8" }));
+  assert.deepStrictEqual(run("?prongs=4"), { d: 4, w: 4 });
+  assert.deepStrictEqual(run("?prongs=8"), { d: 8, w: 8 });
+  for (const junk of ["abc", "2", "9", "4.5", "", "-6", "Infinity", "NaN"]) {
+    assert.deepStrictEqual(run(`?prongs=${junk}`), { d: 6, w: 6 }, `?prongs=${junk} must be ignored`);
+  }
+  // A real spec's own count outranks the URL's.
+  const own = JSON.parse(execFileSync(process.execPath, ["-e", `
+    globalThis.location = { search: "?prongs=4" };
+    const r = require("./.cadcheck/ring-spec.js");
+    process.stdout.write(JSON.stringify(r.withDefaults({ prongCount: 3 }).prongCount));
+  `], { encoding: "utf8" }));
+  assert.strictEqual(own, 3);
+});
+
+const defaultBench = (cut, ct, over = {}) => {
+  const gR = girdleRadiusFor(cut, ct);
+  return { gR, v: std.resolveBench(over, { alloy: "platinum", girdleR: gR, pavH: gemDims(gR).pavH }).values };
+};
+
+test("head layout: each post sits where the seat depth puts it (by hand)", () => {
+  // Default ring: 1 ct round, six prongs, platinum. Seat 40% of the prong,
+  // 0.05 mm room round the stone, prong (0.28 + 0.045 R) × 2.
+  const { gR, v } = defaultBench("round", 1);
+  const lay = layout.layoutHead("round", gR, 6, v, null);
+  const d = (0.28 + 0.045 * gR) * 2, notch = 0.4 * d, tol = 0.05;
+  const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
+
+  // Prong 0 points at 0°, a corner of the round's sixteen-sided girdle, at
+  // the full radius; its normal is radial. The post's inner face is the seat
+  // depth inside the seat surface, which is the girdle plus the room.
+  const p0 = lay.prongs[0];
+  near(p0.d, d, "prong diameter");
+  near(p0.notch, notch, "seat depth");
+  near(p0.girdlePoint[0], gR, "girdle point x");
+  near(p0.normal[0], 1, "normal x");
+  near(p0.postCentre[0] - d / 2, gR + tol - notch, "inner face");
+  near(p0.postCentre[0], gR + tol - notch + d / 2, "post centre");
+
+  // Prong 1 points at 60°, which is on the flat between the girdle's corners
+  // at 45° and 67.5°: the girdle there is that flat, R cos 11.25° / cos 3.75°
+  // out, and its normal points at the flat's middle, 56.25°.
+  const p1 = lay.prongs[1];
+  const deg = Math.PI / 180;
+  const r1 = (gR * Math.cos(11.25 * deg)) / Math.cos(3.75 * deg);
+  near(Math.hypot(...p1.girdlePoint), r1, "girdle radius at 60°");
+  near(Math.atan2(p1.normal[1], p1.normal[0]), 56.25 * deg, "normal at 60°");
+  const off = tol - notch + d / 2;
+  near(p1.postCentre[0], r1 * Math.cos(60 * deg) + off * Math.cos(56.25 * deg), "post centre x");
+  near(p1.postCentre[1], r1 * Math.sin(60 * deg) + off * Math.sin(56.25 * deg), "post centre y");
+
+  // The post stands asCastProngHeight above the table, top of its cap.
+  const { pavH, girdleH, crownH } = gemDims(gR);
+  near(p0.tip, pavH + girdleH + crownH + 2.0, "as-cast top");
+});
+
+test("head layout: every leg clears the pavilion cone (line to cone, by hand)", () => {
+  // A plain band 1.55 mm deep under the culet's 0.3 mm gap, wide enough that
+  // no foot is pulled in along the finger. Prong 0 then lies in the plane
+  // y = 0 through the axis, where the nearest point of a cone of revolution
+  // is on the generator in that plane: a 2D point-to-segment distance.
+  const { gR, v } = defaultBench("round", 1);
+  const band = {
+    at: (x, y) => ({ top: -0.3, bottom: -1.85 }),
+    axial: [0, 1], axialMin: 0, axialMax: 10, topOnAxis: -0.3,
+  };
+  const lay = layout.layoutHead("round", gR, 6, v, band);
+  const p = lay.prongs[0];
+  const { pavH } = gemDims(gR);
+  // The cone from the culet through the girdle's corners: at 0° it passes
+  // through the girdle corner itself, and the stone lies inside it there.
+  const toCone = (r, z) => {
+    const L = Math.hypot(gR, pavH), ux = gR / L, uz = pavH / L;
+    const t = Math.max(0, Math.min(L, r * ux + z * uz));
+    return Math.hypot(r - ux * t, z - uz * t);
+  };
+  let worst = Infinity;
+  for (const { c } of layout.spineSamples(p.spine.foot, p.spine.corner, p.spine.top, p.spine.bendRadius, p.d / 2, 0.01)) {
+    assert.ok(Math.abs(c[1]) < 1e-12, "prong 0 stays in the plane y = 0");
+    if (c[2] > pavH - p.d) continue;             // the rule starts at girdle − d
+    worst = Math.min(worst, toCone(c[0], c[2]) - p.d / 2);
+  }
+  assert.ok(worst >= v.pavilionClearance, `leg comes ${worst.toFixed(4)} mm from the cone, needs ${v.pavilionClearance}`);
+  // And the culet: nothing of the prong within culetClearance of it.
+  for (const { c } of layout.spineSamples(p.spine.foot, p.spine.corner, p.spine.top, p.spine.bendRadius, p.d / 2, 0.01)) {
+    assert.ok(Math.hypot(...c) - p.d / 2 >= v.culetClearance, `prong within ${Math.hypot(...c) - p.d / 2} of the culet`);
+  }
+});
+
+test("head layout: every stone vertex is inside the seat's hull, for every cut", () => {
+  // The seat cutter's containment argument rests on this: the envelope is a
+  // convex stack of the girdle polygon, and every vertex of the stone must sit
+  // under its scale profile. (The kernel test proves the solids agree.)
+  for (const cut of CUTS) {
+    for (const ct of [0.25, 1, 3]) {
+      const gR = girdleRadiusFor(cut, ct);
+      const st = layout.stoneProfile(cut, gR);
+      const pts = cut === "emerald" || cut === "princess"
+        ? layout.stepCutStations(gR).flatMap(({ z, s }) => st.girdle.map(([x, y]) => [x * s, y * s, z]))
+        : brilliantTopology(cut, gR).points;
+      for (const p of pts) {
+        const r = Math.hypot(p[0], p[1]);
+        if (r < 1e-12) continue;
+        const allowed = layout.scaleAt(st.hull, p[2]) * layout.radialHit(st.girdle, Math.atan2(p[1], p[0])).r;
+        assert.ok(r <= allowed + 1e-9, `${cut} ${ct} ct: vertex at z ${p[2].toFixed(3)} is ${(r - allowed).toExponential(2)} mm outside`);
+      }
+    }
+  }
+});
+
+test("head layout: prongs too thick to fit are thinned, and it says so", () => {
+  // 2 mm prongs, eight of them, round a quarter carat: they would overlap.
+  const { gR, v } = defaultBench("round", 0.25, { prongDiameter: 2 });
+  const lay = layout.layoutHead("round", gR, 8, v, null, { minProngDiameter: 0.8 });
+  const w = lay.warnings.find((x) => x.key === "prongDiameter");
+  assert.ok(w && w.kind === "engine-clamped", "reported as an engine clamp");
+  assert.ok(lay.values.prongDiameter < 2 && lay.values.prongDiameter >= 0.8, `${lay.values.prongDiameter}`);
+  // Neighbours now have daylight between them.
+  const c = lay.prongs.map((p) => p.postCentre);
+  for (let i = 0; i < c.length; i++) {
+    const j = (i + 1) % c.length;
+    assert.ok(Math.hypot(c[i][0] - c[j][0], c[i][1] - c[j][1]) - lay.values.prongDiameter >= 0.05 - 1e-9);
+  }
+  // The default never is.
+  const def = defaultBench("round", 1);
+  assert.deepStrictEqual(layout.layoutHead("round", def.gR, 6, def.v, null).warnings, []);
+});

@@ -1,5 +1,6 @@
 import type { GemCut, SettingStyle, BandProfile } from "./cad-engine";
 import type { Finish } from "./finishes";
+import type { BenchOverrides } from "./setting-standards";
 export { FINISHES, FINISH_LABELS } from "./finishes";
 export type { Finish } from "./finishes";
 
@@ -31,6 +32,18 @@ export type RingSpec = {
    * reattaches itself somewhere else.
    */
   regions: RegionOverride[];
+  /**
+   * A setter's or caster's own figures for this design: seat depth, gap under
+   * the culet, prong height as cast and the rest of BENCH_FIELDS in
+   * setting-standards.ts. Absent means every default. Optional and never
+   * filled in by withDefaults, so a saved design records only what someone
+   * actually chose.
+   *
+   * Deliberately NOT in the AI extraction schema or parseSpecFromPrompt. These
+   * are workshop numbers with safety bounds, and a model guessing "deeper
+   * seats" from a sentence is how a ring gets a seat cut through its prong.
+   */
+  bench?: BenchOverrides;
 };
 
 export type RegionOverride = {
@@ -94,11 +107,36 @@ if (_q?.get("style")) _override.shankStyle = _q.get("style") as ShankStyle;
 if (_q?.get("setting")) _override.setting = _q.get("setting") as SettingStyle;
 if (_q?.get("cut")) _override.gemShape = _q.get("cut") as GemCut;
 if (_q?.get("profile")) _override.bandProfile = _q.get("profile") as BandProfile;
+// `?bench=bearingDepth:45,culetClearance:0.6`. Pairs whose value is not a
+// finite number are dropped here, like `?carat=abc` above; unknown keys and
+// out-of-bounds values are left to resolveBench, which ignores the first and
+// clamps the second. Parsed locally rather than with parseBenchParam because
+// setting-standards imports MANUFACTURING_LIMITS from this module, and calling
+// back into it while this one is still loading depends on import order.
+{
+  const raw = _q?.get("bench");
+  if (raw) {
+    const bench: Record<string, number> = {};
+    for (const pair of raw.split(",")) {
+      const parts = pair.split(":").map((x) => x.trim());
+      if (parts.length !== 2) continue;
+      const [k, v] = parts;
+      const n = v ? Number(v) : NaN;
+      if (k && /^[A-Za-z]+$/.test(k) && Number.isFinite(n)) bench[k] = n;
+    }
+    if (Object.keys(bench).length) _override.bench = bench as BenchOverrides;
+  }
+}
 {
   const carat = _num("carat");
   if (carat !== null) _override.gemSize = carat;
   const width = _num("width");
   if (width !== null) _override.bandWidth = width;
+  // `?prongs=4`: a whole number of prongs the engine builds (3 to 8), or
+  // nothing. A fraction or an out-of-range count would be rounded or clamped
+  // somewhere downstream and the page would show a ring nobody asked for.
+  const prongs = _num("prongs");
+  if (prongs !== null && Number.isInteger(prongs) && prongs >= 3 && prongs <= 8) _override.prongCount = prongs;
 }
 
 const _BASE_SPEC: RingSpec = {
