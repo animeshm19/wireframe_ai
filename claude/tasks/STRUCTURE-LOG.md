@@ -56,7 +56,10 @@ None in S0. Bounds are as specified in the S0 prompt's table; `test:cad` asserts
 
 ## Open questions for the setter / caster
 
-From `PROVISIONAL_INPUTS` (every bench field that is not a sourced default). Each is our starting point, not a verified fact:
+From `PROVISIONAL_INPUTS` (every bench field that is not a sourced default). Each is our starting point, not a verified fact.
+
+**Status 2026-10-07: still open.** Animesh will put questions 1–9 to the setter and caster later. Until answered, the defaults stand as provisional and must not be presented as verified. Every later prompt keeps this list and carries it into its report.
+
 
 1. **bearingDepth 40% of prong** (published 30–50%). Which depth does your setter cut?
 2. **seatTolerance 0.05 mm.** Unsourced. How much room around the girdle do you want in a cast seat?
@@ -71,6 +74,7 @@ From `PROVISIONAL_INPUTS` (every bench field that is not a sourced default). Eac
 For Animesh (decisions, not bench questions):
 
 10. **I9 split (S0).** The prompt asks I9, "metal is 1 MANIFOLD_SOLID_BREP, 0 triangulated", to bind from S0. Measured, the one-solid half cannot hold at S0: it is I1 read from the file. `{"gemShape":"marquise","prongCount":4}` is 2 solids and its STEP honestly has 2. Worse, `{"gemShape":"marquise"}` is 2 solids (7.529 + 186.238 mm³) and its STEP has **1**: `toSTEP` silently drops a piece of a multi-solid metal (re-imported: one solid of 179.504 mm³). Chosen (most conservative, nothing dropped): I9 = B-rep, nothing triangulated, solids named, binds from S0; I9b = exactly one MANIFOLD_SOLID_BREP *and* as many in the file as in the metal, binds with I1 (S2; S6 for halo and bezel). Please confirm.
+    **Decided 2026-10-07: Animesh confirmed the I9 / I9b split.**
 11. **STEP round trip is 3% light** (observed, not investigated): the default metal exports at 187.611 mm³ and re-imports with `importSTEP` at 181.894 (oval 184.759 → 178.435). Could be the importer or the file; for S7.
 12. **Pear fix (S0, `f36345f`).** Every pear from 0.05 to 0.40 ct threw on `main` and could not be built. Fixed in its own commit by dividing a facet OCCT refuses, exactly as the engine divides a warped one; no other stone changes (proved on 105 cut × carat stones). It is a geometry change for designs that previously crashed; please review.
 13. **One failed boolean in the audit itself.** `{"shankStones":"eternity"}`: metal ∩ accent 12 returns 0.35961 mm³, more than the stone's own 0.35921, while 0.052 of the stone lies outside the metal. The audit records it as a measurement error (NaN, the invariant fails) rather than a number. That accent's culet is 0.44 mm inside the metal: it sits under the head.
@@ -106,3 +110,9 @@ S0 v2 was run again and found already complete (case b, `c1ec8cb`, nothing repai
 - 73 of 73 independent figures reproduced from the fresh run; metal volume identical on all 237 designs
 
 Draft PR opened: https://github.com/animeshm19/wireframe_ai/pull/2. Nothing owed for S0. Details in S0.md.
+
+### S0 decisions — 2026-10-07
+
+- **I9 split confirmed** by Animesh (open question 10). I9 binds from S0; I9b binds with I1.
+- **Setter / caster questions 1–9:** owed by Animesh, to be asked later. They stay open and provisional.
+- **Stale lock removed** with Animesh's permission: `~/Downloads/wireframe/.git/objects/maintenance.lock` (0 bytes, Sep 17), after checking that no git process was running. Nothing else in the main repo was touched; its `status --short` is unchanged.
