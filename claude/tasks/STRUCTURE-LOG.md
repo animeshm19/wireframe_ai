@@ -95,5 +95,14 @@ Commits `4971a29`..`1bf11b4` (12) plus the docs commit. Summary:
   - Gate run without `--report-only`: exit 0, 0 regressions.
   - Fast audit: 0 regressions against the baseline.
   - Suites: `test:cad` 26/26, `test:brep` 30/30. Lint 109 + 4, unchanged. The build passes.
-- **Owed:** the draft PR (`gh` not installed). The body is in S0.md.
+- **Owed:** the draft PR (`gh` not installed). The body is in S0.md. *Opened 2026-10-07: #2.*
 - **For S1:** compare against `structure-audit-baseline` (full) or `structure-audit-s0-fast` (fast). I10 and I13 are TODO and become binding in S1, so S1 must add their measurements (`BENCH_MEASURES` in structure-invariants.mjs).
+
+### S0 re-verification — 2026-10-07
+
+S0 v2 was run again and found already complete (case b, `c1ec8cb`, nothing repaired). Every criterion was re-run:
+- build passes; lint 109 + 4; `test:cad` 26/26; `test:brep` 30/30 in 241s
+- fresh full audit gate at S0 against `baseline`: 237 designs, 0 crashed, 0 binding failures, 0 regressions, exit 0
+- 73 of 73 independent figures reproduced from the fresh run; metal volume identical on all 237 designs
+
+Draft PR opened: https://github.com/animeshm19/wireframe_ai/pull/2. Nothing owed for S0. Details in S0.md.
