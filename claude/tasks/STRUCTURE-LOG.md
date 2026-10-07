@@ -50,9 +50,20 @@ All 73 figures of the independent audit reproduce: `node scripts/structure-audit
 
 None in S0. (Tests added only; none removed or loosened.)
 
+**S1, `586dccb`: "B-rep and mesh engines agree on every supported design".** The whole-ring metal bound (5%, 25% for halo and bezel) became a band-only comparison; every dimensional equality and the stone-volume bound are unchanged. Why: the B-rep head is now deliberately not the frozen mesh head (default ring 7.8% apart once seated). The prompt asked for under 0.1% on the band; measured B-rep against mesh band: flat and knife −0.040%, round −0.877%, comfort −2.027% (−2.011 to −2.032 across sizes 4–11, widths 1.4–8). The gap is the frozen mesh engine's polygon section; the B-rep band is exact against Pappus in another test. Bounds per profile: 0.1, 0.1, 0.95, 2.1%. **Open question 17.**
+
 ## Bench bounds changed
 
 None in S0. Bounds are as specified in the S0 prompt's table; `test:cad` asserts them row by row.
+
+**S1: pavilionClearance max 0.60 → 0.40 mm.** Evidence, default ring (US 6, 1 ct round, 6 prongs, 2.5 mm comfort band), `node scripts/structure-audit.mjs '{"bench":{"pavilionClearance":0.6}}' --stage S1`:
+- The layout's exact lower bound can keep at most 0.432 mm below girdle − d. The measured distance is 0.440–0.456 mm, against the 0.58 the audit requires. I10c and I13 fail.
+- Cause: until S3's head base, a prong standing beyond the band's edge has to bring its foot back under the stone, and just below the seat its post is only as far from the pavilion as the seat put it.
+- At 0.40 the same ring passes I10c, I13 and I7 with no engine clamp, and so do the all-max corners.
+
+The S0 test that pins the bench table records the new maximum, with a comment. Revisit in S3, when the legs end at a base.
+
+No other bound changed. Every other S1-wired field stitches at both bounds.
 
 ## Open questions for the setter / caster
 
@@ -82,6 +93,14 @@ For Animesh (decisions, not bench questions):
 14. **Joint section (I7, for S3).** The disc is the prompt's (girdleR × 1.2 round the centre axis), so on a three-stone it also cuts the side heads and on a cathedral the struts: 1 ct round reads 3.89 mm² as a prong ring, 6.54 as a three-stone, 6.78 as a cathedral, with the same centre head. A cathedral at 0.25 ct passes I7 on its struts alone. S3, which builds the base, should decide whether the joint is "metal under the centre head" or "the centre head's own metal".
 15. **Joint prong sum before S1 (I7).** It uses the effective prongDiameter, clamped to the alloy floor (0.80 mm), while until S1 wires the field the engine builds the raw formula (0.744 mm at 0.25 ct). This errs strict: the 0.25 ct rows read I7 FAIL at a true ratio of about 1.12. It is resolved when S1 makes the built prong the effective one.
 16. **Pavé culets clear their seat floors by 0.01 mm**, and on a full eternity band one accent sits under the head with its culet 0.44 mm inside the metal (I3c, S6).
+
+17. **Band-only comparison bound (S1).** See "Assertions changed": 0.1% only holds for flat and knife. Chosen: per-profile bounds just above the measured, deterministic gaps. Please confirm.
+18. **Pavilion gap (S1).** The maximum was narrowed to 0.40 mm (see "Bench bounds changed"). On a stone where even the asked gap cannot be kept, the engine keeps what it can and reports it as `engine-clamped`; the audit now judges against the value asked, so such a design fails I10c/I13 visibly rather than passing against the clamp. Revisit in S3.
+19. **Performance budget (S1): not cleanly met.** Measured the S0 way (fresh kernel, no warm-up), the preview is 242.3 ms against the 186.0 budget: the first sweep and first boolean in a fresh kernel compile OCCT code the old preview never ran. The kernel now warms that code at boot, and the worker now boots when spawned (an idle moment). Like for like, both engines warmed the same way, the preview is 96.6 ms against 64.3 (1.50×, at the limit). Resolve 1144.6 ms against the 2249.4 budget passes. Please decide which measure the budget means; if the cold one, the preview needs more work (candidates: replicad's double-build fuse and cut, q. 23; fewer prong faces to tessellate).
+20. **Interim rail is flat, not a torus (S1).** The prompt said to keep the torus. OCCT fused the torus wrongly with crossing legs and cathedral struts at most placements tried (both as a revolved circle and as its own primitive); a square-section ring in the same place fused cleanly with every part of every failing design. S2 replaces the rail.
+21. **Three-stone side stones open out when they must (S1).** Side stones are S6's, but their tall cast prongs reached the centre stone at 3 ct (1.4 mm³) and, with 2 mm prongs, came within 0.97 mm of a 1.5 mm culet. The splay starts at 0.45 rad as before and opens in 0.03 rad steps only until both side heads keep clear; the default 1 ct ring is unchanged.
+22. **fuseMetal seals specks of air (S1).** Near-tangent fuses left sealed cavities under 0.001 mm³ (STEP then wrote a solid with voids). The merge now rebuilds such a solid from its outer shell; larger cavities are left for the checks.
+23. **replicad runs every boolean twice (S1, finding).** `Shape.cut` and `Shape.fuse` construct the OCCT operation (which builds it) and then call `Build()` again. The seat cut now runs once (7.7 → 3.6 ms, identical result). `fuseMetal` still uses replicad's fuse; switching it would roughly halve resolve time. Not done in S1.
 
 ## Progress
 
@@ -116,3 +135,13 @@ Draft PR opened: https://github.com/animeshm19/wireframe_ai/pull/2. Nothing owed
 - **I9 split confirmed** by Animesh (open question 10). I9 binds from S0; I9b binds with I1.
 - **Setter / caster questions 1–9:** owed by Animesh, to be asked later. They stay open and provisional.
 - **Stale lock removed** with Animesh's permission: `~/Downloads/wireframe/.git/objects/maintenance.lock` (0 bytes, Sep 17), after checking that no git process was running. Nothing else in the main repo was touched; its `status --short` is unchanged.
+
+### S1 — 2026-10-07 — seated as-cast prongs, culet clear, six bench fields wired
+
+Status: see `claude/tasks/S1.md`. Start `088c607`; commits `bce0d0d`..HEAD.
+- Default ring: centre stone in metal 4.310 → 0.000 mm³; culet −0.350 → +0.300 mm; seat 0.341 mm deep (asked 0.341); prong tops 5.926 mm above the culet (asked 5.926); STL now watertight (0 slivers, 1 component; was 6 and 7).
+- Full audit `--stage S1 --compare s1-start`: 237 designs, 0 crashed, 0 binding failures, 0 regressions; against the full S0 baseline (offline, same rule): 0 regressions, no design lost its single solid.
+- Suites: test:cad 31/31, test:brep 41/41; build passes; lint 108 errors + 4 warnings on tracked files (S0: 109 + 4).
+- pavilionClearance max narrowed 0.60 → 0.40 ("Bench bounds changed"). The invariants now judge against the values asked, not the engine's clamped values (review finding).
+- Performance: see open question 19 (not cleanly met).
+- For S2: compare against `structure-audit-s1` (full). The interim rail is flat (q. 20); halos carry their bearers on it.
