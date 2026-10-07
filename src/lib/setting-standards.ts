@@ -44,6 +44,13 @@ export const FIXED_STANDARDS = {
    * Fixed because it is a placement rule, not a preference: off it, the
    * gallery either fouls the girdle or stops supporting the prongs where they
    * bend.
+   *
+   * Where a wire of the bench thickness, the bench gap off the stone, would
+   * show beyond the girdle at this height, the engine sits it lower, only as
+   * far as hiding it takes; and where no height hides it, thins it, never
+   * below the alloy's minimum wall. Both are reported as engine clamps.
+   * Decided by Animesh, 2026-10-07 (STRUCTURE-LOG, S2): the clearance keeps
+   * the stone safe and never gives way; the height, then the thickness, do.
    */
   GALLERY_RULE_OF_THIRDS: {
     value: 0.5,

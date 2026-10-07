@@ -471,14 +471,14 @@ test("head layout: every leg clears the pavilion cone (line to cone, by hand)", 
     return Math.hypot(r - ux * t, z - uz * t);
   };
   let worst = Infinity;
-  for (const { c } of layout.spineSamples(p.spine.foot, p.spine.corner, p.spine.top, p.spine.bendRadius, p.d / 2, 0.01)) {
+  for (const { c } of layout.spineSamples(p.spine.points, p.spine.bends, p.d / 2, 0.01)) {
     assert.ok(Math.abs(c[1]) < 1e-12, "prong 0 stays in the plane y = 0");
     if (c[2] > pavH - p.d) continue;             // the rule starts at girdle − d
     worst = Math.min(worst, toCone(c[0], c[2]) - p.d / 2);
   }
   assert.ok(worst >= v.pavilionClearance, `leg comes ${worst.toFixed(4)} mm from the cone, needs ${v.pavilionClearance}`);
   // And the culet: nothing of the prong within culetClearance of it.
-  for (const { c } of layout.spineSamples(p.spine.foot, p.spine.corner, p.spine.top, p.spine.bendRadius, p.d / 2, 0.01)) {
+  for (const { c } of layout.spineSamples(p.spine.points, p.spine.bends, p.d / 2, 0.01)) {
     assert.ok(Math.hypot(...c) - p.d / 2 >= v.culetClearance, `prong within ${Math.hypot(...c) - p.d / 2} of the culet`);
   }
 });
@@ -502,6 +502,24 @@ test("head layout: every stone vertex is inside the seat's hull, for every cut",
       }
     }
   }
+});
+
+test("every cut's outline is convex, and so is its gallery", () => {
+  // The gallery is the girdle's outline set outward side by side (S2), which
+  // keeps its shape only on a convex outline: a re-entrant corner would make
+  // the offset sides cross.
+  const band = { at: () => ({ top: -0.3, bottom: -1.85 }), axial: [0, 1], axialMin: 0, axialMax: 10, topOnAxis: -0.3 };
+  for (const cut of CUTS) {
+    for (const ct of [0.25, 1, 3]) {
+      const { gR, v } = defaultBench(cut, ct);
+      assert.ok(layout.isConvex(layout.stoneProfile(cut, gR).girdle), `${cut} ${ct} ct girdle outline`);
+      const lay = layout.layoutHead(cut, gR, 6, v, band, { minGalleryThickness: 0.7 });
+      assert.ok(layout.isConvex(lay.gallery.path), `${cut} ${ct} ct gallery centreline`);
+      assert.ok(layout.isConvex(lay.gallery.outer), `${cut} ${ct} ct gallery outline`);
+    }
+  }
+  // And the check itself: a dart is not convex.
+  assert.equal(layout.isConvex([[0, 0], [2, 1], [0, 2], [1, 1]]), false);
 });
 
 test("head layout: prongs too thick to fit are thinned, and it says so", () => {
