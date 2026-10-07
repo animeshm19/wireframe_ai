@@ -197,6 +197,11 @@ test("every design fuses into ONE connected solid", () => {
     // The combinations someone would actually order.
     { setting: "three_stone", shankStones: "pave" },
     { setting: "halo", shankStones: "half_eternity" },
+    // S2: the long stones whose interim rail missed prongs (oval dropped it,
+    // marquise came out in two pieces), at four prongs and six.
+    { gemShape: "oval", prongCount: 4 }, { gemShape: "oval", prongCount: 6 },
+    { gemShape: "pear", prongCount: 4 }, { gemShape: "pear", prongCount: 6 },
+    { gemShape: "marquise", prongCount: 4 }, { gemShape: "marquise", prongCount: 6 },
   ];
   for (const spec of cases) {
     const { metrics } = brep.buildRing(spec);
@@ -813,8 +818,8 @@ test("seated: round at 0.25 and 3 ct, and a three-stone's centre", async () => {
   for (const spec of [{ gemSize: 0.25 }, { gemSize: 3 }, { setting: "three_stone" }]) await checkSeated(spec);
 });
 
-/** The six bench fields S1 wires, at a bound, must show in the geometry (I13). */
-async function checkBench(fields) {
+/** The bench fields wired so far, at a bound, must show in the geometry (I13). */
+async function checkBench(fields, more = () => {}) {
   const { BENCH_MEASURES } = await import("./scripts/structure-invariants.mjs");
   const std = await import("./.brepcheck/setting-standards.js");
   for (const key of fields) {
@@ -824,6 +829,7 @@ async function checkBench(fields) {
       assert.ok(r.bench.customised.includes(key), `${key} ${which} reached the engine`);
       const m = BENCH_MEASURES[key](r, r.requested[key]);
       assert.ok(m.ok, `${key} at its ${which} (${value}): ${m.why}`);
+      more(r, { bench: { [key]: value } });
     }
   }
 }
@@ -838,6 +844,78 @@ test("bench: culet gap and pavilion gap reach the geometry", async () => {
 
 test("bench: prong thickness and cast height reach the geometry", async () => {
   await checkBench(["prongDiameter", "asCastProngHeight"]);
+});
+
+/**
+ * What S2 promises of the centre head's gallery. Height: half way down the
+ * pavilion (the rule of thirds), or lower by as much as hiding it under the
+ * girdle takes, and then said so (Animesh's decision, S2). Thickness: as
+ * asked, or thinner where the engine said hiding it needed that. Clear of
+ * the stone by the gap asked, through every prong, and not seen from above.
+ */
+function checkGallery(r, spec) {
+  const tag = JSON.stringify(spec);
+  const g = r.galleries.find((x) => x.head === "centre");
+  assert.ok(g, `${tag}: a centre gallery`);
+  const v = r.requested;
+  assert.ok(Math.abs(g.centreHeightAboveCulet - g.planHeight) <= 0.05, `${tag}: gallery at ${g.centreHeightAboveCulet}, laid out at ${g.planHeight}`);
+  assert.ok(g.planHeight <= g.ruleOfThirdsHeight + 1e-6, `${tag}: gallery above the rule of thirds`);
+  if (g.ruleOfThirdsHeight - g.planHeight > 0.05) assert.ok(g.loweredReported, `${tag}: lowered ${g.lowered} mm without saying so`);
+  else assert.ok(Math.abs(g.centreHeightAboveCulet - g.ruleOfThirdsHeight) <= 0.05, `${tag}: gallery at ${g.centreHeightAboveCulet}, rule ${g.ruleOfThirdsHeight}`);
+  const t = g.thinnedReported ? g.bench.galleryThickness : v.galleryThickness;
+  if (!g.thinnedReported) assert.equal(g.bench.galleryThickness, v.galleryThickness, `${tag}: thinned without saying so`);
+  assert.ok(Math.abs(g.thicknessEstimate - t) <= 0.02, `${tag}: gallery ${g.thicknessEstimate} thick, wants ${t}`);
+  assert.ok(g.inStone <= 0.001, `${tag}: ${g.inStone} mm³ of gallery in the stone`);
+  assert.ok(g.clearanceToStone >= v.galleryClearance - 0.02 && g.clearanceToStone <= v.galleryClearance + 0.10,
+    `${tag}: gallery ${g.clearanceToStone} from the stone, wants ${v.galleryClearance - 0.02} to ${v.galleryClearance + 0.10}`);
+  const prongs = r.prongs.filter((p) => p.head === "centre");
+  for (const p of prongs) assert.ok(p.inGallery >= 0.02, `${tag} prong ${p.index}: ${p.inGallery} mm³ in the gallery`);
+  assert.equal(g.prongsTouched, g.prongCount, `${tag}: every prong through the gallery`);
+  assert.ok(g.beyondGirdle <= 0, `${tag}: gallery reaches ${g.beyondGirdle} mm beyond the girdle`);
+  return g;
+}
+
+test("gallery: brilliant cuts on six prongs", async () => {
+  for (const gemShape of ["round", "oval", "pear", "marquise", "cushion"]) checkGallery(await checkSeated({ gemShape }), { gemShape });
+});
+
+test("gallery: step cuts on six prongs", async () => {
+  for (const gemShape of ["emerald", "princess"]) checkGallery(await checkSeated({ gemShape }), { gemShape });
+});
+
+test("gallery: round at 3, 4 and 8 prongs", async () => {
+  for (const prongCount of [3, 4, 8]) checkGallery(await checkSeated({ prongCount }), { prongCount });
+});
+
+test("gallery: round at 0.25 and 3 ct", async () => {
+  for (const gemSize of [0.25, 3]) checkGallery(await checkSeated({ gemSize }), { gemSize });
+});
+
+test("bench: gallery gap and wire thickness reach the geometry", async () => {
+  // At its min and its max each, on the default ring, with everything S1
+  // promises still holding (checkSeated) and the gallery's own checks.
+  await checkBench(["galleryClearance", "galleryThickness"], checkGallery);
+});
+
+test("the gallery is one valid solid of its analytic volume, and clear of the seat", async () => {
+  // galleryWire checks its own volume and throws; the merge path cuts it by
+  // the whole seat envelope and throws if that takes more than 0.001 mm³.
+  const { getOC } = await import("replicad");
+  const layout = await import("./.brepcheck/head-layout.js");
+  for (const gemShape of ["round", "oval", "pear", "marquise", "emerald"]) {
+    const parts = brep.buildRingParts({ gemShape }, { seats: true });
+    const i = parts.metalRoles.findIndex((r) => r.role === "gallery" && r.head === "centre");
+    const g = parts.metalParts[i];
+    const plan = parts.heads.find((h) => h.head === "centre").layout.gallery;
+    const n = plan.path.length;
+    const L = plan.path.reduce((t, p, k) => t + Math.hypot(plan.path[(k + 1) % n][0] - p[0], plan.path[(k + 1) % n][1] - p[1]), 0);
+    const want = Math.PI * (plan.t / 2) ** 2 * L;
+    assert.equal(g.solids.length, 1, `${gemShape}: one solid`);
+    assert.ok(new (getOC().BRepCheck_Analyzer)(g.wrapped, true, false).IsValid(), `${gemShape}: valid`);
+    assert.ok(Math.abs(measureVolume(g) - want) <= want * 0.01, `${gemShape}: ${measureVolume(g)} mm³ against ${want}`);
+    // Its centreline is convex, as the outline it follows is.
+    assert.ok(layout.isConvex(plan.path), `${gemShape}: gallery path convex`);
+  }
 });
 
 test("three-stone side heads keep clear of the centre stone and its culet", async () => {
