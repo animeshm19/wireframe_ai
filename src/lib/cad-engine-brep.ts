@@ -17,7 +17,7 @@
 import {
   setOC, draw, drawCircle, drawEllipse, makeLine, makeFace, makeSolid,
   assembleWire, makeCylinder, makeCircle, measureVolume, exportSTEP, loft,
-  makeCompound, genericSweep, makeThreePointArc, makeAx1, cast, getOC,
+  makeCompound, genericSweep, makeThreePointArc, cast, getOC, iterTopo,
   Plane, Sketch,
   type Shape3D, type AnyShape, type Wire, type Face,
 } from "replicad";
@@ -30,8 +30,8 @@ import {
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  envelopeFaces, filletArc, layoutHead, matchingProng, stepCutStations,
-  type BandProbe, type HeadLayout, type ProngPlan, type StoneProfile,
+  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, stepCutStations,
+  type BandProbe, type HalfSpace, type HeadLayout, type LayoutOptions, type ProngPlan, type StoneProfile,
 } from "./head-layout.js";
 
 // ------------------------------------------------------------------ kernel --
@@ -919,21 +919,6 @@ function outlineRail(
 }
 
 /**
- * A torus, as a revolved circle.
- *
- * OCCT has no torus primitive exposed here, and it does not need one: a torus
- * IS a circle swept about an axis, so revolving the tube section gives the
- * exact surface rather than an approximation of it.
- */
-function torus(tubeR: number, centreR: number, z: number): Shape3D {
-  return drawCircle(tubeR)
-    .translate(centreR, 0)
-    .sketchOnPlane("XZ")
-    .revolve([0, 0, 1])
-    .translate([0, 0, z]) as Shape3D;
-}
-
-/**
  * A tapered strut: the shoulders that carry a cathedral setting.
  *
  * Lofted between two circles rather than approximated by a stepped cylinder, so
@@ -1052,24 +1037,6 @@ export function asCastProng(spine: NonNullable<ProngPlan["spine"]>, d: number): 
 }
 
 /**
- * A solid turned about the head axis, sharing its original's geometry
- * through an OCCT location rather than copying it: the turned prong is then
- * meshed from the original's triangles (0.6 ms against 8 for a box, S1),
- * and the original stays untouched for its own role. A mirror cannot be a
- * location, so mirrored prongs are copied.
- */
-function turned(sh: Shape3D, angle: number): Shape3D {
-  const oc = getOC();
-  const trsf = new oc.gp_Trsf();
-  const axis = makeAx1([0, 0, 0], [0, 0, 1]);
-  trsf.SetRotation(axis, angle);
-  const loc = new oc.TopLoc_Location(trsf);
-  const out = cast(sh.wrapped.Moved(loc, false)) as Shape3D;
-  axis.delete(); loc.delete(); trsf.delete();
-  return out;
-}
-
-/**
  * a − b, run once.
  *
  * replicad's Shape.cut constructs OCCT's BRepAlgoAPI_Cut with both shapes,
@@ -1097,6 +1064,8 @@ function cutOnce(a: Shape3D, b: Shape3D): Shape3D {
 const volumes = new WeakMap<Shape3D, number>();
 
 const dot3 = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a: V3, b: V3): V3 =>
+  [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
 /**
  * Cuts the seat out of one part, checked the way cutAll checks its seats: a
@@ -1156,6 +1125,11 @@ export type HeadContext = {
   /** The band as the head sees it, for the feet. Null builds no prong legs. */
   band: BandProbe | null;
   alloy: MetalType;
+  /** Other stones and points this head must keep clear of, in its own frame. */
+  avoid?: LayoutOptions["avoid"];
+  avoidPoints?: LayoutOptions["avoidPoints"];
+  /** The layout, when the caller has already made it (it is pure, and deterministic). */
+  layout?: HeadLayout;
 };
 
 export function buildHead(
@@ -1214,8 +1188,13 @@ export function buildHead(
     };
   }
 
-  const layout = layoutHead(cut, girdleR, prongCount, ctx.bench, ctx.band,
-    { minProngDiameter: limits.minProngDia });
+  const layout = ctx.layout ?? layoutHead(cut, girdleR, prongCount, ctx.bench, ctx.band, {
+    minProngDiameter: limits.minProngDia, avoid: ctx.avoid, avoidPoints: ctx.avoidPoints,
+    // A halo's bearers hang off the interim rail, at the height they run out
+    // at (railZ in the halo below); without it the halo is a separate piece.
+    railAt: style === "halo"
+      ? { z: pavH + girdleH - girdleR * 0.30, bearer: girdleR * 0.22 * 0.42 } : undefined,
+  });
   const metal: Shape3D[] = [];
   const stones: Shape3D[] = [centre];
   const metalRoles: PartRole[] = [];
@@ -1232,9 +1211,12 @@ export function buildHead(
     let solid: Shape3D;
     if (twin) {
       const m = twin.move;
-      solid = m.kind === "rotate"
-        ? turned(seated[twin.from], m.angle)
-        : seated[twin.from].clone().mirror([m.normal[0], m.normal[1], 0], [0, 0, 0]) as Shape3D;
+      // A real copy, not an OCCT location sharing the original's geometry:
+      // two arguments of one fuse sharing faces made it return the tool alone
+      // (a 0.25 ct princess, S1).
+      solid = (m.kind === "rotate"
+        ? seated[twin.from].clone().rotate((m.angle * 180) / Math.PI, [0, 0, 0], [0, 0, 1])
+        : seated[twin.from].clone().mirror([m.normal[0], m.normal[1], 0], [0, 0, 0])) as Shape3D;
     } else {
       // The seat is cut here, before any fuse, so the live preview shows it
       // too, by the envelope clipped to this post (see ProngPlan.seatCutter).
@@ -1245,14 +1227,26 @@ export function buildHead(
     add(solid, { role: "prong", index: p.index });
   }
 
-  // S2 replaces this. The interim gallery rail: the first engine's torus,
-  // moved so its centreline runs through the prongs' straight legs, which
-  // keeps every ring that was one piece one piece until S2 builds a rail
-  // that follows the stone. It is placed clear of the seat envelope rather
-  // than cut by it (see RailPlan in head-layout.ts), so it no longer runs
-  // through the pavilion.
-  const rail = layout.rail!;
-  add(torus(rail.tubeR, rail.centreR, rail.z), { role: "gallery" });
+  // S2 replaces this. The interim gallery rail, where the first engine's
+  // torus was: through the prongs' straight legs, which keeps every ring that
+  // was one piece one piece until S2 builds a rail that follows the stone.
+  // Placed clear of the seat envelope rather than cut by it (see RailPlan in
+  // head-layout.ts), so it no longer runs through the pavilion.
+  //
+  // Flat and square in section, not the old round wire. OCCT's torus fused
+  // wrongly with legs and cathedral struts crossing it, at most of the seam
+  // angles tried, both as a revolved circle and as its own primitive (a
+  // 0.25 ct oval cathedral, a 3 ct emerald: the rail came back smaller than
+  // itself, S1). Flat faces and cylinders, which this is, fused cleanly with
+  // every part of every design that had failed.
+  //
+  // Absent only on a head whose rail could not keep clear of a neighbouring
+  // stone and whose every foot stands in the band (see layoutHead).
+  const rail = layout.rail;
+  if (rail) {
+    add(drawCircle(rail.centreR + rail.half).cut(drawCircle(rail.centreR - rail.half))
+      .sketchOnPlane("XY", rail.z - rail.half).extrude(2 * rail.half) as Shape3D, { role: "gallery" });
+  }
 
   if (style === "halo") {
     // A ring of accent stones following the centre stone's outline — so a pear
@@ -1312,6 +1306,13 @@ export function buildHead(
 }
 
 type SideContext = {
+  /**
+   * The centre stone, for the side heads to keep clear of: the planes of its
+   * hull and its culet in the ring's frame, the gap it needs, and its culet
+   * clearance. Side stones are S6's; S1 only promises the centre stone and
+   * its culet stay clear, and the side heads' tall cast prongs reached both.
+   */
+  centre: { planes: HalfSpace[]; culet: V3; clearance: number; culetClearance: number };
   benchFor: (girdleR: number) => ResolvedBench;
   span: (theta: number, axial: number) => { top: number; bottom: number } | null;
   slotHalf: (theta: number) => number;
@@ -1338,7 +1339,7 @@ type SideContext = {
  * millimetre apart, which reads as three separate rings rather than one.
  */
 function buildSideStones(
-  girdleR: number, outerR: number, splay: number, ctx: SideContext,
+  girdleR: number, outerR: number, ctx: SideContext,
 ): {
   metal: Shape3D[]; stones: Shape3D[];
   metalRoles: PartRole[]; stoneRoles: StoneRole[]; heads: HeadFrame[];
@@ -1349,21 +1350,20 @@ function buildSideStones(
   const metalRoles: PartRole[] = [];
   const stoneRoles: StoneRole[] = [];
   const heads: HeadFrame[] = [];
+  const bench = ctx.benchFor(sideR);
+  const minProngDiameter = (MANUFACTURING_LIMITS[ctx.alloy] ?? MANUFACTURING_LIMITS.platinum).minProngDia;
 
-  for (const sgn of [-1, 1]) {
+  // Both side heads laid out (pure maths, no kernel) at a given splay.
+  const plan = (splay: number) => [-1, 1].map((sgn) => {
     const theta = Math.PI / 2 + sgn * splay;
-    // sgn -1 lands at +X, sgn +1 at -X; named as the ring is seen from +Z.
-    const name: HeadName = sgn < 0 ? "side-right" : "side-left";
     // Side stones keep their old seat on the shoulder until S6; their prongs
     // are the new as-cast ones, standing on the band as this head sees it.
     const R0 = outerR - 0.3;
-    const bench = ctx.benchFor(sideR);
     const probe = bandProbe(ctx.span, {
       theta0: theta, R0,
       angle: (t, Z) => theta + Math.atan2(t, Z),
       across: (_x, y) => y, along: (x) => -x, axial: [1, 0],
     }, ctx.slotHalf(theta), ctx.halfWidth(theta));
-    const head = buildHead("round", sideR, 4, "prong", { bench: bench.values, band: probe, alloy: ctx.alloy });
     // Stand it on the shank's radius, looking outward — the same move the pavé
     // accents make, because a side stone is set into the shoulder, not perched
     // on top of the ring like the centre.
@@ -1372,6 +1372,38 @@ function buildSideStones(
       { rot: (theta * 180) / Math.PI, about: [0, 0, 1] },
       { move: [Math.cos(theta) * R0, Math.sin(theta) * R0, 0] },
     ];
+    // The centre stone and its culet, carried into this head's frame.
+    const S = placePoint([0, 0, 0], steps), B = placePoint([0, 0, 1], steps, true);
+    const U = placePoint([1, 0, 0], steps, true), V = cross3(B, U);
+    const toHead = (q: V3): V3 => { const d: V3 = [q[0] - S[0], q[1] - S[1], q[2] - S[2]]; return [dot3(d, U), dot3(d, V), dot3(d, B)]; };
+    const planes = ctx.centre.planes.map(({ n, h }) => ({ n: [dot3(n, U), dot3(n, V), dot3(n, B)] as V3, h: h - dot3(n, S) }));
+    const avoid = [{ planes, clearance: ctx.centre.clearance }];
+    const avoidPoints = [{ p: toHead(ctx.centre.culet), r: ctx.centre.culetClearance }];
+    const layout = layoutHead("round", sideR, 4, bench.values, probe, { minProngDiameter, avoid, avoidPoints });
+    return { sgn, theta, steps, probe, avoid, avoidPoints, layout };
+  });
+
+  // Splay 0.45 rad, not the 0.52 the arc length alone suggests (see above),
+  // and opened out only as far as the side heads need to keep clear of the
+  // centre stone and its culet. At 3 ct the side stones' girdles all but meet
+  // the centre's (they overlapped by up to 0.17 mm³ in S0), and a side prong
+  // between them met the centre stone inside its own seat; with 2 mm prongs
+  // and a 1.5 mm culet gap the side posts came within 0.97 mm of the culet.
+  // Nothing else about the side stones changes before S6.
+  let splay = 0.45;
+  let sides = plan(splay);
+  while (sides.some((x) => x.layout.blocked) && splay < 1.0) {
+    splay += 0.03;
+    sides = plan(splay);
+  }
+
+  for (const { sgn, theta, steps, probe, avoid, avoidPoints, layout } of sides) {
+    // sgn -1 lands at +X, sgn +1 at -X; named as the ring is seen from +Z.
+    const name: HeadName = sgn < 0 ? "side-right" : "side-left";
+    void theta;
+    const head = buildHead("round", sideR, 4, "prong", {
+      bench: bench.values, band: probe, alloy: ctx.alloy, avoid, avoidPoints, layout,
+    });
     const place = <T extends Shape3D>(sh: T): T => placeShape(sh, steps);
 
     metal.push(...head.metal.map(place));
@@ -1381,11 +1413,16 @@ function buildSideStones(
       ...r, role: "side" as const, head: name,
       culet: placePoint(r.culet, steps), axis: placePoint(r.axis, steps, true),
     })));
+    const warnings = [...bench.warnings, ...head.layout.warnings] as BenchWarning[];
+    if (head.layout.blocked) {
+      warnings.push({ key: "asCastProngHeight", kind: "engine-clamped",
+        message: `The side stone cannot be set clear of the centre stone: ${head.layout.blocked}.` });
+    }
     heads.push({
       head: name, culet: placePoint([0, 0, 0], steps),
       axis: placePoint([0, 0, 1], steps, true), xDir: placePoint([1, 0, 0], steps, true),
       cut: "round", girdleR: sideR, prongCount: 4, prongAngles: head.prongAngles, style: "prong",
-      bench: { ...bench, values: head.layout.values, warnings: [...bench.warnings, ...head.layout.warnings] },
+      bench: { ...bench, values: head.layout.values, warnings },
       layout: head.layout,
     });
   }
@@ -1608,8 +1645,25 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   void band;
 
   if (style === "three_stone") {
-    const sides = buildSideStones(girdleR, outerR, 0.45,
-      { benchFor, span: (t, a) => span(t, a), slotHalf, halfWidth, alloy });
+    // The centre stone's hull in the ring's frame, for the side heads to
+    // keep clear of (see SideContext).
+    const cf = heads[0];
+    const cy = cross3(cf.axis, cf.xDir);
+    const centrePlanes = hullPlanes(head.layout.stone).map(({ n, h }) => {
+      const N: V3 = [
+        n[0] * cf.xDir[0] + n[1] * cy[0] + n[2] * cf.axis[0],
+        n[0] * cf.xDir[1] + n[1] * cy[1] + n[2] * cf.axis[1],
+        n[0] * cf.xDir[2] + n[1] * cy[2] + n[2] * cf.axis[2],
+      ];
+      return { n: N, h: h + dot3(N, cf.culet) };
+    });
+    const sides = buildSideStones(girdleR, outerR, {
+      centre: {
+        planes: centrePlanes, culet: cf.culet,
+        clearance: 0.05, culetClearance: bench.values.culetClearance,
+      },
+      benchFor, span: (t, a) => span(t, a), slotHalf, halfWidth, alloy,
+    });
     metalParts.push(...sides.metal);
     metalRoles.push(...sides.metalRoles);
     accents.push(...sides.stones);
@@ -1712,7 +1766,12 @@ export function previewEdges(parts: Shape3D[], deflection = 0.02): Float32Array 
   return out;
 }
 
-export type FuseResult = { metal: Shape3D; dropped: number };
+export type FuseResult = {
+  metal: Shape3D;
+  dropped: number;
+  /** Microscopic sealed cavities the fuse left and sealVoids filled (see there). */
+  voidsFilled: number;
+};
 
 /**
  * Cuts many tools out of one solid, in validated batches.
@@ -1804,7 +1863,47 @@ export function fuseMetal(parts: Shape3D[]): FuseResult {
     if (next && nv >= vol - 1e-6) { out = next; vol = nv; }
     else dropped++;
   }
-  return { metal: out, dropped };
+  const sealed = sealVoids(out);
+  return { metal: sealed.shape, dropped, voidsFilled: sealed.filled };
+}
+
+/**
+ * Fills the specks of air a fuse can seal inside the metal, and only those.
+ *
+ * Where two parts meet very nearly tangent, OCCT's fuse can close off a
+ * cavity a few thousandths of a millimetre across: a halo bearer level with
+ * the rail's face did it on a 1 ct cushion, and a marquise halo and a
+ * three-stone with 2 mm prongs had four each (S1). A sealed cavity cannot be
+ * cast, carries no metal anyone designed, and makes STEP write the piece as a
+ * solid with voids instead of one manifold solid. So a solid whose inner
+ * shells all enclose less than 0.001 mm³ is rebuilt from its outer shell. A
+ * larger cavity is a real defect and is left for the checks to report.
+ */
+function sealVoids(shape: Shape3D): { shape: Shape3D; filled: number } {
+  const solids = shape.solids;
+  let filled = 0;
+  const out: Shape3D[] = [];
+  for (const solid of solids) {
+    const shells = [...iterTopo(solid.wrapped, "shell")];
+    if (shells.length < 2) { out.push(solid as Shape3D); continue; }
+    const fixer = new (getOC()).ShapeFix_Solid();
+    try {
+      const pieces = shells.map((sh) => {
+        const s = cast(fixer.SolidFromShell(sh)) as Shape3D;
+        return { s, v: Math.abs(measureVolume(s)) };
+      }).sort((a, b) => b.v - a.v);
+      if (pieces.slice(1).every((p) => p.v < 1e-3)) {
+        out.push(pieces[0].s);
+        filled += pieces.length - 1;
+      } else {
+        out.push(solid as Shape3D);
+      }
+    } finally {
+      fixer.delete();
+    }
+  }
+  if (!filled) return { shape, filled };
+  return { shape: out.length === 1 ? out[0] : (makeCompound(out) as Shape3D), filled };
 }
 
 export function ringMetrics(

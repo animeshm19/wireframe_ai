@@ -529,7 +529,12 @@ export type ProngPlan = {
   };
 };
 
-export type RailPlan = { z: number; centreR: number; tubeR: number };
+/**
+ * The interim rail (S2 replaces it): a flat ring of square section, its
+ * centre `centreR` out and `z` up, `half` either side of that in both.
+ * Clearances are taken to its corners, `half × √2` out.
+ */
+export type RailPlan = { z: number; centreR: number; half: number };
 
 export type HeadLayout = {
   stone: StoneProfile;
@@ -539,11 +544,31 @@ export type HeadLayout = {
   warnings: LayoutWarning[];
   /** The interim gallery rail (S2 replaces it). Null for a head without prongs. */
   rail: RailPlan | null;
+  /**
+   * Why this head cannot keep clear of a stone or point it was told to
+   * avoid, if it cannot: then nothing short of moving the head helps, and the
+   * caller should (a three-stone opens its side stones out, see the engine).
+   */
+  blocked: string | null;
 };
 
 export type LayoutOptions = {
   /** The alloy's minimum prong diameter: an engine clamp never goes below it. */
   minProngDiameter?: number;
+  /**
+   * Other stones, as half spaces bounding them in this head's frame, that
+   * every part of this head must keep `clearance` from; and points it must
+   * keep `r` from. A three-stone's side heads are given the centre stone and
+   * its culet: their as-cast prongs stand tall enough to reach it.
+   */
+  avoid?: { planes: HalfSpace[]; clearance: number }[];
+  avoidPoints?: { p: V3; r: number }[];
+  /**
+   * Where the interim rail must run, when something else hangs off it: a
+   * halo's bearers (round, radius `bearer`) run out from the head at height
+   * `z` and are carried by the rail. The posts then stay straight down past it.
+   */
+  railAt?: { z: number; bearer: number };
 };
 
 /** Prong directions, unchanged from the first engine. */
@@ -696,16 +721,52 @@ export function layoutHead(
     for (const p of prongs) { p.tip = stone.zT + want; p.postTop = p.tip - d / 2; }
   }
 
+  // Another stone in the way of a tall cast prong (a three-stone's side head
+  // leaning towards the centre stone): the prongs are cast shorter, so none
+  // reaches it, and that is reported.
+  const avoid = opts.avoid ?? [];
+  const avoidPoints = opts.avoidPoints ?? [];
+  let blocked: string | null = null;
+  if (prongs.length && (avoid.length || avoidPoints.length)) {
+    const step = 0.05;
+    const hits = (c: V3) =>
+      avoid.some((o) => circleBound(o.planes, c, [0, 0, 1], d / 2) - step / 2 < o.clearance) ||
+      avoidPoints.some((o) => Math.hypot(c[0] - o.p[0], c[1] - o.p[1], c[2] - o.p[2]) - d / 2 - step / 2 < o.r);
+    let lowestHit = Infinity;
+    for (const p of prongs) {
+      // The post from below its seat to the top. Below the girdle it cannot
+      // move at all; above, it can only be cast shorter.
+      for (let z = p.seatLow - 0.1; z <= p.tip + 1e-9; z += step) {
+        if (hits([p.postCentre[0], p.postCentre[1], z])) { lowestHit = Math.min(lowestHit, z); break; }
+      }
+    }
+    // Never shorter than the seat needs: a post that stops in its own seat is
+    // not a prong (and OCCT throws building one).
+    const lowestTop = Math.max(highest, measureZ + 0.1 + d / 2);
+    if (Number.isFinite(lowestHit)) {
+      const want = lowestHit - 0.05 - stone.zT;
+      if (stone.zT + want < lowestTop) {
+        blocked = `a prong meets the next stone ${fmt(lowestHit)} mm above the culet, below the top of its own seat`;
+      } else if (want < values.asCastProngHeight) {
+        warn("asCastProngHeight", `Prong height ${fmt(values.asCastProngHeight)} mm would reach the next stone, so ${fmt(want)} mm is used.`);
+        values.asCastProngHeight = want;
+        for (const p of prongs) { p.tip = stone.zT + want; p.postTop = p.tip - d / 2; }
+      }
+    }
+  }
+
   let rail: RailPlan | null = null;
   if (band && prongCount > 0) {
     const planes = hullPlanes(stone);
     let bendWarned = false;
     const grow = CORNER_FACTOR * tol;
-    const seatPlanes = planes.map((pl) => ({ n: pl.n, h: pl.h + grow * Math.hypot(pl.n[0], pl.n[1]) }));
+    const seatPlanes = planes.map((pl) =>
+      ({ n: pl.n, h: pl.h + grow * Math.hypot(pl.n[0], pl.n[1]) + tol * Math.abs(pl.n[2]) }));
     const choices: LegChoice[] = [];
     let short = Infinity;
     for (const p of prongs) {
-      const r = layoutLeg(p, stone, values, band, planes, choices);
+      const r = layoutLeg(p, stone, values, band, planes, choices, avoid, avoidPoints,
+        opts.railAt == null ? null : opts.railAt.z + opts.railAt.bearer * 0.5 - 0.34 * d * Math.SQRT2 - 0.1);
       if (!choices.some((c) => c.r === r.choice.r && c.bend === r.choice.bend && c.mode === r.choice.mode && c.drop === r.choice.drop)) choices.push(r.choice);
       p.spine = r.spine;
       if (r.bendClamped && !bendWarned) {
@@ -713,6 +774,7 @@ export function layoutHead(
         warn("minBendRadius", `A bend of ${fmt(values.minBendRadius)} prong thicknesses does not fit between the seat and the band on this stone, so ${fmt(r.bendUsed)} is used.`);
       }
       if (!r.clearanceMet) short = Math.min(short, r.spine.pavilionClearance);
+      if (r.otherShort) blocked ??= `prong ${p.index + 1}'s leg cannot keep clear of the next stone`;
       // The seat cutter, cut down to a box round every part of this prong
       // that comes within reach of the envelope: the post's seat, and the
       // bend too when the bend had to start under the seat.
@@ -758,7 +820,10 @@ export function layoutHead(
     // but never up in the legs' bends: a torus crossing a torus is the
     // slowest intersection OCCT has, and the merge took 1.2 s on that one
     // fuse when the rail crossed the bends (S1). It crosses the straight legs.
-    const tubeR = 0.375 * d;
+    // Square section, about the old round wire's area; tubeR is how far its
+    // corners reach, which every clearance below is taken to.
+    const half = 0.34 * d;
+    const tubeR = half * Math.SQRT2;
     const oldZ = -0.6 + 0.55 * (stone.zGt + stone.crownH / 2 + 0.6);
     const bendBottom = Math.min(...prongs.map((p) => {
       const sp = p.spine!;
@@ -766,6 +831,19 @@ export function layoutHead(
     }));
     const footTop = Math.max(...prongs.map((p) => p.spine!.foot[2]));
     let z = Math.max(footTop + tubeR + 0.3, Math.min(oldZ, bendBottom - tubeR - 0.05));
+    if (opts.railAt) {
+      // Through the bearers, but with the rail's flat top and bottom well off
+      // the bearers' own top and bottom: level with them is a tangent contact,
+      // and on a 1 ct cushion halo (bearer radius 0.284, rail half 0.284) the
+      // fuse sealed two specks of air inside the metal, which STEP then
+      // writes as a solid with voids rather than one manifold solid (S1).
+      const { z: zb, bearer: rb } = opts.railAt;
+      const clean = (dz: number) => Math.abs(dz + half - rb) > 0.06 && Math.abs(dz - half + rb) > 0.06 &&
+        Math.abs(dz + half + rb) > 0.06 && Math.abs(dz - half - rb) > 0.06;
+      const shift = [0, 0.1, -0.1, 0.15, -0.15, 0.2, -0.2].map((k) => k * Math.max(rb, half) * 2)
+        .find((dz) => Math.abs(dz) < rb + half - 0.1 && clean(dz)) ?? 0;
+      z = zb + shift;
+    }
     const radiusAt = (zz: number) => {
       const radii = prongs.map((p) => spineRadiusAt(p.spine!, zz));
       return radii.reduce((t, x) => t + x, 0) / radii.length;
@@ -798,10 +876,63 @@ export function layoutHead(
     // stone, which the audit checks; S2 replaces it with a rail that follows
     // the stone.
     const clear = hullR + CORNER_FACTOR * tol + tubeR + 0.05;
-    rail = { z, centreR: Math.max(centreR, clear), tubeR };
+    // A rail must cross each prong cleanly or miss it cleanly: a torus that
+    // only grazes a prong is a near-tangent contact, the case OCCT's fuse
+    // gets wrong (a 3 ct emerald's rail, pushed out to clear the long stone,
+    // passed 0.13 mm from two legs and the fuse dropped it, S1). And it must
+    // cross at least one, or it is a loose ring of metal.
+    const fit = (zz: number, RR: number) => {
+      let crosses = 0;
+      for (const p of prongs) {
+        let dmin = Infinity;
+        for (const { c } of spineSamples(p.spine!.foot, p.spine!.corner, p.spine!.top, p.spine!.bendRadius, d / 2, 0.05)) {
+          const radial = Math.hypot(c[0], c[1]) - RR;
+          dmin = Math.min(dmin, Math.hypot(radial, c[2] - zz));
+        }
+        // Crossing is judged on the section's flat sides, missing on its corners.
+        if (dmin > half + d / 2 - 0.3 && dmin < tubeR + d / 2 + 0.15) return false;
+        if (dmin <= half + d / 2 - 0.3) crosses++;
+      }
+      return crosses > 0;
+    };
+    // Outward from where it would sit, in 0.05 mm steps, to the first radius
+    // that fits; if none within 2 mm does, it stays where it was.
+    let R = Math.max(centreR, clear);
+    for (let k = 0; k <= 40; k++) { if (fit(z, R + k * 0.05)) { R += k * 0.05; break; } }
+    // And clear of any other stone or point. If the rail cannot be, it moves
+    // up or down the legs to where it is; failing that this head goes without
+    // it, which is safe only because every foot stands in the band.
+    const railClear = (zz: number, RR: number) => {
+      for (let q = 0; q < 48; q++) {
+        const a = (q / 48) * Math.PI * 2;
+        const c: V3 = [RR * Math.cos(a), RR * Math.sin(a), zz];
+        const t: V3 = [-Math.sin(a), Math.cos(a), 0];
+        const slack = (RR + tubeR) * (Math.PI / 48);
+        if (avoid.some((o) => circleBound(o.planes, c, t, tubeR) - slack < o.clearance)) return false;
+        if (avoidPoints.some((o) => Math.hypot(c[0] - o.p[0], c[1] - o.p[1], c[2] - o.p[2]) - tubeR - slack < o.r)) return false;
+      }
+      return true;
+    };
+    if (railClear(z, R)) {
+      rail = { z, centreR: R, half };
+    } else {
+      const lo = footTop + tubeR + 0.3, hi = bendBottom - tubeR - 0.05;
+      for (let k = 1; k * 0.1 <= Math.max(z - lo, hi - z) + 1e-9 && !rail; k++) {
+        for (const zz of [z + k * 0.1, z - k * 0.1]) {
+          if (zz < lo || zz > hi) continue;
+          const RR = Math.max(radiusAt(zz), clear);
+          if (railClear(zz, RR)) { rail = { z: zz, centreR: RR, half }; break; }
+        }
+      }
+      if (!rail && prongs.some((p) => !p.spine!.footInBand)) {
+        // A prong with no foot in the band needs the rail to hold it.
+        rail = { z, centreR: R, half };
+        blocked ??= "the rail cannot keep clear of the next stone, and a prong needs it";
+      }
+    }
   }
 
-  return { stone, prongs, values, warnings, rail };
+  return { stone, prongs, values, warnings, rail, blocked };
 }
 
 /** A rigid move about the head axis: a turn, or a reflection in a plane through the axis. */
@@ -898,6 +1029,10 @@ type LegChoice = { r: number; bend: number; mode: "clear" | "under-seat"; drop: 
 function layoutLeg(
   p: ProngPlan, stone: StoneProfile, v: BenchValues, band: BandProbe, planes: HalfSpace[],
   hints: LegChoice[] = [],
+  avoid: { planes: HalfSpace[]; clearance: number }[] = [],
+  avoidPoints: { p: V3; r: number }[] = [],
+  /** If set, the post runs straight down at least to here before it bends. */
+  straightTo: number | null = null,
 ) {
   const d = p.d, half = d / 2;
   const rMin = v.culetClearance + half + 0.05;
@@ -982,24 +1117,52 @@ function layoutLeg(
   type Built = ReturnType<typeof build>;
 
   const measure = (s: Built) => {
-    let pav = Infinity, seat = Infinity, culet = Infinity;
+    let pav = Infinity, seat = Infinity, culet = Infinity, other = Infinity;
     for (const { c: q, t, onPost, slack } of spineSamples(s.foot, s.corner, top, s.bend, half)) {
       culet = Math.min(culet, Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]) - half - slack);
+      // Clear of any other stone and point: below the seat, where the
+      // corner and foot go decides it (the post above was cast short enough).
+      if (!onPost || q[2] < p.seatLow) {
+        for (const o of avoid) other = Math.min(other, circleBound(o.planes, q, t, half, o.clearance + slack + 0.2) - slack - o.clearance);
+        for (const o of avoidPoints) other = Math.min(other, Math.hypot(q[0] - o.p[0], q[1] - o.p[1], q[2] - o.p[2]) - half - slack - o.r);
+      }
       // Any of this section below girdle − d? Its lowest point is half its
       // width times how far it leans from level.
       const low = q[2] - half * Math.sqrt(Math.max(0, 1 - t[2] * t[2])) - slack <= below;
       if (low) pav = Math.min(pav, circleBound(planes, q, t, half, target + slack + 0.2) - slack);
       if (!onPost) seat = Math.min(seat, circleBound(seatPlanes, q, t, half, outsideSeat + slack + 0.2) - slack);
     }
-    return { pav, seat, culet };
+    return { pav, seat, culet, other };
   };
   // The foot stands outside a cylinder of culetClearance round the axis; the
   // rest of the prong is held to the culet by the exact distance above.
   const footOut = (s: Built) => Math.hypot(s.foot[0], s.foot[1]) >= rMin - 1e-9;
+  // A leg goes down to its foot: at least 0.3 mm of fall for every mm across
+  // (a lowered corner once ended under its own foot, the "leg" climbing back
+  // up into the band, and OCCT's fuse returned the prong alone).
+  const descends = (s: Built) => {
+    const across = Math.hypot(s.foot[0] - s.corner[0], s.foot[1] - s.corner[1]);
+    return s.corner[2] - s.foot[2] >= Math.max(0.3, 0.3 * across);
+  };
+  // Where the structure audit takes the joint (I7): band top + 0.10 on the
+  // axis, within 1.2 × the girdle radius. Legs that cross it inside that disc
+  // carry their whole section into the measure, as the first engine's did;
+  // preferred, and dropped only when nothing else fits.
+  const jointZ = band.topOnAxis + 0.1, jointR = 1.2 * stone.girdleR;
+  let wantJoint = true;
+  const inJoint = (s: Built) => {
+    const dir = unitV(sub(s.corner, s.foot));
+    if (dir[2] <= 1e-6 || s.foot[2] > jointZ) return true;
+    const t = (jointZ - s.foot[2]) / dir[2];
+    const q = add(s.foot, scale(dir, t));
+    return Math.hypot(q[0], q[1]) + half / Math.max(0.2, dir[2]) <= jointR - 0.02;
+  };
+  const straight = (s: Built) => straightTo == null || s.corner[2] + (s.bend * Math.tan(
+    Math.acos(Math.min(1, Math.max(-1, -unitV(sub(s.foot, s.corner))[2]))) / 2)) <= straightTo + 1e-9;
   const ok = (s: Built, mode: Mode) => {
-    if (!footOut(s)) return false;
+    if (!footOut(s) || !descends(s) || !straight(s) || (wantJoint && !inJoint(s))) return false;
     const m = measure(s);
-    return m.pav >= target && m.culet >= culetTarget && (mode === "under-seat" || m.seat >= outsideSeat);
+    return m.pav >= target && m.culet >= culetTarget && m.other >= 0 && (mode === "under-seat" || m.seat >= outsideSeat);
   };
 
   const rHi = Math.hypot(c[0], c[1]) + 3 * d;
@@ -1038,32 +1201,43 @@ function layoutLeg(
   // pavilion to get there (default ring, prongs at 60°, 0.6 mm asked: 0.31
   // reachable). Keeping the post straight until the pavilion has narrowed
   // clears it. Only then the seat-side bend, then a tighter bend.
-  const drops = [0, 1, 2, 3];
-  search:
-  for (const bend of chosen ? [] : bends) {
-    for (const drop of drops) {
-      for (const m of ["clear", "under-seat"] as Mode[]) {
-        if (m === "under-seat" && drop > 0) continue;
-        chosen = search(bend, m, drop);
-        if (chosen) { mode = m; break search; }
+  const drops = [0, 0.5, 1, 1.5, 2, 3];
+  for (const joint of [true, false]) {
+    wantJoint = joint;
+    search:
+    for (const bend of chosen ? [] : bends) {
+      for (const drop of drops) {
+        for (const m of ["clear", "under-seat"] as Mode[]) {
+          if (m === "under-seat" && drop > 0) continue;
+          chosen = search(bend, m, drop);
+          if (chosen) { mode = m; break search; }
+        }
       }
     }
+    if (chosen) break;
   }
+  wantJoint = false;
   let clearanceMet = true;
   if (!chosen) {
     // Nothing meets every rule: keep the culet clear and the bend as asked,
     // and come as close to the pavilion clearance as the stone allows; the
     // head reports the gap it could keep (see layoutHead).
     clearanceMet = false;
-    let bestPav = -Infinity;
-    for (const drop of drops) {
-      for (let x = rMin; x <= rHi + 1e-9; x += 0.2) {
-        const s = build(x, wantBend, "clear", drop);
-        const ms = measure(s);
-        if (ms.culet >= culetTarget && ms.seat >= outsideSeat && footOut(s) && ms.pav > bestPav + 1e-9) {
-          bestPav = ms.pav; chosen = { ...s, r: x, drop }; mode = "clear";
+    // Inside the joint disc if any such leg exists, as the main search prefers.
+    for (const joint of [true, false]) {
+      let bestPav = -Infinity;
+      for (const drop of drops) {
+        for (let x = rMin; x <= rHi + 1e-9; x += 0.2) {
+          const s = build(x, wantBend, "clear", drop);
+          if (joint && !inJoint(s)) continue;
+          const ms = measure(s);
+          if (ms.culet >= culetTarget && ms.other >= 0 && ms.seat >= outsideSeat && footOut(s) && descends(s) &&
+              straight(s) && ms.pav > bestPav + 1e-9) {
+            bestPav = ms.pav; chosen = { ...s, r: x, drop }; mode = "clear";
+          }
         }
       }
+      if (chosen) break;
     }
     chosen ??= { ...build(rHi, tightest, "under-seat"), r: rHi, drop: 0 };
   }
@@ -1077,6 +1251,7 @@ function layoutLeg(
     },
     mode,
     clearanceMet,
+    otherShort: m.other < 0,
     bendClamped: chosen.bend < wantBend - 1e-9,
     bendUsed: (chosen.bend - half) / d,
   };

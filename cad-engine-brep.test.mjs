@@ -838,3 +838,28 @@ test("bench: culet gap and pavilion gap reach the geometry", async () => {
 test("bench: prong thickness and cast height reach the geometry", async () => {
   await checkBench(["prongDiameter", "asCastProngHeight"]);
 });
+
+test("three-stone side heads keep clear of the centre stone and its culet", async () => {
+  // Side heads' cast prongs stand tall; at 3 ct, or with 2 mm prongs and a
+  // 1.5 mm culet gap, they reached the centre stone and came within 0.97 mm
+  // of its culet. The side stones open out until they clear (S1).
+  const std = await import("./.brepcheck/setting-standards.js");
+  const max = Object.fromEntries(std.BENCH_FIELDS.map((f) => [f.key, std.benchBounds(f.key, "platinum").max]));
+  for (const spec of [{ setting: "three_stone", gemSize: 3 }, { setting: "three_stone", bench: max }]) {
+    await checkSeated(spec);
+  }
+});
+
+test("the merge leaves no sealed cavity and exports one manifold solid", async () => {
+  // Near-tangent contacts sealed specks of air inside the metal (a 1 ct
+  // cushion halo, a marquise halo), which STEP writes as a solid with voids.
+  const { iterTopo } = await import("replicad");
+  for (const spec of [{ setting: "halo", gemShape: "cushion" }, { setting: "halo", gemShape: "marquise" }]) {
+    const { metal } = brep.fuseMetal(brep.buildRingParts(spec, { seats: true }).metalParts);
+    assert.equal(metal.solids.length, 1, `${JSON.stringify(spec)} one solid`);
+    assert.equal([...iterTopo(metal.wrapped, "shell")].length, 1, `${JSON.stringify(spec)} one shell, no voids`);
+    const text = await brep.toSTEP(metal, null).text();
+    assert.equal((text.match(/MANIFOLD_SOLID_BREP/g) || []).length, 1, `${JSON.stringify(spec)} STEP manifold solid`);
+    assert.equal((text.match(/BREP_WITH_VOIDS/g) || []).length, 0, `${JSON.stringify(spec)} no voids in STEP`);
+  }
+});
