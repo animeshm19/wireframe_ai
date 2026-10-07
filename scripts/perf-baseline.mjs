@@ -5,6 +5,7 @@
  *   node scripts/perf-baseline.mjs            median of 5 per phase
  *   node scripts/perf-baseline.mjs --runs 9
  *   node scripts/perf-baseline.mjs --spec '{"gemShape":"oval"}'
+ *   node scripts/perf-baseline.mjs --cold     without the boot warm-up
  *
  * Two numbers, in ms:
  *   preview  buildRingParts(spec) + previewMesh + previewEdges, as the
@@ -17,6 +18,11 @@
  * OCCT's heap only grows (see cad-engine-brep.ts), so a second run in the same
  * process is measuring a different, fuller kernel; and the worker that runs
  * this in the app is recycled for the same reason. Kernel boot is excluded.
+ *
+ * Booted through initKernel, the worker's own boot, since S1: the kernel
+ * warms its code at boot (warmKernel in cad-engine-brep.ts), and a harness
+ * that boots some other way measures a kernel the app never runs. `--cold`
+ * boots the old way, without the warm-up, for comparison.
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -35,12 +41,15 @@ const arg = (name, fallback) => {
 if (process.argv.includes("--child")) {
   const phase = arg("--child");
   const spec = JSON.parse(arg("--spec", "{}"));
-  const { default: opencascade } = await import("replicad-opencascadejs");
-  const { setOC } = await import("replicad");
-  setOC(await opencascade({
-    wasmBinary: readFileSync("node_modules/replicad-opencascadejs/dist/replicad_single.wasm"),
-  }));
+  const wasm = () => readFileSync("node_modules/replicad-opencascadejs/dist/replicad_single.wasm");
   const brep = await import(`${ROOT}/.brepcheck/cad-engine-brep.js`);
+  if (process.argv.includes("--cold")) {
+    const { default: opencascade } = await import("replicad-opencascadejs");
+    const { setOC } = await import("replicad");
+    setOC(await opencascade({ wasmBinary: wasm() }));
+  } else {
+    await brep.initKernel(wasm);
+  }
 
   const t0 = performance.now();
   if (phase === "preview") {
@@ -73,7 +82,8 @@ for (const phase of ["preview", "resolve"]) {
   const ms = [];
   for (let i = 0; i < runs; i++) {
     const r = spawnSync(process.execPath,
-      [fileURLToPath(import.meta.url), "--child", phase, "--spec", spec], { encoding: "utf8" });
+      [fileURLToPath(import.meta.url), "--child", phase, "--spec", spec,
+        ...(process.argv.includes("--cold") ? ["--cold"] : [])], { encoding: "utf8" });
     if (r.status !== 0) {
       console.error(`${phase} run ${i + 1} failed:\n${r.stderr}`);
       process.exit(1);

@@ -85,9 +85,35 @@ export function initKernel(
       // leak harness then reports a flat zero and passes for the wrong reason.
       oc = OC;
       setOC(OC);
+      warmKernel();
     })();
   }
   return booting;
+}
+
+/**
+ * Builds and tessellates one small ring while the kernel boots, and throws it
+ * away.
+ *
+ * WebAssembly is compiled lazily, a function at a time, the first time it is
+ * called. Since S1 every preview cuts a seat into each prong and sweeps each
+ * prong along its spine, and the first boolean and the first sweep in a fresh
+ * kernel cost 59 and 32 ms of that compiling against 12 and 5 ms afterwards.
+ * The worker boots in an idle moment (see useBrepWorker), so paying it here
+ * takes it off the first slider movement after every recycle. A different,
+ * smaller ring from any real design, so nothing about a design is cached:
+ * only the code is warm.
+ */
+function warmKernel(): void {
+  try {
+    const parts = buildRingParts({ gemSize: 0.25, prongCount: 4 });
+    previewMesh(parts.metalParts);
+    previewEdges(parts.metalParts);
+  } catch (e) {
+    // A failed warm-up costs speed, never correctness: the real build runs
+    // the same code and reports its own errors.
+    console.warn("kernel warm-up failed", e);
+  }
 }
 
 export function kernelReady(): boolean {
