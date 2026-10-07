@@ -28,7 +28,8 @@ import {
   type PartRole, type StoneRole, type HeadFrame, type HeadName,
 } from "./cad-engine-brep.js";
 import { gemDims } from "./cad-engine.js";
-import type { ResolvedBench } from "./setting-standards.js";
+import { resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
+import type { MetalType } from "./ring-spec.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
 
 type V3 = [number, number, number];
@@ -84,8 +85,13 @@ export type BearingAudit = {
   top: number;
   /** Distance from the stone to the part of the prong below girdle − d. */
   pavilionClearance: number;
-  /** What this head was built to, for judging the numbers above. */
-  expected: { d: number; notch: number; top: number; seatTolerance: number; pavilionClearance: number };
+  /**
+   * What the design ASKED for (resolveBench, before any engine clamp), for
+   * judging the numbers above; d is the prong as built, whose own value I13
+   * judges. Judging against the engine's clamped values instead would let an
+   * over-eager clamp pass every check (found in S1's review).
+   */
+  expected: { d: number; notch: number; top: number; zT: number; seatTolerance: number; pavilionClearance: number };
 };
 
 export type GalleryAudit = {
@@ -112,7 +118,12 @@ export type GalleryAudit = {
 
 export type StructureAudit = {
   spec: Record<string, unknown>;
+  /** The centre head's values as built: resolveBench, then any engine clamp. */
   bench: ResolvedBench;
+  /** The centre head's values as asked: resolveBench alone. The invariants judge against these. */
+  requested: BenchValues;
+  /** Microscopic sealed cavities the merge filled (fuseMetal → sealVoids). */
+  voidsFilled: number;
   solidCount: number;
   dropped: number;
   metalVolume: number;
@@ -206,7 +217,7 @@ export async function auditStructure(
   const t0 = performance.now();
   const fused = buildRingParts(spec, { seats: true });
   const t1 = performance.now();
-  const { metal, dropped } = fuseMetal(fused.metalParts);
+  const { metal, dropped, voidsFilled } = fuseMetal(fused.metalParts);
   const t2 = performance.now();
 
   // The files first, straight off the fuse, as the app exports them: every
@@ -227,6 +238,10 @@ export async function auditStructure(
   // The values the engine actually built with: resolveBench's clamps and
   // then any engine clamp (since S1), as the engine reports them.
   const bench = parts.bench;
+  const askedFor = (girdleR: number): BenchValues => resolveBench(spec.bench as Record<string, unknown> | undefined, {
+    alloy: (spec.metalType as MetalType) ?? "platinum", girdleR, pavH: gemDims(girdleR).pavH,
+  }).values;
+  const requested = askedFor(dims.girdleR);
 
   const vol = (s: Shape3D) => measureVolume(s);
   const vols = new Map<AnyShape, number>();
@@ -323,13 +338,13 @@ export async function auditStructure(
     if (!plan) continue;
     const tag = `${r.head} prong ${r.index} bearing`;
     try {
-      bearings.push(measureBearing(metalParts[i], stones[stoneFor(r.head)], frame, plan, r.head!, r.index!));
+      bearings.push(measureBearing(metalParts[i], stones[stoneFor(r.head)], frame, plan, r.head!, r.index!, askedFor(frame.girdleR)));
     } catch (e) {
       errors.push(`${tag}: ${(e as Error)?.message ?? e}`);
       bearings.push({
         head: r.head!, index: r.index!, notchFloor: NaN, postFace: NaN, notch: NaN, postWidth: NaN,
         stoneEdge: NaN, seatGap: NaN, top: NaN, pavilionClearance: NaN,
-        expected: expectedFor(frame, plan),
+        expected: expectedFor(frame, plan, askedFor(frame.girdleR)),
       });
     }
   }
@@ -419,7 +434,7 @@ export async function auditStructure(
 
   const t3 = performance.now();
   return {
-    spec, bench,
+    spec, bench, requested, voidsFilled,
     solidCount: metal.solids.length,
     dropped,
     metalVolume: vol(metal),
@@ -528,17 +543,17 @@ export function probeSpan(solid: AnyShape, a: V3, b: V3): V3[] {
   return inside.edges.flatMap((e) => [e.startPoint, e.endPoint]).map((p) => [p.x, p.y, p.z] as V3);
 }
 
-function expectedFor(frame: HeadFrame, plan: { d: number; notch: number; tip: number }) {
-  const v = frame.bench.values;
+function expectedFor(frame: HeadFrame, plan: { d: number }, asked: BenchValues) {
+  const zT = frame.layout.stone.zT;
   return {
-    d: plan.d, notch: plan.notch, top: plan.tip,
-    seatTolerance: v.seatTolerance, pavilionClearance: v.pavilionClearance,
+    d: plan.d, notch: (asked.bearingDepth / 100) * plan.d, top: zT + asked.asCastProngHeight, zT,
+    seatTolerance: asked.seatTolerance, pavilionClearance: asked.pavilionClearance,
   };
 }
 
 function measureBearing(
   prong: Shape3D, stone: Shape3D, frame: HeadFrame,
-  plan: HeadFrame["layout"]["prongs"][number], head: HeadName, index: number,
+  plan: HeadFrame["layout"]["prongs"][number], head: HeadName, index: number, asked: BenchValues,
 ): BearingAudit {
   const st = frame.layout.stone;
   const n: V3 = [plan.normal[0], plan.normal[1], 0];
@@ -577,6 +592,6 @@ function measureBearing(
   return {
     head, index, notchFloor, postFace, notch: notchFloor - postFace, postWidth,
     stoneEdge, seatGap: notchFloor - stoneEdge, top, pavilionClearance,
-    expected: expectedFor(frame, plan),
+    expected: expectedFor(frame, plan, asked),
   };
 }

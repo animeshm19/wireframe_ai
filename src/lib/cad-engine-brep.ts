@@ -99,16 +99,19 @@ export function initKernel(
  * called. Since S1 every preview cuts a seat into each prong and sweeps each
  * prong along its spine, and the first boolean and the first sweep in a fresh
  * kernel cost 59 and 32 ms of that compiling against 12 and 5 ms afterwards.
- * The worker boots in an idle moment (see useBrepWorker), so paying it here
- * takes it off the first slider movement after every recycle. A different,
- * smaller ring from any real design, so nothing about a design is cached:
- * only the code is warm.
+ * The worker boots as soon as it is spawned, and useBrepWorker spawns a
+ * replacement in an idle moment, so paying it here takes it off the first
+ * slider movement after every recycle. A small ring, and the one cache it
+ * fills is emptied afterwards: only the code is warm.
  */
 function warmKernel(): void {
   try {
     const parts = buildRingParts({ gemSize: 0.25, prongCount: 4 });
     previewMesh(parts.metalParts);
     previewEdges(parts.metalParts);
+    // Only the code stays warm: the band polygon it cached is the default
+    // band's, and a design that happens to share it must not start warm.
+    polygonCache.clear();
   } catch (e) {
     // A failed warm-up costs speed, never correctness: the real build runs
     // the same code and reports its own errors.
@@ -1397,10 +1400,9 @@ function buildSideStones(
     sides = plan(splay);
   }
 
-  for (const { sgn, theta, steps, probe, avoid, avoidPoints, layout } of sides) {
+  for (const { sgn, steps, probe, avoid, avoidPoints, layout } of sides) {
     // sgn -1 lands at +X, sgn +1 at -X; named as the ring is seen from +Z.
     const name: HeadName = sgn < 0 ? "side-right" : "side-left";
-    void theta;
     const head = buildHead("round", sideR, 4, "prong", {
       bench: bench.values, band: probe, alloy: ctx.alloy, avoid, avoidPoints, layout,
     });
@@ -1660,6 +1662,8 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
     const sides = buildSideStones(girdleR, outerR, {
       centre: {
         planes: centrePlanes, culet: cf.culet,
+        // 0.05 mm: a margin for the check, not a dimension of the ring; the
+        // side metal only has to stay out of the stone (I2a).
         clearance: 0.05, culetClearance: bench.values.culetClearance,
       },
       benchFor, span: (t, a) => span(t, a), slotHalf, halfWidth, alloy,
@@ -1870,34 +1874,40 @@ export function fuseMetal(parts: Shape3D[]): FuseResult {
 /**
  * Fills the specks of air a fuse can seal inside the metal, and only those.
  *
- * Where two parts meet very nearly tangent, OCCT's fuse can close off a
- * cavity a few thousandths of a millimetre across: a halo bearer level with
- * the rail's face did it on a 1 ct cushion, and a marquise halo and a
- * three-stone with 2 mm prongs had four each (S1). A sealed cavity cannot be
- * cast, carries no metal anyone designed, and makes STEP write the piece as a
- * solid with voids instead of one manifold solid. So a solid whose inner
- * shells all enclose less than 0.001 mm³ is rebuilt from its outer shell. A
- * larger cavity is a real defect and is left for the checks to report.
+ * Where two parts meet very nearly tangent, OCCT's fuse can close off a tiny
+ * cavity: a halo bearer level with the rail's face did it on a 1 ct cushion,
+ * and a marquise halo and a three-stone with 2 mm prongs had four each, each
+ * about 0.01 mm across (S1). A sealed cavity cannot be cast, holds no metal
+ * anyone designed, and makes STEP write the piece as a solid with voids
+ * instead of one manifold solid.
+ *
+ * So a solid whose every extra shell is a cavity (inside the outer shell's
+ * box) enclosing under 0.001 mm³ is rebuilt from its outer shell, and the
+ * rebuilt solid is checked: one solid, no metal lost, no more gained than the
+ * cavities held. Anything else (a larger cavity, a stray shell outside) is
+ * left as it is for the checks to report, and every fill is counted in
+ * FuseResult.voidsFilled, which the structure audit records.
  */
 function sealVoids(shape: Shape3D): { shape: Shape3D; filled: number } {
-  const solids = shape.solids;
   let filled = 0;
   const out: Shape3D[] = [];
-  for (const solid of solids) {
+  for (const solid of shape.solids) {
     const shells = [...iterTopo(solid.wrapped, "shell")];
     if (shells.length < 2) { out.push(solid as Shape3D); continue; }
     const fixer = new (getOC()).ShapeFix_Solid();
     try {
       const pieces = shells.map((sh) => {
         const s = cast(fixer.SolidFromShell(sh)) as Shape3D;
-        return { s, v: Math.abs(measureVolume(s)) };
+        return { s, v: Math.abs(measureVolume(s)), box: s.boundingBox.bounds };
       }).sort((a, b) => b.v - a.v);
-      if (pieces.slice(1).every((p) => p.v < 1e-3)) {
-        out.push(pieces[0].s);
-        filled += pieces.length - 1;
-      } else {
-        out.push(solid as Shape3D);
-      }
+      const [outer, ...rest] = pieces;
+      const inside = (b: typeof outer.box) =>
+        b[0].every((x, k) => x >= outer.box[0][k] - 1e-6) && b[1].every((x, k) => x <= outer.box[1][k] + 1e-6);
+      const before = measureVolume(solid as Shape3D);
+      const voids = rest.reduce((t, p) => t + p.v, 0);
+      const ok = rest.every((p) => p.v < 1e-3 && inside(p.box)) &&
+        outer.s.solids.length === 1 && outer.v >= before - 1e-6 && outer.v <= before + voids + 1e-6;
+      if (ok) { out.push(outer.s); filled += rest.length; } else out.push(solid as Shape3D);
     } finally {
       fixer.delete();
     }

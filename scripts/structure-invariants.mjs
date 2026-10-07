@@ -56,8 +56,10 @@ function all(checks) {
 
 /**
  * How each bench field shows up in the measured geometry, for I13: `(r, v) =>
- * ({ ok, why })`, with v the effective value. The prompt that wires a field
- * adds its entry here. Judged on the centre head, whose values r.bench holds.
+ * ({ ok, why })`, with v the value the design ASKED for (r.requested, before
+ * any engine clamp: a clamp that drops a user's value must fail here, not
+ * pass against itself). The prompt that wires a field adds its entry here.
+ * Judged on the centre head.
  */
 const everyBearing = (r, test) => {
   const bs = centreBearings(r);
@@ -87,10 +89,10 @@ export const BENCH_MEASURES = {
     ok: num(b.postWidth) && Math.abs(b.postWidth - v) <= 0.01,
     why: `post ${fmt(b.postWidth)} mm across, wants ${fmt(v)} ± 0.01`,
   })),
-  asCastProngHeight: (r) => everyBearing(r, (b) => ({
-    ok: num(b.top) && Math.abs(b.top - b.expected.top) <= 0.05,
-    why: `top ${fmt(b.top)} mm above the culet, wants ${fmt(b.expected.top)} ± 0.05`,
-  })),
+  asCastProngHeight: (r, v) => everyBearing(r, (b) => {
+    const want = b.expected.zT + v;
+    return { ok: num(b.top) && Math.abs(b.top - want) <= 0.05, why: `top ${fmt(b.top)} mm above the culet, wants ${fmt(want)} ± 0.05` };
+  }),
 };
 
 export const INVARIANTS = [
@@ -147,7 +149,7 @@ export const INVARIANTS = [
     title: "culet clearance ≥ culetClearance (effective) − 0.01",
     requiredFrom: (spec) => (prongLike(spec) ? "S1" : "S6"),
     evaluate: (r) => {
-      const want = r.bench.values.culetClearance - 0.01;
+      const want = (r.requested ?? r.bench.values).culetClearance - 0.01;
       const got = r.centre.culetClearance;
       return num(got) && got >= want ? pass(fmt(got)) : fail(`culet ${fmt(got)} mm, needs ≥ ${fmt(want)}`);
     },
@@ -159,7 +161,7 @@ export const INVARIANTS = [
     evaluate: (r) => {
       const sides = r.stones.filter((s) => s.role === "side");
       if (!sides.length) return na("no side stones");
-      const want = r.bench.values.culetClearance - 0.01;
+      const want = (r.requested ?? r.bench.values).culetClearance - 0.01;
       const worst = Math.min(...sides.map((s) => (num(s.culetClearance) ? s.culetClearance : -Infinity)));
       return worst >= want ? pass(fmt(worst)) : fail(`side culet ${fmt(worst)} mm, needs ≥ ${fmt(want)}`);
     },
@@ -316,8 +318,9 @@ export const INVARIANTS = [
       return all(bs.flatMap((b) => [
         { ok: num(b.notch) && Math.abs(b.notch - b.expected.notch) <= 0.02,
           why: `prong ${b.index} seat ${fmt(b.notch)} mm deep, wants ${fmt(b.expected.notch)} ± 0.02` },
-        { ok: num(b.notch) && b.expected.d - b.notch >= b.expected.d - b.expected.notch - 0.02,
-          why: `prong ${b.index} leaves ${fmt(b.expected.d - b.notch)} mm behind the seat` },
+        // The metal behind the seat, measured: the post's width less the seat.
+        { ok: num(b.postWidth) && num(b.notch) && b.postWidth - b.notch >= b.expected.d - b.expected.notch - 0.02,
+          why: `prong ${b.index} leaves ${fmt(b.postWidth - b.notch)} mm behind the seat, wants ≥ ${fmt(b.expected.d - b.expected.notch - 0.02)}` },
       ]));
     },
   },
@@ -361,8 +364,9 @@ export const INVARIANTS = [
       const keys = r.bench.customised.filter((k) =>
         !ctx?.wiredIn?.[k] || !ctx.stage || stageIndex(ctx.wiredIn[k]) <= stageIndex(ctx.stage));
       if (!keys.length) return na("nothing customised that is wired yet");
+      const asked = r.requested ?? r.bench.values;
       const results = keys.map((k) => (BENCH_MEASURES[k]
-        ? { k, ...BENCH_MEASURES[k](r, r.bench.values[k]) }
+        ? { k, ...BENCH_MEASURES[k](r, asked[k]) }
         : { k, ok: null, why: "no measurement defined yet" }));
       const bad = results.find((x) => x.ok === false);
       if (bad) return fail(`${bad.k}: ${bad.why}`);

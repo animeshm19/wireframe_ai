@@ -783,7 +783,8 @@ async function checkSeated(spec) {
   const r = await audit.auditStructure(spec, { stl: false, step: false });
   const tag = JSON.stringify(spec);
   assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
-  const v = r.bench.values;
+  // Judged against what the design asked for, not what the engine built.
+  const v = r.requested;
   assert.ok(r.stones[0].overlapWithMetal <= 0.001, `${tag}: ${r.stones[0].overlapWithMetal} mm³ of metal in the stone`);
   assert.ok(r.centre.culetClearance >= v.culetClearance - 0.01, `${tag}: culet ${r.centre.culetClearance}`);
   const bs = r.bearings.filter((b) => b.head === "centre");
@@ -821,7 +822,7 @@ async function checkBench(fields) {
       const value = std.benchBounds(key, "platinum")[which];
       const r = await checkSeated({ bench: { [key]: value } });
       assert.ok(r.bench.customised.includes(key), `${key} ${which} reached the engine`);
-      const m = BENCH_MEASURES[key](r, r.bench.values[key]);
+      const m = BENCH_MEASURES[key](r, r.requested[key]);
       assert.ok(m.ok, `${key} at its ${which} (${value}): ${m.why}`);
     }
   }

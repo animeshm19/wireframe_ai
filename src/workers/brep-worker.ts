@@ -26,6 +26,13 @@ import type { Shape3D } from "replicad";
 /** The engine owns the kernel; the worker only says where the wasm lives. */
 const boot = (): Promise<void> => initKernel(() => wasmUrl);
 
+// Boot as soon as the worker exists, not on its first message. useBrepWorker
+// spawns a replacement in an idle moment; booting then (and warming the
+// kernel's code, see warmKernel) keeps both off the next slider movement,
+// which would otherwise wait for boot, warm-up and build together. A failed
+// boot is not lost: the first message awaits the same promise and reports it.
+boot().catch(() => {});
+
 const report = (progress: number, stage: string) =>
   self.postMessage({ type: "PROGRESS", progress, stage });
 

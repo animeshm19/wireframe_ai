@@ -20,7 +20,10 @@
 import {
   brilliantTopology, gemDims, gemOutline, TABLE_SCALE, type GemCut, type V3,
 } from "./cad-engine";
-import type { BenchKey, BenchValues } from "./setting-standards";
+import { benchBounds, type BenchKey, type BenchValues } from "./setting-standards";
+
+/** minBendRadius's own lower bound: the tightest bend the layout may fall back to. */
+const BEND_MIN = benchBounds("minBendRadius", "platinum").min;
 
 export type V2 = [number, number];
 /** One section of a stone or envelope: the girdle outline scaled by `s`, at height `z`. */
@@ -773,7 +776,12 @@ export function layoutHead(
         bendWarned = true;
         warn("minBendRadius", `A bend of ${fmt(values.minBendRadius)} prong thicknesses does not fit between the seat and the band on this stone, so ${fmt(r.bendUsed)} is used.`);
       }
-      if (!r.clearanceMet) short = Math.min(short, r.spine.pavilionClearance);
+      // Clamped only when the gap kept is genuinely less than the one asked:
+      // the fallback can also be reached for the culet or the joint, with the
+      // pavilion gap met, and must not then rewrite it upward.
+      if (!r.clearanceMet && r.spine.pavilionClearance < values.pavilionClearance) {
+        short = Math.min(short, r.spine.pavilionClearance);
+      }
       if (r.otherShort) blocked ??= `prong ${p.index + 1}'s leg cannot keep clear of the next stone`;
       // The seat cutter, cut down to a box round every part of this prong
       // that comes within reach of the envelope: the post's seat, and the
@@ -808,10 +816,10 @@ export function layoutHead(
     // do keep, and said so: until S3 gives the head a base, a prong standing
     // beyond the band's edge must bring its foot back under the stone, and
     // just below the seat its post is no further from the pavilion than the
-    // seat put it (default ring, 0.6 mm asked: 0.327 kept at 60°).
+    // seat put it (default ring, 0.6 mm asked: 0.432 kept, S1).
     if (Number.isFinite(short)) {
       const kept = Math.floor(short * 1000) / 1000;
-      warn("pavilionClearance", `Gap between prongs and the stone below the seat: ${fmt(values.pavilionClearance)} mm cannot be kept on this stone, so ${fmt(kept)} mm is used.`);
+      warn("pavilionClearance", `Gap between prongs and the stone below the seat: ${fmt(values.pavilionClearance)} mm cannot be guaranteed on this stone; at least ${fmt(kept)} mm is kept.`);
       values.pavilionClearance = kept;
     }
 
@@ -1183,7 +1191,7 @@ function layoutLeg(
   };
 
   const wantBend = v.minBendRadius * d + half;
-  const tightest = 0.5 * d + half;          // the bench field's own minimum
+  const tightest = BEND_MIN * d + half;     // the bench field's own minimum
   const bends = [wantBend];
   for (let f = 0.75; wantBend * f > tightest; f *= 0.75) bends.push(wantBend * f);
   if (bends[bends.length - 1] > tightest) bends.push(tightest);
@@ -1223,21 +1231,30 @@ function layoutLeg(
     // and come as close to the pavilion clearance as the stone allows; the
     // head reports the gap it could keep (see layoutHead).
     clearanceMet = false;
-    // Inside the joint disc if any such leg exists, as the main search prefers.
-    for (const joint of [true, false]) {
-      let bestPav = -Infinity;
-      for (const drop of drops) {
-        for (let x = rMin; x <= rHi + 1e-9; x += 0.2) {
-          const s = build(x, wantBend, "clear", drop);
-          if (joint && !inJoint(s)) continue;
+    // The most pavilion clearance any leg can keep, the user's own value
+    // being what the I10c and I13 checks hold it to; among legs within a
+    // hair of that, one that crosses the joint inside its disc.
+    // Straight down to the halo's rail first; only if that leaves the gap
+    // short, legs that bend above it (a 0.25 ct marquise halo: 0.228 mm kept
+    // straight, against 0.23 needed).
+    let bestPav = -Infinity, bestJoint = false;
+    for (const needStraight of straightTo == null ? [true] : [true, false]) {
+      if (needStraight === false && bestPav >= v.pavilionClearance - 0.015) break;
+    for (const drop of drops) {
+      for (let x = rMin; x <= rHi + 1e-9; x += 0.1) {
+        for (const m of ["clear", "under-seat"] as Mode[]) {
+          if (m === "under-seat" && drop > 0) continue;
+          const s = build(x, wantBend, m, drop);
+          if (!(footOut(s) && descends(s) && (!needStraight || straight(s)))) continue;
           const ms = measure(s);
-          if (ms.culet >= culetTarget && ms.other >= 0 && ms.seat >= outsideSeat && footOut(s) && descends(s) &&
-              straight(s) && ms.pav > bestPav + 1e-9) {
-            bestPav = ms.pav; chosen = { ...s, r: x, drop }; mode = "clear";
+          if (ms.culet < culetTarget || ms.other < 0 || (m === "clear" && ms.seat < outsideSeat)) continue;
+          const j = inJoint(s);
+          if (ms.pav > bestPav + 0.005 || (ms.pav > bestPav - 0.005 && j && !bestJoint)) {
+            bestPav = Math.max(bestPav, ms.pav); bestJoint = j; chosen = { ...s, r: x, drop }; mode = m;
           }
         }
       }
-      if (chosen) break;
+    }
     }
     chosen ??= { ...build(rHi, tightest, "under-seat"), r: rHi, drop: 0 };
   }
