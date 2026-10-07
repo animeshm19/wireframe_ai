@@ -28,6 +28,7 @@ import {
   type PartRole, type StoneRole, type HeadFrame, type HeadName,
 } from "./cad-engine-brep.js";
 import { gemDims } from "./cad-engine.js";
+import { radialHit } from "./head-layout.js";
 import { resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
 import type { MetalType } from "./ring-spec.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
@@ -114,6 +115,21 @@ export type GalleryAudit = {
    * own gallery thickness rather than the centre stone's.
    */
   bench: { galleryClearance: number; galleryThickness: number };
+  /** The values this head was asked for (resolveBench alone): the invariants judge against these. */
+  requested: { galleryClearance: number; galleryThickness: number };
+  /** Where the layout put the gallery's centreline, from the culet, and how far below the rule that is. */
+  planHeight: number;
+  lowered: number;
+  /** Whether a lowering was reported as an engine clamp. */
+  loweredReported: boolean;
+  /** Whether a thinner wire than asked was reported as an engine clamp (see placeGallery). */
+  thinnedReported: boolean;
+  /**
+   * I5b: how far the gallery reaches out beyond the girdle, seen from above,
+   * at its worst over 360 directions (negative: that much inside the girdle).
+   * Probed at the gallery's own height, where a round wire is widest.
+   */
+  beyondGirdle: number;
 };
 
 export type StructureAudit = {
@@ -359,6 +375,8 @@ export async function auditStructure(
     const centroid = measureShapeVolumeProperties(part).centerOfMass as V3;
     const inProngs = prongAudits.filter((p) => p.head === r.head);
     const own = frame.bench.values;
+    const asked = askedFor(frame.girdleR);
+    const plan = frame.layout.gallery;
     return {
       head: r.head!, part: g,
       inStone: common(part, held, `${tag} ∩ stone`),
@@ -369,8 +387,63 @@ export async function auditStructure(
       prongsTouched: inProngs.filter((p) => p.inGallery > 0.02).length,
       prongCount: frame.prongCount,
       bench: { galleryClearance: own.galleryClearance, galleryThickness: own.galleryThickness },
+      requested: { galleryClearance: asked.galleryClearance, galleryThickness: asked.galleryThickness },
+      planHeight: plan ? plan.z : NaN,
+      lowered: plan ? plan.mid - plan.z : NaN,
+      loweredReported: frame.bench.warnings.some((w) => w.kind === "engine-clamped" && /below the middle of the pavilion/.test(w.message)),
+      thinnedReported: frame.bench.warnings.some((w) => w.kind === "engine-clamped" && w.key === "galleryThickness" && /would show beyond the girdle/.test(w.message)),
+      beyondGirdle: plan ? beyondGirdle(part, frame, plan.z, tag) : NaN,
     };
   });
+
+  /**
+   * See GalleryAudit.beyondGirdle. One exact section of the gallery by the
+   * plane at its height (a disc face, as the joint is measured), its edges
+   * sampled every 0.01 mm or finer, and 360 rays out from the head axis run
+   * against that outline in plain arithmetic. A probe line per direction was
+   * 360 OCCT booleans a gallery, and on a three-stone the leaking kernel ran
+   * out of memory before the audit finished (S2).
+   */
+  function beyondGirdle(part: Shape3D, frame: HeadFrame, z: number, tag: string): number {
+    try {
+      const girdle = frame.layout.stone.girdle;
+      const disc = makeFace(assembleWire([makeCircle(frame.girdleR * 3, toRing(frame, [0, 0, z]), frame.axis)]));
+      const section = part.intersect(disc as unknown as Shape3D);
+      const segs: [number, number, number, number][] = [];
+      for (const e of section.edges) {
+        const n = Math.max(8, Math.ceil(e.length / 0.01));
+        let prev: V3 | null = null;
+        for (let k = 0; k <= n; k++) {
+          const v = e.pointAt(k / n);
+          const q = toHead(frame, [v.x, v.y, v.z]);
+          if (prev) segs.push([prev[0], prev[1], q[0], q[1]]);
+          prev = q;
+        }
+      }
+      if (!segs.length) { errors.push(`${tag}: empty section at the gallery's height`); return NaN; }
+      let worst = -Infinity;
+      for (let k = 0; k < 360; k++) {
+        const a = (k / 360) * Math.PI * 2;
+        const ux = Math.cos(a), uy = Math.sin(a);
+        let far = -Infinity;
+        for (const [ax, ay, bx, by] of segs) {
+          // Ray from the axis along u against the segment a→b.
+          const ex = bx - ax, ey = by - ay;
+          const den = ux * ey - uy * ex;
+          if (Math.abs(den) < 1e-15) continue;
+          const t = (ax * ey - ay * ex) / den;
+          const w = (ax * uy - ay * ux) / den;
+          if (t > 0 && w >= 0 && w <= 1) far = Math.max(far, t);
+        }
+        if (Number.isFinite(far)) worst = Math.max(worst, far - radialHit(girdle, a).r);
+      }
+      if (!Number.isFinite(worst)) { errors.push(`${tag}: no ray met the gallery's section`); return NaN; }
+      return worst;
+    } catch (e) {
+      errors.push(`${tag}: girdle section threw ${(e as Error)?.message ?? e}`);
+      return NaN;
+    }
+  }
 
   /**
    * The gallery cut by a thin slab lying in the half-plane between prong 0

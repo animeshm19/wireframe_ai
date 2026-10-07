@@ -93,7 +93,29 @@ export const BENCH_MEASURES = {
     const want = b.expected.zT + v;
     return { ok: num(b.top) && Math.abs(b.top - want) <= 0.05, why: `top ${fmt(b.top)} mm above the culet, wants ${fmt(want)} ± 0.05` };
   }),
+  // S2
+  galleryClearance: (r, v) => {
+    const g = r.galleries.find((x) => x.head === "centre");
+    if (!g) return { ok: false, why: "no centre gallery" };
+    return { ok: num(g.clearanceToStone) && g.clearanceToStone >= v - 0.02 && g.clearanceToStone <= v + 0.10,
+      why: `gallery ${fmt(g.clearanceToStone)} mm from the stone, wants ${fmt(v - 0.02)} to ${fmt(v + 0.10)}` };
+  },
+  galleryThickness: (r, v) => {
+    const g = r.galleries.find((x) => x.head === "centre");
+    if (!g) return { ok: false, why: "no centre gallery" };
+    return { ok: num(g.thicknessEstimate) && Math.abs(g.thicknessEstimate - v) <= 0.02,
+      why: `gallery ${fmt(g.thicknessEstimate)} mm thick, wants ${fmt(v)} ± 0.02` };
+  },
 };
+
+/**
+ * The centre head's gallery, for I5b. A three-stone's side heads carry
+ * galleries too (S2), and I4 and I5 hold them as they always have; but their
+ * stones, 0.62 × the centre's girdle, are S6's, and at the default 1 ct ring a
+ * 0.7 mm wire (the platinum minimum wall) under a 0.24 ct side stone shows
+ * 0.01 mm beyond its girdle at any height. Their figures stay in the report.
+ */
+const centreGalleries = (r) => r.galleries.filter((g) => g.head === "centre");
 
 export const INVARIANTS = [
   {
@@ -193,9 +215,10 @@ export const INVARIANTS = [
     evaluate: (r) => {
       if (!r.galleries.length) return na("no gallery");
       return all(r.galleries.flatMap((g) => {
-        // Each head by its own values (a side head's automatic ones follow its
-        // smaller stone); reports from before S0's review carry none.
-        const gc = g.bench?.galleryClearance ?? r.bench.values.galleryClearance;
+        // Each head by the values it asked for (a side head's automatic ones
+        // follow its smaller stone), not the engine's; reports from before
+        // S2 carry only the built ones.
+        const gc = g.requested?.galleryClearance ?? g.bench?.galleryClearance ?? r.bench.values.galleryClearance;
         return [
         { ok: num(g.inStone) && g.inStone <= 0.001, why: `${g.head} gallery in stone ${fmt(g.inStone)} mm³` },
         { ok: num(g.clearanceToStone) && g.clearanceToStone >= gc - 0.02 && g.clearanceToStone <= gc + 0.10,
@@ -212,7 +235,7 @@ export const INVARIANTS = [
     evaluate: (r) => {
       if (!r.galleries.length) return na("no gallery");
       return all(r.galleries.flatMap((g) => {
-        const t = g.bench?.galleryThickness ?? r.bench.values.galleryThickness;
+        const t = g.requested?.galleryThickness ?? g.bench?.galleryThickness ?? r.bench.values.galleryThickness;
         return [
         { ok: num(g.centreHeightAboveCulet) && Math.abs(g.centreHeightAboveCulet - g.ruleOfThirdsHeight) <= 0.05,
           why: `${g.head} gallery centre ${fmt(g.centreHeightAboveCulet)} above culet, rule says ${fmt(g.ruleOfThirdsHeight)}` },
@@ -221,6 +244,19 @@ export const INVARIANTS = [
           why: `${g.head} gallery ${fmt(g.thicknessEstimate)} thick, needs ${fmt(t)}` },
         ];
       }));
+    },
+  },
+  {
+    id: "I5b",
+    title: "centre gallery hidden under the girdle seen from above (360 directions)",
+    requiredFrom: () => "S2",
+    evaluate: (r) => {
+      const gs = centreGalleries(r);
+      if (!gs.length) return na("no gallery");
+      return all(gs.map((g) => ({
+        ok: num(g.beyondGirdle) && g.beyondGirdle <= 0,
+        why: `${g.head} gallery reaches ${fmt(g.beyondGirdle)} mm beyond the girdle`,
+      })));
     },
   },
   {
