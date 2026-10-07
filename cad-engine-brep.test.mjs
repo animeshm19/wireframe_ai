@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import opencascade from "replicad-opencascadejs";
 import { setOC, measureVolume, measureDistanceBetween, makeVertex } from "replicad";
+import jscad from "@jscad/modeling";
 
 let mesh, brep, pick;
 
@@ -104,33 +105,43 @@ test("B-rep and mesh engines agree on every supported design", () => {
     for (const k of DIMS) {
       assert.equal(b[k], m[k], `${JSON.stringify(spec)} ${k}: ${b[k]} vs ${m[k]}`);
     }
-    const dv = Math.abs(b.volumeMm3 - m.volumeMm3) / m.volumeMm3 * 100;
     const ds = Math.abs(b.stoneVolumeMm3 - m.stoneVolumeMm3) / m.stoneVolumeMm3 * 100;
 
-    // The mesh engine tessellates curved profiles and runs 0.04-2% light, so it
-    // is the looser of the two. These bounds catch a kernel bug, not that gap.
+    // Metal: the BAND, compared directly, not the whole ring.
     //
-    // Halo and bezel are held to a wider bound because the two engines
-    // deliberately differ there, and the B-rep one is right. Both mesh versions
-    // were not castable:
+    // Changed in S1 of the ring-structure series (STRUCTURE-LOG.md,
+    // "Assertions changed"). The whole-ring bound was 5% (25% for halo and
+    // bezel). Since S1 the B-rep head is deliberately not the mesh head: the
+    // mesh head's prongs pass 0.64 mm³ each through the diamond and its culet
+    // sits 0.35 mm inside the band, and the frozen mesh engine keeps them that
+    // way as the reference. The default ring measured 7.8% apart once the
+    // B-rep head had seats, as-cast prongs and its culet clear, so a whole-
+    // ring bound now measures the intended redesign, not a kernel bug.
     //
-    //   halo  — the rail is a circle sized to the outline's MAXIMUM radius, so
-    //           on an oval it sails past the narrow ends without touching the
-    //           stones it carries, and nothing ties it to the centre at all.
-    //           The B-rep rail follows the outline and is carried on bearers.
-    //           Its seats are also exact rather than 12-sided and 4.5% light.
-    //   bezel — the seat floated inside the collar, touching neither it nor the
-    //           band: three separate solids. The B-rep version has a real
-    //           under-gallery flaring from the shank to the collar bore, which
-    //           is more metal because a ring that holds together IS more metal.
-    //
-    // Tightening these would mean copying those defects back in.
+    // The band is the same design in both engines, so it is compared on its
+    // own. The prompt asked for under 0.1%, and that holds only where the
+    // mesh section is exact. Measured, B-rep against mesh, default sizes:
+    //   flat −0.040%, knife −0.040%   the 128-step revolve alone
+    //   round −0.877%                  plus a 28-gon for the ellipse
+    //   comfort −2.027%                plus 14 straight runs for the dome
+    // (−2.011% to −2.032% across sizes 4 to 11 and widths 1.4 to 8 mm.) The
+    // B-rep band is exact against Pappus in "band volume matches closed form";
+    // the gap is the frozen engine's polygon, and tightening below it would
+    // mean editing the reference. So each profile gets the bound just above
+    // its measured gap.
+    const p = spec.bandProfile ?? "comfort";
+    const size = spec.ringSize ?? 6, w = spec.bandWidth ?? 2.5;
+    const innerR = innerRadius(size), t = thick(w);
+    const bandB = measureVolume(brep.buildBand(innerR, w, t, p));
+    const bandM = jscad.measurements.measureVolume(mesh.buildBand(innerR, w, t, p));
+    const db = Math.abs(bandB - bandM) / bandB * 100;
+    const bandLimit = { flat: 0.1, knife: 0.1, round: 0.95, comfort: 2.1 }[p];
+    assert.ok(db < bandLimit, `${JSON.stringify(spec)} band ${db.toFixed(3)}% (limit ${bandLimit}%)`);
+
     // three_stone and any shank stones exist only in the B-rep engine — the
     // mesh engine is frozen as the differential reference and builds neither,
-    // so it is compared on dimensions alone for those.
+    // so it is compared on dimensions and band alone for those.
     if (spec.setting === "three_stone" || spec.shankStones) continue;
-    const limit = spec.setting === "halo" || spec.setting === "bezel" ? 25 : 5;
-    assert.ok(dv < limit, `${JSON.stringify(spec)} metal ${dv.toFixed(1)}% (limit ${limit}%)`);
     assert.ok(ds < 1, `${JSON.stringify(spec)} stone ${ds.toFixed(1)}%`);
   }
 });
