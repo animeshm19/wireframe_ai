@@ -103,6 +103,12 @@ export const BENCH_MEASURES = {
   galleryThickness: (r, v) => {
     const g = r.galleries.find((x) => x.head === "centre");
     if (!g) return { ok: false, why: "no centre gallery" };
+    // Thinner only where the engine said so, to hide it under the girdle
+    // (Animesh's decision, S2), and then by exactly what it said.
+    if (g.thinnedReported && num(g.bench?.galleryThickness) && g.bench.galleryThickness < v) {
+      return { ok: num(g.thicknessEstimate) && Math.abs(g.thicknessEstimate - g.bench.galleryThickness) <= 0.02,
+        why: `gallery ${fmt(g.thicknessEstimate)} mm thick, thinned from ${fmt(v)} to ${fmt(g.bench.galleryThickness)} ± 0.02 (reported)` };
+    }
     return { ok: num(g.thicknessEstimate) && Math.abs(g.thicknessEstimate - v) <= 0.02,
       why: `gallery ${fmt(g.thicknessEstimate)} mm thick, wants ${fmt(v)} ± 0.02` };
   },
@@ -230,15 +236,28 @@ export const INVARIANTS = [
   },
   {
     id: "I5",
-    title: "gallery at the rule-of-thirds height (±0.05), at least galleryThickness thick",
+    title: "gallery at the rule-of-thirds height (±0.05), or lower by a reported amount; galleryThickness thick",
     requiredFrom: () => "S2",
     evaluate: (r) => {
       if (!r.galleries.length) return na("no gallery");
       return all(r.galleries.flatMap((g) => {
-        const t = g.requested?.galleryThickness ?? g.bench?.galleryThickness ?? r.bench.values.galleryThickness;
+        // The thickness asked; or, where the engine reported thinning the
+        // wire to hide it under the girdle (Animesh's decision, S2), the
+        // thickness it reported.
+        const t = (g.thinnedReported ? g.bench?.galleryThickness : g.requested?.galleryThickness) ??
+          g.bench?.galleryThickness ?? r.bench.values.galleryThickness;
+        const h = g.centreHeightAboveCulet, rule = g.ruleOfThirdsHeight;
+        // Since S2 (Animesh's decision, STRUCTURE-LOG): where a wire of the
+        // rule's thickness at mid-pavilion would show beyond the girdle, it
+        // sits lower, by as much as hiding it takes, and that is reported.
+        const lowered = num(g.planHeight) && g.planHeight < rule - 0.05;
+        const where = lowered
+          ? { ok: num(h) && Math.abs(h - g.planHeight) <= 0.05 && g.loweredReported === true,
+            why: `${g.head} gallery centre ${fmt(h)} above culet, laid out at ${fmt(g.planHeight)} (${fmt(g.lowered)} below the rule's ${fmt(rule)})${g.loweredReported ? "" : ", not reported"}` }
+          : { ok: num(h) && Math.abs(h - rule) <= 0.05,
+            why: `${g.head} gallery centre ${fmt(h)} above culet, rule says ${fmt(rule)}` };
         return [
-        { ok: num(g.centreHeightAboveCulet) && Math.abs(g.centreHeightAboveCulet - g.ruleOfThirdsHeight) <= 0.05,
-          why: `${g.head} gallery centre ${fmt(g.centreHeightAboveCulet)} above culet, rule says ${fmt(g.ruleOfThirdsHeight)}` },
+        where,
         // 0.01 allows for the section being read off a 0.002 mm mesh.
         { ok: num(g.thicknessEstimate) && g.thicknessEstimate >= t - 0.01,
           why: `${g.head} gallery ${fmt(g.thicknessEstimate)} thick, needs ${fmt(t)}` },
