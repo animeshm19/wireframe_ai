@@ -315,7 +315,12 @@ export type BenchValues = Record<BenchKey, number>;
 
 export type BenchWarning = {
   key: BenchKey;
-  kind: "clamped" | "outside-published";
+  /**
+   * "clamped" and "outside-published" come from resolveBench; "engine-clamped"
+   * from the engine, when a value inside the bounds cannot be built on this
+   * particular stone (prongs so thick on a small stone that they would touch).
+   */
+  kind: "clamped" | "outside-published" | "engine-clamped";
   message: string;
 };
 

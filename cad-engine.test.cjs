@@ -382,6 +382,11 @@ test("bench: names from Object's prototype are not alloys or fields", () => {
     { bearingDepth: 45 });
 });
 
+/* ---------------------------------------------------- head layout (S1) */
+
+const layout = require("./.cadcheck/head-layout.js");
+const { brilliantTopology } = require("./.cadcheck/cad-engine.js");
+
 test("?prongs= harness override takes a whole count from 3 to 8, nothing else", () => {
   const { execFileSync } = require("node:child_process");
   const run = (search) => JSON.parse(execFileSync(process.execPath, ["-e", `
@@ -401,4 +406,117 @@ test("?prongs= harness override takes a whole count from 3 to 8, nothing else", 
     process.stdout.write(JSON.stringify(r.withDefaults({ prongCount: 3 }).prongCount));
   `], { encoding: "utf8" }));
   assert.strictEqual(own, 3);
+});
+
+const defaultBench = (cut, ct, over = {}) => {
+  const gR = girdleRadiusFor(cut, ct);
+  return { gR, v: std.resolveBench(over, { alloy: "platinum", girdleR: gR, pavH: gemDims(gR).pavH }).values };
+};
+
+test("head layout: each post sits where the seat depth puts it (by hand)", () => {
+  // Default ring: 1 ct round, six prongs, platinum. Seat 40% of the prong,
+  // 0.05 mm room round the stone, prong (0.28 + 0.045 R) × 2.
+  const { gR, v } = defaultBench("round", 1);
+  const lay = layout.layoutHead("round", gR, 6, v, null);
+  const d = (0.28 + 0.045 * gR) * 2, notch = 0.4 * d, tol = 0.05;
+  const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
+
+  // Prong 0 points at 0°, a corner of the round's sixteen-sided girdle, at
+  // the full radius; its normal is radial. The post's inner face is the seat
+  // depth inside the seat surface, which is the girdle plus the room.
+  const p0 = lay.prongs[0];
+  near(p0.d, d, "prong diameter");
+  near(p0.notch, notch, "seat depth");
+  near(p0.girdlePoint[0], gR, "girdle point x");
+  near(p0.normal[0], 1, "normal x");
+  near(p0.postCentre[0] - d / 2, gR + tol - notch, "inner face");
+  near(p0.postCentre[0], gR + tol - notch + d / 2, "post centre");
+
+  // Prong 1 points at 60°, which is on the flat between the girdle's corners
+  // at 45° and 67.5°: the girdle there is that flat, R cos 11.25° / cos 3.75°
+  // out, and its normal points at the flat's middle, 56.25°.
+  const p1 = lay.prongs[1];
+  const deg = Math.PI / 180;
+  const r1 = (gR * Math.cos(11.25 * deg)) / Math.cos(3.75 * deg);
+  near(Math.hypot(...p1.girdlePoint), r1, "girdle radius at 60°");
+  near(Math.atan2(p1.normal[1], p1.normal[0]), 56.25 * deg, "normal at 60°");
+  const off = tol - notch + d / 2;
+  near(p1.postCentre[0], r1 * Math.cos(60 * deg) + off * Math.cos(56.25 * deg), "post centre x");
+  near(p1.postCentre[1], r1 * Math.sin(60 * deg) + off * Math.sin(56.25 * deg), "post centre y");
+
+  // The post stands asCastProngHeight above the table, top of its cap.
+  const { pavH, girdleH, crownH } = gemDims(gR);
+  near(p0.tip, pavH + girdleH + crownH + 2.0, "as-cast top");
+});
+
+test("head layout: every leg clears the pavilion cone (line to cone, by hand)", () => {
+  // A plain band 1.55 mm deep under the culet's 0.3 mm gap, wide enough that
+  // no foot is pulled in along the finger. Prong 0 then lies in the plane
+  // y = 0 through the axis, where the nearest point of a cone of revolution
+  // is on the generator in that plane: a 2D point-to-segment distance.
+  const { gR, v } = defaultBench("round", 1);
+  const band = {
+    at: (x, y) => ({ top: -0.3, bottom: -1.85 }),
+    axial: [0, 1], axialMin: 0, axialMax: 10, topOnAxis: -0.3,
+  };
+  const lay = layout.layoutHead("round", gR, 6, v, band);
+  const p = lay.prongs[0];
+  const { pavH } = gemDims(gR);
+  // The cone from the culet through the girdle's corners: at 0° it passes
+  // through the girdle corner itself, and the stone lies inside it there.
+  const toCone = (r, z) => {
+    const L = Math.hypot(gR, pavH), ux = gR / L, uz = pavH / L;
+    const t = Math.max(0, Math.min(L, r * ux + z * uz));
+    return Math.hypot(r - ux * t, z - uz * t);
+  };
+  let worst = Infinity;
+  for (const { c } of layout.spineSamples(p.spine.foot, p.spine.corner, p.spine.top, p.spine.bendRadius, p.d / 2, 0.01)) {
+    assert.ok(Math.abs(c[1]) < 1e-12, "prong 0 stays in the plane y = 0");
+    if (c[2] > pavH - p.d) continue;             // the rule starts at girdle − d
+    worst = Math.min(worst, toCone(c[0], c[2]) - p.d / 2);
+  }
+  assert.ok(worst >= v.pavilionClearance, `leg comes ${worst.toFixed(4)} mm from the cone, needs ${v.pavilionClearance}`);
+  // And the culet: nothing of the prong within culetClearance of it.
+  for (const { c } of layout.spineSamples(p.spine.foot, p.spine.corner, p.spine.top, p.spine.bendRadius, p.d / 2, 0.01)) {
+    assert.ok(Math.hypot(...c) - p.d / 2 >= v.culetClearance, `prong within ${Math.hypot(...c) - p.d / 2} of the culet`);
+  }
+});
+
+test("head layout: every stone vertex is inside the seat's hull, for every cut", () => {
+  // The seat cutter's containment argument rests on this: the envelope is a
+  // convex stack of the girdle polygon, and every vertex of the stone must sit
+  // under its scale profile. (The kernel test proves the solids agree.)
+  for (const cut of CUTS) {
+    for (const ct of [0.25, 1, 3]) {
+      const gR = girdleRadiusFor(cut, ct);
+      const st = layout.stoneProfile(cut, gR);
+      const pts = cut === "emerald" || cut === "princess"
+        ? layout.stepCutStations(gR).flatMap(({ z, s }) => st.girdle.map(([x, y]) => [x * s, y * s, z]))
+        : brilliantTopology(cut, gR).points;
+      for (const p of pts) {
+        const r = Math.hypot(p[0], p[1]);
+        if (r < 1e-12) continue;
+        const allowed = layout.scaleAt(st.hull, p[2]) * layout.radialHit(st.girdle, Math.atan2(p[1], p[0])).r;
+        assert.ok(r <= allowed + 1e-9, `${cut} ${ct} ct: vertex at z ${p[2].toFixed(3)} is ${(r - allowed).toExponential(2)} mm outside`);
+      }
+    }
+  }
+});
+
+test("head layout: prongs too thick to fit are thinned, and it says so", () => {
+  // 2 mm prongs, eight of them, round a quarter carat: they would overlap.
+  const { gR, v } = defaultBench("round", 0.25, { prongDiameter: 2 });
+  const lay = layout.layoutHead("round", gR, 8, v, null, { minProngDiameter: 0.8 });
+  const w = lay.warnings.find((x) => x.key === "prongDiameter");
+  assert.ok(w && w.kind === "engine-clamped", "reported as an engine clamp");
+  assert.ok(lay.values.prongDiameter < 2 && lay.values.prongDiameter >= 0.8, `${lay.values.prongDiameter}`);
+  // Neighbours now have daylight between them.
+  const c = lay.prongs.map((p) => p.postCentre);
+  for (let i = 0; i < c.length; i++) {
+    const j = (i + 1) % c.length;
+    assert.ok(Math.hypot(c[i][0] - c[j][0], c[i][1] - c[j][1]) - lay.values.prongDiameter >= 0.05 - 1e-9);
+  }
+  // The default never is.
+  const def = defaultBench("round", 1);
+  assert.deepStrictEqual(layout.layoutHead("round", def.gR, 6, def.v, null).warnings, []);
 });

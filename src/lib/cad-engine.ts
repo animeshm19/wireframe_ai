@@ -180,6 +180,8 @@ export function radiusAtAngle(o: Pt[], angle: number): number {
 
 /** Round-brilliant proportions, as fractions of girdle DIAMETER. */
 const TABLE = 0.57, CROWN = 0.145, GIRDLE = 0.03, PAVILION = 0.43;
+/** The table's width as a fraction of the girdle's, for the B-rep head layout. */
+export const TABLE_SCALE = TABLE;
 
 export type GemDims = {
   girdleR: number; pavH: number; girdleH: number; crownH: number; totalH: number;

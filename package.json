@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --only firestore --project demo-wireframe-rules \"node --test firestore.rules.test.js\"",
-    "test:cad": "tsc src/lib/cad-engine.ts --outDir .cadcheck --module commonjs --target es2020 --moduleResolution node --skipLibCheck --esModuleInterop && node -e \"require('fs').writeFileSync('.cadcheck/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node --test cad-engine.test.cjs",
+    "test:cad": "tsc src/lib/cad-engine.ts src/lib/head-layout.ts --outDir .cadcheck --module commonjs --target es2020 --moduleResolution node --skipLibCheck --esModuleInterop && node -e \"require('fs').writeFileSync('.cadcheck/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node --test cad-engine.test.cjs",
     "test:brep": "node run-brep-tests.mjs"
   },
   "dependencies": {
