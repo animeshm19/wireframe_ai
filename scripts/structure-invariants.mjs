@@ -34,8 +34,12 @@ export const stageIndex = (s) => {
 export const JOINT_AREA_RATIO = 1.0;
 
 const setting = (spec) => spec.setting ?? "prong";
-/** Settings whose centre head is a prong head the S1 seat work covers. */
+/** Settings whose centre stone the S1 seat work must clear of all metal. */
 const prongLike = (spec) => setting(spec) === "prong" || setting(spec) === "three_stone";
+/** Settings with a prong head at the centre: every one gets S1's seats and as-cast prongs. */
+const prongHead = (spec) => setting(spec) !== "bezel";
+/** The centre head's bearings, or none (a bezel). */
+const centreBearings = (r) => (r.bearings ?? []).filter((b) => b.head === "centre");
 const num = (x) => typeof x === "number" && Number.isFinite(x);
 const fmt = (x) => (num(x) ? String(+x.toFixed(4)) : String(x));
 
@@ -51,11 +55,43 @@ function all(checks) {
 }
 
 /**
- * How each bench field shows up in the measured geometry, for I13. Empty at
- * S0: no field reaches the geometry yet. The prompt that wires a field adds
- * its entry here: `(r, v) => ({ ok, why })`, with v the effective value.
+ * How each bench field shows up in the measured geometry, for I13: `(r, v) =>
+ * ({ ok, why })`, with v the effective value. The prompt that wires a field
+ * adds its entry here. Judged on the centre head, whose values r.bench holds.
  */
-export const BENCH_MEASURES = {};
+const everyBearing = (r, test) => {
+  const bs = centreBearings(r);
+  if (!bs.length) return { ok: false, why: "no bearings measured" };
+  const bad = bs.find((b) => !test(b).ok);
+  return bad ? { ok: false, why: `prong ${bad.index}: ${test(bad).why}` } : { ok: true, why: "" };
+};
+export const BENCH_MEASURES = {
+  // S1
+  bearingDepth: (r, v) => everyBearing(r, (b) => {
+    const want = (v / 100) * b.expected.d;
+    return { ok: num(b.notch) && Math.abs(b.notch - want) <= 0.02, why: `seat ${fmt(b.notch)} mm deep, wants ${fmt(want)} ± 0.02` };
+  }),
+  seatTolerance: (r, v) => everyBearing(r, (b) => ({
+    ok: num(b.seatGap) && b.seatGap >= v - 0.01 && b.seatGap <= v + 0.02,
+    why: `room round the stone ${fmt(b.seatGap)} mm, wants ${fmt(v - 0.01)} to ${fmt(v + 0.02)}`,
+  })),
+  culetClearance: (r, v) => {
+    const got = r.centre.culetClearance;
+    return { ok: num(got) && got >= v - 0.01 && got <= v + 0.05, why: `culet ${fmt(got)} mm, wants ${fmt(v - 0.01)} to ${fmt(v + 0.05)}` };
+  },
+  pavilionClearance: (r, v) => everyBearing(r, (b) => ({
+    ok: num(b.pavilionClearance) && b.pavilionClearance >= v - 0.02,
+    why: `${fmt(b.pavilionClearance)} mm from the pavilion, wants ≥ ${fmt(v - 0.02)}`,
+  })),
+  prongDiameter: (r, v) => everyBearing(r, (b) => ({
+    ok: num(b.postWidth) && Math.abs(b.postWidth - v) <= 0.01,
+    why: `post ${fmt(b.postWidth)} mm across, wants ${fmt(v)} ± 0.01`,
+  })),
+  asCastProngHeight: (r) => everyBearing(r, (b) => ({
+    ok: num(b.top) && Math.abs(b.top - b.expected.top) <= 0.05,
+    why: `top ${fmt(b.top)} mm above the culet, wants ${fmt(b.expected.top)} ± 0.05`,
+  })),
+};
 
 export const INVARIANTS = [
   {
@@ -88,6 +124,22 @@ export const INVARIANTS = [
       return bad.length
         ? fail(`${bad.length} of ${r.stones.length} stones overlap metal, total ${fmt(total)} mm³`)
         : pass(`${r.stones.length} stones`);
+    },
+  },
+  {
+    id: "I2c",
+    title: "centre head's prongs and gallery do not overlap the centre stone (≤ 0.001 mm³ each)",
+    // Halo and cathedral too: their prong heads are S1's; only their bearers
+    // and struts (S6) may still reach the stone.
+    requiredFrom: (spec) => (prongHead(spec) ? "S1" : null),
+    evaluate: (r) => {
+      const parts = [
+        ...r.prongs.filter((p) => p.head === "centre").map((p) => ({ what: `prong ${p.index}`, v: p.inStone })),
+        ...r.galleries.filter((g) => g.head === "centre").map((g) => ({ what: "gallery", v: g.inStone })),
+      ];
+      if (!parts.length) return na("no prong head");
+      const bad = parts.find((x) => !(num(x.v) && x.v <= 0.001));
+      return bad ? fail(`${bad.what} in stone ${fmt(bad.v)} mm³`) : pass(`${parts.length} parts`);
     },
   },
   {
@@ -255,10 +307,45 @@ export const INVARIANTS = [
     },
   },
   {
-    id: "I10",
-    title: "bearings and as-set prongs (measurements added by S1 and S4)",
-    requiredFrom: (spec) => (prongLike(spec) ? "S1" : "S6"),
-    evaluate: () => todo("bearing and as-set measurements do not exist until S1 and S4"),
+    id: "I10a",
+    title: "every centre prong has a seat bearingDepth% of its diameter deep (±0.02), leaving the rest",
+    requiredFrom: (spec) => (prongHead(spec) ? "S1" : null),
+    evaluate: (r) => {
+      const bs = centreBearings(r);
+      if (!bs.length) return na("no prongs");
+      return all(bs.flatMap((b) => [
+        { ok: num(b.notch) && Math.abs(b.notch - b.expected.notch) <= 0.02,
+          why: `prong ${b.index} seat ${fmt(b.notch)} mm deep, wants ${fmt(b.expected.notch)} ± 0.02` },
+        { ok: num(b.notch) && b.expected.d - b.notch >= b.expected.d - b.expected.notch - 0.02,
+          why: `prong ${b.index} leaves ${fmt(b.expected.d - b.notch)} mm behind the seat` },
+      ]));
+    },
+  },
+  {
+    id: "I10b",
+    title: "every centre prong stands asCastProngHeight above the table (±0.05)",
+    requiredFrom: (spec) => (prongHead(spec) ? "S1" : null),
+    evaluate: (r) => {
+      const bs = centreBearings(r);
+      if (!bs.length) return na("no prongs");
+      return all(bs.map((b) => ({
+        ok: num(b.top) && Math.abs(b.top - b.expected.top) <= 0.05,
+        why: `prong ${b.index} top ${fmt(b.top)} mm above the culet, wants ${fmt(b.expected.top)}`,
+      })));
+    },
+  },
+  {
+    id: "I10c",
+    title: "below girdle − d every centre prong keeps pavilionClearance (−0.02) from the stone",
+    requiredFrom: (spec) => (prongHead(spec) ? "S1" : null),
+    evaluate: (r) => {
+      const bs = centreBearings(r);
+      if (!bs.length) return na("no prongs");
+      return all(bs.map((b) => ({
+        ok: num(b.pavilionClearance) && b.pavilionClearance >= b.expected.pavilionClearance - 0.02,
+        why: `prong ${b.index} ${fmt(b.pavilionClearance)} mm from the pavilion, wants ≥ ${fmt(b.expected.pavilionClearance - 0.02)}`,
+      })));
+    },
   },
   {
     id: "I13",
@@ -268,9 +355,12 @@ export const INVARIANTS = [
       const stages = (ctx.customised ?? []).map((k) => ctx.wiredIn[k]).filter(Boolean);
       return stages.length ? stages.sort((a, b) => stageIndex(a) - stageIndex(b))[0] : null;
     },
-    evaluate: (r) => {
-      const keys = r.bench.customised;
-      if (!keys.length) return na("nothing customised");
+    evaluate: (r, _spec, ctx) => {
+      // Only fields the engine reads by this stage: before its prompt a field
+      // does not reach the geometry and there is nothing to see.
+      const keys = r.bench.customised.filter((k) =>
+        !ctx?.wiredIn?.[k] || !ctx.stage || stageIndex(ctx.wiredIn[k]) <= stageIndex(ctx.stage));
+      if (!keys.length) return na("nothing customised that is wired yet");
       const results = keys.map((k) => (BENCH_MEASURES[k]
         ? { k, ...BENCH_MEASURES[k](r, r.bench.values[k]) }
         : { k, ok: null, why: "no measurement defined yet" }));
@@ -302,7 +392,7 @@ export function evaluateDesign(design, result, stage, wiredIn) {
     let res;
     if (!result || result.crash) res = fail(`audit crashed: ${result?.crash ?? "no result"}`);
     else {
-      try { res = inv.evaluate(result, design.spec); } catch (e) { res = fail(`evaluate threw ${e?.message ?? e}`); }
+      try { res = inv.evaluate(result, design.spec, { stage, wiredIn }); } catch (e) { res = fail(`evaluate threw ${e?.message ?? e}`); }
     }
     const req = requiredStage(inv, design, { customised: result?.bench?.customised, wiredIn });
     const required = req != null && stageIndex(stage) >= stageIndex(req);

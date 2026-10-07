@@ -18,7 +18,7 @@
  * Distances in mm, volumes in mm³, areas in mm², times in ms.
  */
 import {
-  draw, makeCircle, makeCompound, makeFace, makeSphere, makeVertex,
+  draw, makeCircle, makeCompound, makeFace, makeLine, makeSphere, makeVertex,
   assembleWire, measureArea, measureDistanceBetween, measureShapeVolumeProperties,
   measureVolume, Plane,
   type Shape3D, type AnyShape,
@@ -28,9 +28,8 @@ import {
   type PartRole, type StoneRole, type HeadFrame, type HeadName,
 } from "./cad-engine-brep.js";
 import { gemDims } from "./cad-engine.js";
-import { resolveBench, type ResolvedBench } from "./setting-standards.js";
+import type { ResolvedBench } from "./setting-standards.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
-import type { MetalType } from "./ring-spec.js";
 
 type V3 = [number, number, number];
 
@@ -58,6 +57,35 @@ export type ProngAudit = {
   inBase: number;
   /** 0 when touching or overlapping. */
   clearanceToStone: number;
+};
+
+/**
+ * One prong's seat and as-cast shape, measured with straight-line probes in
+ * the plane that holds the head axis and the girdle's normal at the prong,
+ * through the post's centre. Positions along the normal (u) are measured from
+ * the stone's girdle point, outward positive.
+ */
+export type BearingAudit = {
+  head: HeadName;
+  index: number;
+  /** Innermost prong metal across the girdle band: the seat's floor. */
+  notchFloor: number;
+  /** Innermost prong metal at measureZ, where the crown seat no longer reaches. */
+  postFace: number;
+  /** notchFloor − postFace: how deep the seat is cut into the prong. */
+  notch: number;
+  /** The post's width along the normal at measureZ: its diameter. */
+  postWidth: number;
+  /** The stone's outermost point along the same line, mid-girdle. */
+  stoneEdge: number;
+  /** notchFloor − stoneEdge: the room round the stone in its seat. */
+  seatGap: number;
+  /** The prong's highest point above the culet, along the head axis. */
+  top: number;
+  /** Distance from the stone to the part of the prong below girdle − d. */
+  pavilionClearance: number;
+  /** What this head was built to, for judging the numbers above. */
+  expected: { d: number; notch: number; top: number; seatTolerance: number; pavilionClearance: number };
 };
 
 export type GalleryAudit = {
@@ -99,6 +127,7 @@ export type StructureAudit = {
     bandTop: number;
   };
   prongs: ProngAudit[];
+  bearings: BearingAudit[];
   galleries: GalleryAudit[];
   joint: {
     /** Metal section at band-top + 0.10 mm, within girdleR × 1.2 of the head axis. */
@@ -195,10 +224,9 @@ export async function auditStructure(
   // Stones from the fused build: the culet and overlap questions are asked of
   // the merged metal, which is the fused build's.
   const stones = fused.stones;
-  const gd = gemDims(dims.girdleR);
-  const bench = resolveBench(spec.bench as Record<string, unknown> | undefined, {
-    alloy: (spec.metalType as MetalType) ?? "platinum", girdleR: dims.girdleR, pavH: gd.pavH,
-  });
+  // The values the engine actually built with: resolveBench's clamps and
+  // then any engine clamp (since S1), as the engine reports them.
+  const bench = parts.bench;
 
   const vol = (s: Shape3D) => measureVolume(s);
   const vols = new Map<AnyShape, number>();
@@ -286,6 +314,26 @@ export async function auditStructure(
     });
   }
 
+  // ----------------------------------------------------------- bearings --
+  const bearings: BearingAudit[] = [];
+  for (const i of idx((r) => r.role === "prong")) {
+    const r = metalRoles[i];
+    const frame = heads.find((h) => h.head === r.head)!;
+    const plan = frame.layout.prongs[r.index!];
+    if (!plan) continue;
+    const tag = `${r.head} prong ${r.index} bearing`;
+    try {
+      bearings.push(measureBearing(metalParts[i], stones[stoneFor(r.head)], frame, plan, r.head!, r.index!));
+    } catch (e) {
+      errors.push(`${tag}: ${(e as Error)?.message ?? e}`);
+      bearings.push({
+        head: r.head!, index: r.index!, notchFloor: NaN, postFace: NaN, notch: NaN, postWidth: NaN,
+        stoneEdge: NaN, seatGap: NaN, top: NaN, pavilionClearance: NaN,
+        expected: expectedFor(frame, plan),
+      });
+    }
+  }
+
   const galleryAudits: GalleryAudit[] = galleryIdx.map((g, k) => {
     const r = metalRoles[g];
     const part = metalParts[g];
@@ -295,9 +343,7 @@ export async function auditStructure(
     const fgd = gemDims(frame.girdleR);
     const centroid = measureShapeVolumeProperties(part).centerOfMass as V3;
     const inProngs = prongAudits.filter((p) => p.head === r.head);
-    const own = resolveBench(spec.bench as Record<string, unknown> | undefined, {
-      alloy: (spec.metalType as MetalType) ?? "platinum", girdleR: frame.girdleR, pavH: fgd.pavH,
-    }).values;
+    const own = frame.bench.values;
     return {
       head: r.head!, part: g,
       inStone: common(part, held, `${tag} ∩ stone`),
@@ -381,6 +427,7 @@ export async function auditStructure(
     stones: stoneAudits,
     centre,
     prongs: prongAudits,
+    bearings,
     galleries: galleryAudits,
     joint,
     stonePairs,
@@ -453,4 +500,83 @@ export function signedDepth(
   const v = makeVertex(point);
   const depth = inside ? -measureDistanceBetween(v, skin) : measureDistanceBetween(v, solid);
   return { depth, inside };
+}
+
+// ------------------------------------------------------------- bearings --
+
+/** A head-frame point (culet at origin, +z up the stone) in the ring's frame. */
+function toRing(frame: HeadFrame, p: V3): V3 {
+  const y = cross(frame.axis, frame.xDir);
+  return add(add(add(frame.culet, frame.xDir, p[0]), y, p[1]), frame.axis, p[2]);
+}
+/** A ring-frame point in the head's frame. */
+function toHead(frame: HeadFrame, p: V3): V3 {
+  const q = add(p, frame.culet, -1);
+  return [dot(q, frame.xDir), dot(q, cross(frame.axis, frame.xDir)), dot(q, frame.axis)];
+}
+
+/**
+ * Where a straight line from `a` to `b` passes through a solid, as the end
+ * points of the pieces inside it. OCCT's common of a solid and an edge is the
+ * part of the edge inside the solid, so this is exact, not sampled.
+ */
+export function probeSpan(solid: AnyShape, a: V3, b: V3): V3[] {
+  // An edge is not a Shape3D to replicad's types, but OCCT's common takes any
+  // two shapes; the result is a compound of the inside pieces.
+  const line = makeLine(a, b) as unknown as Shape3D;
+  const inside = (solid as Shape3D).intersect(line);
+  return inside.edges.flatMap((e) => [e.startPoint, e.endPoint]).map((p) => [p.x, p.y, p.z] as V3);
+}
+
+function expectedFor(frame: HeadFrame, plan: { d: number; notch: number; tip: number }) {
+  const v = frame.bench.values;
+  return {
+    d: plan.d, notch: plan.notch, top: plan.tip,
+    seatTolerance: v.seatTolerance, pavilionClearance: v.pavilionClearance,
+  };
+}
+
+function measureBearing(
+  prong: Shape3D, stone: Shape3D, frame: HeadFrame,
+  plan: HeadFrame["layout"]["prongs"][number], head: HeadName, index: number,
+): BearingAudit {
+  const st = frame.layout.stone;
+  const n: V3 = [plan.normal[0], plan.normal[1], 0];
+  const g: V3 = [plan.girdlePoint[0], plan.girdlePoint[1], 0];
+  const c: V3 = [plan.postCentre[0], plan.postCentre[1], 0];
+  const reach = st.girdleR + 4;
+  // Along the normal through the post's centre, at height z; u from the girdle point.
+  const across = (s: AnyShape, z: number) => {
+    const a = toRing(frame, add(add(c, n, -reach), [0, 0, 1], z));
+    const b = toRing(frame, add(add(c, n, reach), [0, 0, 1], z));
+    return probeSpan(s, a, b).map((p) => dot(add(toHead(frame, p), g, -1), n));
+  };
+  const min = (xs: number[]) => (xs.length ? Math.min(...xs) : NaN);
+  const max = (xs: number[]) => (xs.length ? Math.max(...xs) : NaN);
+
+  // The seat's floor across the girdle band, where the seat is upright.
+  const band = [0.15, 0.35, 0.5, 0.65, 0.85].map((f) => st.zGb + (st.zGt - st.zGb) * f);
+  const notchFloor = min(band.map((z) => min(across(prong, z))));
+  const at = across(prong, plan.measureZ);
+  const postFace = min(at), postWidth = max(at) - min(at);
+  const stoneEdge = max(across(stone, (st.zGb + st.zGt) / 2));
+
+  // Highest point: straight up the post's centreline.
+  const up = probeSpan(prong, toRing(frame, add(c, [0, 0, 1], st.zGb)), toRing(frame, add(c, [0, 0, 1], plan.tip + 2)));
+  const top = max(up.map((p) => toHead(frame, p)[2]));
+
+  // Everything of the prong below girdle − d, by a half space under that plane.
+  const cutZ = st.zGb - plan.d;
+  const big = reach * 4;
+  const plane = new Plane(toRing(frame, [0, 0, cutZ]), frame.xDir, frame.axis);
+  const below = draw([-big, -big]).lineTo([big, -big]).lineTo([big, big]).lineTo([-big, big]).close()
+    .sketchOnPlane(plane).extrude(-big) as Shape3D;
+  const lower = prong.intersect(below) as Shape3D;
+  const pavilionClearance = measureVolume(lower) > 1e-9 ? measureDistanceBetween(lower, stone) : NaN;
+
+  return {
+    head, index, notchFloor, postFace, notch: notchFloor - postFace, postWidth,
+    stoneEdge, seatGap: notchFloor - stoneEdge, top, pavilionClearance,
+    expected: expectedFor(frame, plan),
+  };
 }

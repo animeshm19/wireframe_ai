@@ -725,3 +725,116 @@ test("every cut builds at every carat the app accepts", () => {
     }
   }
 });
+
+/* ------------------------------------------------- seats and prongs (S1) */
+
+test("audit probe reads a known groove exactly", async () => {
+  // The bearing measurement is a straight line through the prong; proved
+  // first on a cylinder with a groove of known depth cut into it.
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const { makeCylinder, makeBox } = await import("replicad");
+  const grooved = makeCylinder(1, 3, [0, 0, 0], [0, 0, 1]).cut(makeBox([0.6, -2, 1], [2, 2, 1.5]));
+  const xs = (z) => audit.probeSpan(grooved, [-3, 0, z], [3, 0, z]).map((p) => p[0]);
+  const at = (z) => ({ lo: Math.min(...xs(z)), hi: Math.max(...xs(z)) });
+  const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
+  near(at(0.5).hi, 1, "plain cylinder face");
+  near(at(1.25).hi, 0.6, "groove floor");
+  near(at(0.5).hi - at(1.25).hi, 0.4, "groove depth");
+  near(at(0.5).hi - at(0.5).lo, 2, "diameter");
+  const up = audit.probeSpan(grooved, [0, 0, -1], [0, 0, 5]).map((p) => p[2]);
+  near(Math.max(...up), 3, "top");
+});
+
+test("the seat cutter contains the stone, for every cut", async () => {
+  // A cut by the envelope can only clear the stone if the stone is inside it.
+  // Proved here on the solids, at the default room and at none, and the room
+  // at the girdle measured: the envelope's edge along the girdle's normal is
+  // that far out.
+  const layout = await import("./.brepcheck/head-layout.js");
+  const audit = await import("./.brepcheck/structure-audit.js");
+  for (const cut of ["round", "oval", "pear", "marquise", "cushion", "emerald", "princess"]) {
+    const gR = mesh.girdleRadiusFor(cut, 1);
+    const st = layout.stoneProfile(cut, gR);
+    const stone = brep.buildGem(cut, gR);
+    for (const tol of [0.05, 0]) {
+      const env = brep.seatCutter(st, tol);
+      const outside = measureVolume(stone.clone().cut(env.clone()));
+      assert.ok(outside <= 1e-6, `${cut} tol ${tol}: ${outside} mm³ of stone outside the seat`);
+      if (tol > 0) {
+        assert.ok(measureDistanceBetween(stone, audit.skinOf(env)) > 0, `${cut}: the seat touches the stone`);
+        const z = (st.zGb + st.zGt) / 2;
+        for (const a of [0, 1, 2.5, 4]) {
+          const hit = layout.radialHit(st.girdle, a);
+          const g = [hit.r * Math.cos(a), hit.r * Math.sin(a)];
+          const far = (s) => Math.max(...audit.probeSpan(s, [0, 0, z], [g[0] * 3, g[1] * 3, z]).map((p) => Math.hypot(p[0], p[1])));
+          const gap = far(env) - far(stone);
+          // Along a ray, not the normal: never less than the room, a little
+          // more where the ray meets the girdle at a slant.
+          assert.ok(gap >= tol - 0.01, `${cut} at ${a} rad: ${gap.toFixed(4)} mm round the girdle`);
+        }
+      }
+    }
+  }
+});
+
+/** Audits a design without its files, and checks what S1 promises of its centre stone and prongs. */
+async function checkSeated(spec) {
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const r = await audit.auditStructure(spec, { stl: false, step: false });
+  const tag = JSON.stringify(spec);
+  assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
+  const v = r.bench.values;
+  assert.ok(r.stones[0].overlapWithMetal <= 0.001, `${tag}: ${r.stones[0].overlapWithMetal} mm³ of metal in the stone`);
+  assert.ok(r.centre.culetClearance >= v.culetClearance - 0.01, `${tag}: culet ${r.centre.culetClearance}`);
+  const bs = r.bearings.filter((b) => b.head === "centre");
+  assert.equal(bs.length, spec.prongCount ?? 6, `${tag}: a bearing per prong`);
+  for (const b of bs) {
+    assert.ok(Math.abs(b.notch - (v.bearingDepth / 100) * b.expected.d) <= 0.02, `${tag} prong ${b.index}: seat ${b.notch}`);
+    assert.ok(Math.abs(b.top - b.expected.top) <= 0.05, `${tag} prong ${b.index}: top ${b.top} vs ${b.expected.top}`);
+    assert.ok(b.pavilionClearance >= v.pavilionClearance - 0.02, `${tag} prong ${b.index}: ${b.pavilionClearance} from the pavilion`);
+  }
+  return r;
+}
+
+test("seated: brilliant cuts on six prongs", async () => {
+  for (const gemShape of ["round", "oval", "pear", "marquise", "cushion"]) await checkSeated({ gemShape });
+});
+
+test("seated: step cuts on six prongs", async () => {
+  for (const gemShape of ["emerald", "princess"]) await checkSeated({ gemShape });
+});
+
+test("seated: round at 3, 4 and 8 prongs", async () => {
+  for (const prongCount of [3, 4, 8]) await checkSeated({ prongCount });
+});
+
+test("seated: round at 0.25 and 3 ct, and a three-stone's centre", async () => {
+  for (const spec of [{ gemSize: 0.25 }, { gemSize: 3 }, { setting: "three_stone" }]) await checkSeated(spec);
+});
+
+/** The six bench fields S1 wires, at a bound, must show in the geometry (I13). */
+async function checkBench(fields) {
+  const { BENCH_MEASURES } = await import("./scripts/structure-invariants.mjs");
+  const std = await import("./.brepcheck/setting-standards.js");
+  for (const key of fields) {
+    for (const which of ["min", "max"]) {
+      const value = std.benchBounds(key, "platinum")[which];
+      const r = await checkSeated({ bench: { [key]: value } });
+      assert.ok(r.bench.customised.includes(key), `${key} ${which} reached the engine`);
+      const m = BENCH_MEASURES[key](r, r.bench.values[key]);
+      assert.ok(m.ok, `${key} at its ${which} (${value}): ${m.why}`);
+    }
+  }
+}
+
+test("bench: seat depth and room round the stone reach the geometry", async () => {
+  await checkBench(["bearingDepth", "seatTolerance"]);
+});
+
+test("bench: culet gap and pavilion gap reach the geometry", async () => {
+  await checkBench(["culetClearance", "pavilionClearance"]);
+});
+
+test("bench: prong thickness and cast height reach the geometry", async () => {
+  await checkBench(["prongDiameter", "asCastProngHeight"]);
+});
