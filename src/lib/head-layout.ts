@@ -263,6 +263,19 @@ export function facePlanes(faces: V3[][]): HalfSpace[] {
   return out;
 }
 
+/**
+ * A box as six outward faces, its sides along u and w (unit, at right angles,
+ * in plan) and up the axis: lo and hi are its corners in those coordinates.
+ */
+export function orientedBoxFaces(u: V2, lo: V3, hi: V3): V3[][] {
+  const w: V2 = [-u[1], u[0]];
+  const at = (a: number, b: number, z: number): V3 => [u[0] * a + w[0] * b, u[1] * a + w[1] * b, z];
+  const c: V3[] = [at(lo[0], lo[1], lo[2]), at(hi[0], lo[1], lo[2]), at(hi[0], hi[1], lo[2]), at(lo[0], hi[1], lo[2]),
+    at(lo[0], lo[1], hi[2]), at(hi[0], lo[1], hi[2]), at(hi[0], hi[1], hi[2]), at(lo[0], hi[1], hi[2])];
+  const faces = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
+  return faces.map((f) => f.map((i) => c[i]));
+}
+
 /** An axis-aligned box as six outward faces. */
 export function boxFaces(lo: V3, hi: V3): V3[][] {
   const [x0, y0, z0] = lo, [x1, y1, z1] = hi;
@@ -281,6 +294,9 @@ export function clipConvex(faces: V3[][], planes: HalfSpace[]): V3[][] {
   const EPS = 1e-10;
   let out = faces;
   for (const pl of planes) {
+    // A plane the whole solid is already inside cuts nothing: skip it, which
+    // is most of the envelope's planes for a box round one post.
+    if (out.every((f) => f.every((P) => dot(pl.n, P) - pl.h <= EPS))) continue;
     const next: V3[][] = [];
     const onPlane: V3[] = [];
     let capped = false;
@@ -495,8 +511,10 @@ export type ProngPlan = {
    * the box, and the layout proves nothing of the prong outside the box comes
    * near the envelope. A boolean's cost grows with the faces it is handed, so
    * fourteen faces instead of two hundred is most of the preview budget.
+   * Null for a prong that is a turned or mirrored copy of an earlier one
+   * (see matchingProng): it is moved into place, not cut.
    */
-  seatCutter: V3[][];
+  seatCutter: V3[][] | null;
   /** The as-cast spine, foot to cap: a straight leg, one bend, a vertical post. Absent without a band. */
   spine?: {
     foot: V3;
@@ -698,13 +716,30 @@ export function layoutHead(
       // The seat cutter, cut down to a box round every part of this prong
       // that comes within reach of the envelope: the post's seat, and the
       // bend too when the bend had to start under the seat.
-      const near = spineSamples(r.spine.foot, r.spine.corner, r.spine.top, r.spine.bendRadius, d / 2)
-        .filter(({ c, t, onPost, slack }) => (onPost && c[2] >= p.seatLow - 0.05 && c[2] <= p.seatHigh + 0.05) ||
-          circleBound(seatPlanes, c, t, d / 2) - slack < 0.03);
-      const m = d / 2 + 0.1;
+      if (matchingProng(stone, prongs, p.index)) { p.seatCutter = null; continue; }
+      // The post's own span is exact in height, since the post is upright;
+      // anything else near the seat (a bend started under it) gets the full
+      // margin. Kept off the bend otherwise: a box reaching down into the
+      // bend hands OCCT a torus to intersect, the slow case.
+      // In the frame of the girdle's normal at this prong, so the box takes
+      // in only the envelope's faces the post faces, not its neighbours'
+      // (fewer faces, a quicker cut).
+      const m = d / 2 + 0.05;
+      const u = p.normal;
       const lo: V3 = [Infinity, Infinity, Infinity], hi: V3 = [-Infinity, -Infinity, -Infinity];
-      for (const { c } of near) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], c[k] - m); hi[k] = Math.max(hi[k], c[k] + m); }
-      p.seatCutter = clipConvex(boxFaces(lo, hi), envPlanes);
+      const grow = (c: V3, mz: number) => {
+        const q: V3 = [c[0] * u[0] + c[1] * u[1], -c[0] * u[1] + c[1] * u[0], c[2]];
+        for (let k = 0; k < 3; k++) {
+          const mk = k === 2 ? mz : m;
+          lo[k] = Math.min(lo[k], q[k] - mk); hi[k] = Math.max(hi[k], q[k] + mk);
+        }
+      };
+      grow([p.postCentre[0], p.postCentre[1], p.seatLow - 0.05], 0.02);
+      grow([p.postCentre[0], p.postCentre[1], p.seatHigh + 0.05], 0.02);
+      for (const { c, t, onPost, slack } of spineSamples(r.spine.foot, r.spine.corner, r.spine.top, r.spine.bendRadius, d / 2)) {
+        if (!onPost && circleBound(seatPlanes, c, t, d / 2) - slack < 0.03) grow(c, m);
+      }
+      p.seatCutter = clipConvex(orientedBoxFaces(u, lo, hi), envPlanes);
     }
 
     // A gap the legs could not keep on this stone is clamped to the one they
@@ -805,20 +840,23 @@ export function matchingProng(
     return stone.girdle.some((u) => Math.hypot(u[0] - w[0], u[1] - w[1]) < TOL);
   });
   const psi = (p: ProngPlan) => Math.atan2(p.postCentre[1], p.postCentre[0]);
-  for (let i = 0; i < j; i++) {
-    const pi = prongs[i];
-    if (!pi.spine || Math.abs(pi.d - pj.d) > TOL || Math.abs(pi.spine.bendRadius - pj.spine.bendRadius) > TOL) continue;
-    const half = (psi(pi) + psi(pj)) / 2;
-    const moves: HeadSymmetry[] = [
-      { kind: "rotate", angle: psi(pj) - psi(pi) },
-      { kind: "mirror", normal: [-Math.sin(half), Math.cos(half)] },
-      { kind: "mirror", normal: [Math.cos(half), Math.sin(half)] },
-    ];
-    for (const move of moves) {
-      const a = pi.spine, b = pj.spine;
-      if (same(applySymmetry(move, a.foot), b.foot) && same(applySymmetry(move, a.corner), b.corner) &&
-          same(applySymmetry(move, a.top), b.top) && keepsGirdle(move)) {
-        return { from: i, move };
+  // A turn first, from any earlier prong, then a reflection: a turned copy
+  // can share its original's geometry (and its mesh), a mirrored one cannot.
+  for (const kind of ["rotate", "mirror"] as const) {
+    for (let i = 0; i < j; i++) {
+      const pi = prongs[i];
+      if (!pi.spine || Math.abs(pi.d - pj.d) > TOL || Math.abs(pi.spine.bendRadius - pj.spine.bendRadius) > TOL) continue;
+      const half = (psi(pi) + psi(pj)) / 2;
+      const moves: HeadSymmetry[] = kind === "rotate"
+        ? [{ kind: "rotate", angle: psi(pj) - psi(pi) }]
+        : [{ kind: "mirror", normal: [-Math.sin(half), Math.cos(half)] },
+          { kind: "mirror", normal: [Math.cos(half), Math.sin(half)] }];
+      for (const move of moves) {
+        const a = pi.spine, b = pj.spine;
+        if (same(applySymmetry(move, a.foot), b.foot) && same(applySymmetry(move, a.corner), b.corner) &&
+            same(applySymmetry(move, a.top), b.top) && keepsGirdle(move)) {
+          return { from: i, move };
+        }
       }
     }
   }
@@ -869,6 +907,7 @@ function layoutLeg(
   // and up and down by tol, so it lies inside the hull's planes each pushed
   // out by those amounts times the plane's lean. Clear of those, a point is
   // clear of the seat.
+  planes = facing(planes, Math.atan2(p.postCentre[1], p.postCentre[0]));
   const grow = CORNER_FACTOR * v.seatTolerance;
   const seatPlanes = planes.map((pl) =>
     ({ n: pl.n, h: pl.h + grow * Math.hypot(pl.n[0], pl.n[1]) + v.seatTolerance * Math.abs(pl.n[2]) }));
@@ -945,7 +984,7 @@ function layoutLeg(
   const measure = (s: Built) => {
     let pav = Infinity, seat = Infinity, culet = Infinity;
     for (const { c: q, t, onPost, slack } of spineSamples(s.foot, s.corner, top, s.bend, half)) {
-      culet = Math.min(culet, Math.hypot(...q) - half - slack);
+      culet = Math.min(culet, Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]) - half - slack);
       // Any of this section below girdle − d? Its lowest point is half its
       // width times how far it leans from level.
       const low = q[2] - half * Math.sqrt(Math.max(0, 1 - t[2] * t[2])) - slack <= below;
@@ -968,13 +1007,14 @@ function layoutLeg(
     const at = (r: number) => ({ ...build(r, bend, mode, drop), r, drop });
     if (ok(build(rMin, bend, mode, drop), mode)) return at(rMin);
     let prev = rMin;
-    for (let x = rMin + 0.1; x <= rHi + 1e-9; x += 0.1) {
-      if (ok(build(x, bend, mode, drop), mode)) {
-        let a = prev, b = x;
-        for (let k = 0; k < 7; k++) { const mid = (a + b) / 2; if (ok(build(mid, bend, mode, drop), mode)) b = mid; else a = mid; }
+    for (let x = rMin + 0.4; x <= rHi + 0.4 - 1e-9; x += 0.4) {
+      const xx = Math.min(x, rHi);
+      if (ok(build(xx, bend, mode, drop), mode)) {
+        let a = prev, b = xx;
+        for (let k = 0; k < 9; k++) { const mid = (a + b) / 2; if (ok(build(mid, bend, mode, drop), mode)) b = mid; else a = mid; }
         return at(b);
       }
-      prev = x;
+      prev = xx;
     }
     return null;
   };
@@ -1088,47 +1128,61 @@ let G = new Float64Array(256);
 /**
  * `enough`: when even the crude bound (the centre's, less r) already reaches
  * it, that is returned without the exact work; a caller asking "is it at
- * least this far?" gets the same answer, much sooner.
+ * least this far?" gets the same answer, much sooner. Planes are tried in
+ * the order given, so a caller that puts the likeliest first stops sooner.
  */
 export function circleBound(planes: HalfSpace[], c: V3, t: V3, r: number, enough = Infinity): number {
-  if (G.length < planes.length) G = new Float64Array(planes.length * 2);
+  const n = planes.length;
+  if (G.length < n) G = new Float64Array(n * 2);
   let gmax = -Infinity;
-  for (let j = 0; j < planes.length; j++) {
+  for (let j = 0; j < n; j++) {
     const p = planes[j];
     const v = p.n[0] * c[0] + p.n[1] * c[1] + p.n[2] * c[2] - p.h;
+    // Every point of the circle is within r of c, and the bound moves no
+    // faster than the point does, so v − r holds everywhere on it.
+    if (v - r >= enough) return v - r;
     G[j] = v;
     if (v > gmax) gmax = v;
   }
-  // Every point of the circle is within r of c, and the bound moves no faster
-  // than the point does, so gmax − r holds everywhere on it.
-  if (gmax - r >= enough) return gmax - r;
   const a0 = Math.abs(t[2]) < 0.9 ? [0, 0, 1] as V3 : [1, 0, 0] as V3;
   const u = unitV(cross(t, a0)), w = cross(t, u);
-  const cand: { g: number; a: number; b: number }[] = [];
-  for (let j = 0; j < planes.length; j++) {
+  // Only planes within 2r of the best at the centre can be the largest
+  // anywhere on the circle.
+  let k = 0;
+  for (let j = 0; j < n; j++) {
     if (G[j] >= gmax - 2 * r - 1e-12) {
-      const n = planes[j].n;
-      cand.push({ g: G[j], a: r * dot(n, u), b: r * dot(n, w) });
+      const pn = planes[j].n;
+      CG[k] = G[j];
+      CA[k] = r * (pn[0] * u[0] + pn[1] * u[1] + pn[2] * u[2]);
+      CB[k] = r * (pn[0] * w[0] + pn[1] * w[1] + pn[2] * w[2]);
+      if (++k === CG.length) break;
     }
   }
   const F = (th: number) => {
     const cs = Math.cos(th), sn = Math.sin(th);
     let m = -Infinity;
-    for (const q of cand) { const v = q.g + q.a * cs + q.b * sn; if (v > m) m = v; }
+    for (let q = 0; q < k; q++) { const v = CG[q] + CA[q] * cs + CB[q] * sn; if (v > m) m = v; }
     return m;
   };
   let best = Infinity;
-  for (const q of cand) best = Math.min(best, F(Math.atan2(-q.b, -q.a)));
-  for (let i = 0; i < cand.length; i++) {
-    for (let j = i + 1; j < cand.length; j++) {
-      const da = cand[i].a - cand[j].a, db = cand[i].b - cand[j].b;
-      const R = Math.hypot(da, db), C = cand[j].g - cand[i].g;
+  for (let q = 0; q < k; q++) best = Math.min(best, F(Math.atan2(-CB[q], -CA[q])));
+  for (let i = 0; i < k; i++) {
+    for (let j = i + 1; j < k; j++) {
+      const da = CA[i] - CA[j], db = CB[i] - CB[j];
+      const R = Math.hypot(da, db), C = CG[j] - CG[i];
       if (R < 1e-15 || Math.abs(C) > R) continue;
       const phi = Math.atan2(db, da), off = Math.acos(C / R);
       best = Math.min(best, F(phi + off), F(phi - off));
     }
   }
   return best;
+}
+const CG = new Float64Array(64), CA = new Float64Array(64), CB = new Float64Array(64);
+
+/** The planes, likeliest nearest first for a prong standing in direction psi. */
+function facing(planes: HalfSpace[], psi: number): HalfSpace[] {
+  const ux = Math.cos(psi), uy = Math.sin(psi);
+  return [...planes].sort((a, b) => (b.n[0] * ux + b.n[1] * uy) - (a.n[0] * ux + a.n[1] * uy));
 }
 
 /**

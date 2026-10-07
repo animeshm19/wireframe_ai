@@ -17,7 +17,7 @@
 import {
   setOC, draw, drawCircle, drawEllipse, makeLine, makeFace, makeSolid,
   assembleWire, makeCylinder, makeCircle, measureVolume, exportSTEP, loft,
-  makeCompound, genericSweep, makeThreePointArc,
+  makeCompound, genericSweep, makeThreePointArc, makeAx1, cast, getOC,
   Plane, Sketch,
   type Shape3D, type AnyShape, type Wire, type Face,
 } from "replicad";
@@ -463,9 +463,26 @@ function sectionPolygon(s: BandSection, n = 180): [number, number][] {
   return pts;
 }
 
+/**
+ * The last few sections' polygons. A head asks for the band under each foot
+ * dozens of times while it lays out its legs, nearly always of the same
+ * section, and the polygon is the costly part.
+ */
+const polygonCache = new Map<string, [number, number][]>();
+function cachedPolygon(s: BandSection) {
+  const key = `${s.profile}|${s.innerR}|${s.width}|${s.thickness}|${s.shift}|${s.twist}`;
+  let pts = polygonCache.get(key);
+  if (!pts) {
+    if (polygonCache.size > 64) polygonCache.clear();
+    pts = sectionPolygon(s);
+    polygonCache.set(key, pts);
+  }
+  return pts;
+}
+
 /** The band's outermost and innermost radius at one axial position, or null off the band. */
 export function sectionSpan(s: BandSection, axial: number): { top: number; bottom: number } | null {
-  const pts = sectionPolygon(s);
+  const pts = cachedPolygon(s);
   let top = -Infinity, bottom = Infinity;
   for (let i = 0; i < pts.length; i++) {
     const [r0, a0] = pts[i], [r1, a1] = pts[(i + 1) % pts.length];
@@ -985,9 +1002,18 @@ export function asCastProng(spine: NonNullable<ProngPlan["spine"]>, d: number): 
     .sketchOnPlane("XZ").revolve([0, 0, 1])
     .translate(top) as Shape3D;
 
-  const atTop = (f: Face) => f.geomType === "PLANE" &&
-    Math.hypot(f.center.x - top[0], f.center.y - top[1], f.center.z - top[2]) < 1e-6;
+  // The tube's end disc and the cap's base disc: flat, and lying in the
+  // horizontal plane through `top`. Told apart by their boxes rather than by
+  // Face.center, which integrates the face's area and cost 2.4 ms a prong.
+  const atTop = (f: Face) => {
+    if (f.geomType !== "PLANE") return false;
+    const [lo, hi] = f.boundingBox.bounds;
+    return Math.abs(lo[2] - top[2]) < 1e-4 && Math.abs(hi[2] - top[2]) < 1e-4;
+  };
   const faces = [...tube.faces.filter((f) => !atTop(f)), ...cap.faces.filter((f) => !atTop(f))];
+  if (faces.length !== tube.faces.length + cap.faces.length - 2) {
+    throw new Error(`as-cast prong: found ${tube.faces.length + cap.faces.length - faces.length} discs at the cap, wants 2`);
+  }
   const solid = makeSolid(faces);
 
   const want = Math.PI * r * r * length + Math.PI * (r * r * h - (h * h * h) / 3);
@@ -995,8 +1021,54 @@ export function asCastProng(spine: NonNullable<ProngPlan["spine"]>, d: number): 
   if (!(Math.abs(got - want) <= want * 0.01) || solid.solids.length !== 1) {
     throw new Error(`as-cast prong failed its check: ${got.toFixed(4)} mm³ against ${want.toFixed(4)}, ${solid.solids.length} solid(s)`);
   }
+  volumes.set(solid, got);
   return solid;
 }
+
+/**
+ * A solid turned about the head axis, sharing its original's geometry
+ * through an OCCT location rather than copying it: the turned prong is then
+ * meshed from the original's triangles (0.6 ms against 8 for a box, S1),
+ * and the original stays untouched for its own role. A mirror cannot be a
+ * location, so mirrored prongs are copied.
+ */
+function turned(sh: Shape3D, angle: number): Shape3D {
+  const oc = getOC();
+  const trsf = new oc.gp_Trsf();
+  const axis = makeAx1([0, 0, 0], [0, 0, 1]);
+  trsf.SetRotation(axis, angle);
+  const loc = new oc.TopLoc_Location(trsf);
+  const out = cast(sh.wrapped.Moved(loc, false)) as Shape3D;
+  axis.delete(); loc.delete(); trsf.delete();
+  return out;
+}
+
+/**
+ * a − b, run once.
+ *
+ * replicad's Shape.cut constructs OCCT's BRepAlgoAPI_Cut with both shapes,
+ * which already performs the cut, and then calls Build() on it, which
+ * performs it again. Same algorithm, same options (no glue shortcuts), the
+ * same simplification afterwards, half the time: 3.6 ms a prong seat against
+ * 7.7, identical volumes and faces (S1). The seat cut runs on every preview,
+ * so it is the one place the second build is worth avoiding.
+ */
+function cutOnce(a: Shape3D, b: Shape3D): Shape3D {
+  const oc = getOC();
+  const progress = new oc.Message_ProgressRange();
+  const op = new oc.BRepAlgoAPI_Cut(a.wrapped, b.wrapped, progress);
+  try {
+    if (!op.IsDone() || op.HasErrors()) throw new Error("OCCT did not complete the cut");
+    op.SimplifyResult(true, true, 1e-3);
+    return cast(op.Shape()) as Shape3D;
+  } finally {
+    op.delete();
+    progress.delete();
+  }
+}
+
+/** Volumes already measured, so a check does not measure the same solid twice. */
+const volumes = new WeakMap<Shape3D, number>();
 
 const dot3 = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
@@ -1011,8 +1083,8 @@ const dot3 = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
  * the stone, and quietly shipping that is the defect this whole series fixes.
  */
 function cutSeat(part: Shape3D, cutter: Shape3D, what: string, mayMiss = false): Shape3D {
-  const before = measureVolume(part);
-  const out = part.cut(cutter.clone()) as Shape3D;
+  const before = volumes.get(part) ?? measureVolume(part);
+  const out = cutOnce(part, cutter);
   const after = measureVolume(out);
   const solids = out.solids.length;
   if (!(after > 1e-6) || after > before + 1e-6 || solids !== 1 || (!mayMiss && after >= before - 1e-6)) {
@@ -1134,12 +1206,13 @@ export function buildHead(
     let solid: Shape3D;
     if (twin) {
       const m = twin.move;
-      solid = (m.kind === "rotate"
-        ? seated[twin.from].clone().rotate((m.angle * 180) / Math.PI, [0, 0, 0], [0, 0, 1])
-        : seated[twin.from].clone().mirror([m.normal[0], m.normal[1], 0], [0, 0, 0])) as Shape3D;
+      solid = m.kind === "rotate"
+        ? turned(seated[twin.from], m.angle)
+        : seated[twin.from].clone().mirror([m.normal[0], m.normal[1], 0], [0, 0, 0]) as Shape3D;
     } else {
       // The seat is cut here, before any fuse, so the live preview shows it
       // too, by the envelope clipped to this post (see ProngPlan.seatCutter).
+      if (!p.seatCutter) throw new Error(`prong ${p.index} has no seat cutter and no twin to copy`);
       solid = cutSeat(asCastProng(p.spine, p.d), polyhedron(p.seatCutter), `prong ${p.index}`);
     }
     seated.push(solid);
