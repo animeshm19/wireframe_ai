@@ -140,6 +140,8 @@ export type StructureAudit = {
   requested: BenchValues;
   /** Microscopic sealed cavities the merge filled (fuseMetal → sealVoids). */
   voidsFilled: number;
+  /** Fuses OCCT got wrong that a retry 0.001 mm over got right (see fuseMetal). */
+  shiftedRetries: number;
   solidCount: number;
   dropped: number;
   metalVolume: number;
@@ -233,7 +235,7 @@ export async function auditStructure(
   const t0 = performance.now();
   const fused = buildRingParts(spec, { seats: true });
   const t1 = performance.now();
-  const { metal, dropped, voidsFilled } = fuseMetal(fused.metalParts);
+  const { metal, dropped, voidsFilled, shiftedRetries } = fuseMetal(fused.metalParts);
   const t2 = performance.now();
 
   // The files first, straight off the fuse, as the app exports them: every
@@ -507,7 +509,7 @@ export async function auditStructure(
 
   const t3 = performance.now();
   return {
-    spec, bench, requested, voidsFilled,
+    spec, bench, requested, voidsFilled, shiftedRetries,
     solidCount: metal.solids.length,
     dropped,
     metalVolume: vol(metal),

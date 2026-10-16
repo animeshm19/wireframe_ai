@@ -1946,6 +1946,8 @@ export type FuseResult = {
   dropped: number;
   /** Microscopic sealed cavities the fuse left and sealVoids filled (see there). */
   voidsFilled: number;
+  /** Fuses OCCT got wrong and a retry 0.001 mm over got right (see fuseMetal). */
+  shiftedRetries: number;
 };
 
 /**
@@ -2024,7 +2026,7 @@ export function cutAll(
 export function fuseMetal(parts: Shape3D[]): FuseResult {
   let out = parts[0];
   let vol = measureVolume(out);
-  let dropped = 0;
+  let dropped = 0, shiftedRetries = 0;
 
   for (let i = 1; i < parts.length; i++) {
     let next: Shape3D | null = null;
@@ -2033,13 +2035,38 @@ export function fuseMetal(parts: Shape3D[]): FuseResult {
     let nv = -1;
     if (next) { try { nv = measureVolume(next); } catch { nv = -1; } }
 
+    // A part that leaves the metal in more pieces than before either does
+    // not touch it, or touches it and the fuse failed without saying so:
+    // OCCT's intersector misses an overlap in a window about 1e-4 mm wide (a
+    // 0.25 ct cushion's prong lost its 0.33 mm³ in the band at the built
+    // position, its common with the band read 0 too, and a fuzzy tolerance
+    // up to 1e-3 mm did not help; moved 0.001 mm either way along any axis,
+    // both found it, S2). So the part is fused once more moved 0.001 mm, far
+    // inside any casting tolerance, along each axis in turn, and that is
+    // taken only if it joins the part and keeps every check: no metal lost,
+    // no more gained than the part. A part that truly does not touch stays
+    // apart, and every retry taken is counted (FuseResult.shiftedRetries).
+    if (next && nv >= vol - 1e-6 && next.solids.length > out.solids.length) {
+      const pv = measureVolume(parts[i]);
+      for (const d of [[1e-3, 0, 0], [-1e-3, 0, 0], [0, 1e-3, 0], [0, -1e-3, 0], [0, 0, 1e-3], [0, 0, -1e-3]] as V3[]) {
+        let retry: Shape3D | null = null;
+        try { retry = out.fuse(parts[i].clone().translate(d) as Shape3D) as Shape3D; } catch { retry = null; }
+        if (!retry) continue;
+        const rv = measureVolume(retry);
+        if (retry.solids.length <= out.solids.length && rv >= vol - 1e-6 && rv <= vol + pv + 1e-6) {
+          next = retry; nv = rv; shiftedRetries++;
+          break;
+        }
+      }
+    }
+
     // Tolerance, not equality: a legitimate union of overlapping solids lands
     // within rounding of the larger input, never meaningfully below it.
     if (next && nv >= vol - 1e-6) { out = next; vol = nv; }
     else dropped++;
   }
   const sealed = sealVoids(out);
-  return { metal: sealed.shape, dropped, voidsFilled: sealed.filled };
+  return { metal: sealed.shape, dropped, voidsFilled: sealed.filled, shiftedRetries };
 }
 
 /**
