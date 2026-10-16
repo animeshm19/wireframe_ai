@@ -76,6 +76,15 @@ export type StoneProfile = {
    * girdle.
    */
   hull: Station[];
+  /**
+   * A step cut's own sections, culet to table: the girdle polygon scaled by
+   * s at height z, flat facets between. Its pavilion bends inward between
+   * stations (the profile is not concave), so the hull above stands up to
+   * 0.6 mm outside it at mid-pavilion (princess 3 ct); a gallery set off the
+   * hull sat that much too far from the stone (S2 review). Null for a
+   * brilliant, whose hull is its pavilion.
+   */
+  stations: Station[] | null;
 };
 
 /** Smallest section the envelope is given, so its bottom face is not a point. */
@@ -108,6 +117,7 @@ export function stoneProfile(cut: GemCut, girdleR: number): StoneProfile {
   return {
     cut, girdleR, pavH, girdleH, crownH, zGb, zGt, zT,
     tableScale: TABLE_SCALE, girdle, hull,
+    stations: isStepCut(cut) ? stepCutStations(girdleR) : null,
   };
 }
 
@@ -579,6 +589,8 @@ export type GalleryPlan = {
   path: V2[];
   /** The wire's outline seen from above (the centreline grown by t/2). */
   outer: V2[];
+  /** How much further than galleryClearance from the stone the seat envelope held it, at worst. */
+  seatPush: number;
 };
 
 export type HeadLayout = {
@@ -610,6 +622,8 @@ export type LayoutOptions = {
   avoidPoints?: { p: V3; r: number }[];
   /** The alloy's minimum wall: a gallery is never thinned below it (see placeGallery). */
   minGalleryThickness?: number;
+  /** A head that may go without a gallery where its legs cannot pass through one (a three-stone's side heads, S6's). */
+  galleryOptional?: boolean;
 };
 
 /** Prong directions, unchanged from the first engine. */
@@ -619,7 +633,7 @@ export function prongAngles(cut: GemCut, prongCount: number): number[] {
 }
 
 /**
- * The whole as-cast head: seats, posts, legs and the interim rail.
+ * The whole as-cast head: seats, posts, legs and the upper gallery.
  *
  * Without a band probe only the seat half is laid out (girdle points, posts,
  * heights), which is all the structure audit needs to know where to measure.
@@ -803,14 +817,6 @@ export function layoutHead(
     const seatPlanes = planes.map((pl) =>
       ({ n: pl.n, h: pl.h + grow * Math.hypot(pl.n[0], pl.n[1]) + tol * Math.abs(pl.n[2]) }));
 
-    // The gallery may not come closer to the stone than the seat envelope
-    // does: the envelope is cut out of the head, so a gallery inside it would
-    // be cut too (the safety cut in the engine asserts it is not).
-    const seatReach = CORNER_FACTOR * tol + 0.02;
-    if (values.galleryClearance < seatReach) {
-      warn("galleryClearance", `Gap between gallery and stone: ${fmt(values.galleryClearance)} mm is less than the room left round the stone in its seat, so ${fmt(seatReach)} mm is used.`);
-      values.galleryClearance = seatReach;
-    }
     const g = placeGallery(stone, values, planes, band, avoid, avoidPoints, opts.minGalleryThickness ?? 0);
     gallery = g.plan;
     if (g.thinned) {
@@ -820,6 +826,9 @@ export function layoutHead(
         ? `A gallery ${fmt(asked)} mm thick, ${fmt(values.galleryClearance)} mm off the stone, would show beyond the girdle of this stone at any height, so ${fmt(g.plan.t)} mm is used.`
         : `A gallery ${fmt(asked)} mm thick, ${fmt(values.galleryClearance)} mm off the stone, would show beyond the girdle of this stone at any height, so the minimum of ${fmt(g.plan.t)} mm is used.`);
     }
+    if (g.plan.seatPush > 0.05) {
+      warn("galleryClearance", `Gap between gallery and stone: ${fmt(values.galleryClearance)} mm would put the gallery inside the room left round the stone in its seat, so up to ${fmt(values.galleryClearance + g.plan.seatPush)} mm is kept.`);
+    }
     if (g.showing != null) {
       warnings.push({ key: "galleryThickness", kind: "engine-clamped",
         message: `A gallery ${fmt(values.galleryThickness)} mm thick, ${fmt(values.galleryClearance)} mm off the stone, cannot be hidden under the girdle of this stone at any height; it sits ${fmt(g.lowered)} mm below the middle of the pavilion, where it shows least, ${fmt(g.showing)} mm beyond the girdle.` });
@@ -828,13 +837,34 @@ export function layoutHead(
     }
     if (g.blocked) blocked ??= g.blocked;
 
+    const legs = (through: GalleryPlan | null) => {
+      const choices: LegChoice[] = [];
+      return prongs.map((p) => {
+        const r = layoutLeg(p, stone, values, band, planes, through, choices, avoid, avoidPoints);
+        if (!choices.some((c) => c.r === r.choice.r && c.bend === r.choice.bend && c.mode === r.choice.mode &&
+          c.drop === r.choice.drop && c.delta === r.choice.delta && c.wrap === r.choice.wrap &&
+          c.kick === r.choice.kick && c.fall === r.choice.fall)) choices.push(r.choice);
+        return r;
+      });
+    };
+    let laid = legs(gallery);
+    // A three-stone's side head on a small ring (0.25 ct: the side stone is
+    // 0.06 ct) has no room for a 0.8 mm prong to bend through a 0.7 mm wire
+    // under it. Side heads are S6's; until then such a head goes without a
+    // gallery, its legs standing in the band as in S1, and says so. The
+    // centre head always has its gallery.
+    if (opts.galleryOptional && laid.some((r) => !r.fits)) {
+      const without = legs(null);
+      if (without.every((r) => r.fits)) {
+        laid = without;
+        gallery = null;
+        warn("galleryThickness", "This stone is too small for prongs to pass through a gallery under it, so it is set without one; its prongs stand in the band.");
+      }
+    }
     let bendWarned = false;
-    const choices: LegChoice[] = [];
     let short = Infinity;
-    for (const p of prongs) {
-      const r = layoutLeg(p, stone, values, band, planes, gallery, choices, avoid, avoidPoints);
-      if (!choices.some((c) => c.r === r.choice.r && c.bend === r.choice.bend && c.mode === r.choice.mode &&
-        c.drop === r.choice.drop && c.delta === r.choice.delta && c.wrap === r.choice.wrap)) choices.push(r.choice);
+    prongs.forEach((p, i) => {
+      const r = laid[i];
       p.spine = r.spine;
       if (r.bendClamped && !bendWarned) {
         bendWarned = true;
@@ -848,9 +878,10 @@ export function layoutHead(
       }
       if (r.otherShort) blocked ??= `prong ${p.index + 1}'s leg cannot keep clear of the next stone`;
       if (!r.fits) {
-        warn("minBendRadius", `Prong ${p.index + 1}'s leg has no room to bend between its seat and the gallery on this stone even at the tightest bend; it is built at the tightest.`);
+        warn("minBendRadius", `Prong ${p.index + 1}'s leg has no room to bend between its seat and the gallery on this stone even at the tightest bend.`);
+        blocked ??= `prong ${p.index + 1}'s leg has no room to bend`;
       }
-    }
+    });
 
     // The seat cutter, cut down to a box round every part of each prong that
     // comes within reach of the envelope: the post's seat, and the bend too
@@ -972,13 +1003,101 @@ function rayHit(poly: V2[], o: V2, u: V2): V2 | null {
   return Number.isFinite(best) ? [o[0] + u[0] * best, o[1] + u[1] * best] : null;
 }
 
-/** Corners of the polygon whose sides are the given lines n·x = h, taken in order. */
-function linesPolygon(lines: { n: V2; h: number }[]): V2[] {
-  return lines.map((l1, i) => {
-    const l0 = lines[(i - 1 + lines.length) % lines.length];
-    const det = l0.n[0] * l1.n[1] - l0.n[1] * l1.n[0];
-    return [(l0.h * l1.n[1] - l1.h * l0.n[1]) / det, (l0.n[0] * l1.h - l1.n[0] * l0.h) / det] as V2;
+/**
+ * The convex polygon inside every line n·x ≤ h, counter-clockwise, and which
+ * lines give it a side. Unlike meeting each line with the next, a line that
+ * the others already cut off (a gallery's bevel that would not cut its
+ * corner) simply gives no side, rather than folding the outline over itself.
+ */
+function clipLines(lines: { n: V2; h: number }[]): { poly: V2[]; used: boolean[] } {
+  const B = 1e3;
+  let poly: V2[] = [[-B, -B], [B, -B], [B, B], [-B, B]];
+  for (const { n, h } of lines) {
+    const out: V2[] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const fa = n[0] * a[0] + n[1] * a[1] - h, fb = n[0] * b[0] + n[1] * b[1] - h;
+      if (fa <= 0) out.push(a);
+      if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) {
+        const w = fa / (fa - fb);
+        out.push([a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w]);
+      }
+    }
+    poly = out;
+  }
+  // Corners closer than a micron are one corner: a bevel that only just
+  // cuts its corner would otherwise hand the loft a zero-length side.
+  poly = poly.filter((p, i) => {
+    const q = poly[(i + 1) % poly.length];
+    return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-4;
   });
+  const used = lines.map(() => false);
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const md: V2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    let best = -1, err = Infinity;
+    lines.forEach(({ n, h }, k) => {
+      const e = Math.abs(n[0] * md[0] + n[1] * md[1] - h);
+      if (e < err) { err = e; best = k; }
+    });
+    if (best >= 0 && err < 1e-6) used[best] = true;
+  }
+  return { poly, used };
+}
+
+/**
+ * A stone given as stacked sections (the girdle polygon scaled by s at z) as
+ * flat faces: a quad per side between each pair of stations, and the end caps.
+ */
+function stackFaces(P: V2[], stations: Station[]): V3[][] {
+  const rings = stations.map(({ z, s }) => P.map(([x, y]) => [x * s, y * s, z] as V3));
+  const faces: V3[][] = [rings[0], rings[rings.length - 1]];
+  for (let k = 0; k + 1 < rings.length; k++) {
+    const A = rings[k], C = rings[k + 1];
+    for (let i = 0; i < P.length; i++) {
+      const j = (i + 1) % P.length;
+      const quad = [A[i], A[j], C[j], C[i]];
+      if (polygonArea(quad) > 1e-12) faces.push(quad);
+    }
+  }
+  return faces;
+}
+
+/**
+ * Whether side i of a closed centreline (from corner i to corner i + 1) is
+ * long enough for a mitred round wire of radius r: each mitre takes
+ * r·tan(turn / 2) of it on the inside of the bend, and two that overlap fold
+ * the tube over itself. 0.01 mm to spare.
+ */
+export function tubeSideFits(path: V2[], i: number, r: number): boolean {
+  const n = path.length;
+  const turnAt = (k: number) => {
+    const a = path[(k - 1 + n) % n], b = path[k], c = path[(k + 1) % n];
+    const u = Math.atan2(b[1] - a[1], b[0] - a[0]), v = Math.atan2(c[1] - b[1], c[0] - b[0]);
+    let t = Math.abs(v - u);
+    if (t > Math.PI) t = 2 * Math.PI - t;
+    return t;
+  };
+  const a = path[i], b = path[(i + 1) % n];
+  return Math.hypot(b[0] - a[0], b[1] - a[1]) >= r * (Math.tan(turnAt(i) / 2) + Math.tan(turnAt((i + 1) % n) / 2)) + 0.01;
+}
+
+/** Distance from q to a flat convex polygon. */
+function pointFaceDistance(q: V3, f: V3[]): number {
+  const n = unitV(newell(f));
+  const d = dot(sub(q, f[0]), n);
+  const p = sub(q, scale(n, d));
+  let inside = true;
+  let edge = Infinity;
+  for (let i = 0; i < f.length; i++) {
+    const a = f[i], b = f[(i + 1) % f.length];
+    const e = sub(b, a), ap = sub(p, a);
+    if (dot(cross(e, ap), n) < 0) inside = false;
+    const L2 = dot(e, e);
+    const w = L2 > 0 ? Math.min(1, Math.max(0, dot(sub(q, a), e) / L2)) : 0;
+    edge = Math.min(edge, Math.hypot(...sub(q, add(a, scale(e, w)))));
+  }
+  return inside ? Math.abs(d) : edge;
 }
 
 /**
@@ -1027,59 +1146,234 @@ function planGallery(
   const P = stone.girdle, m = P.length;
   const normals = P.map((_, i) => edgeNormal(P, i));
 
-  const at = (z: number) => {
-    const s = scaleAt(stone.hull, z);
-    // Each side set out until the wire's round section clears the hull's
-    // planes by the gallery clearance: the exact circle bound, so the gap is
-    // measured square to whichever facet is nearest, steep or shallow.
-    const lines = P.map((_, i) => {
+  // The seat envelope's planes: the hull's, pushed out by its growth
+  // sideways and up and down (as the legs keep clear of it). The gallery
+  // must stay outside them, or the seat would cut it.
+  const tol = v.seatTolerance, grow = CORNER_FACTOR * tol;
+  const seatPlanes = planes.map((pl) =>
+    ({ n: pl.n, h: pl.h + grow * Math.hypot(pl.n[0], pl.n[1]) + tol * Math.abs(pl.n[2]) }));
+  // The centreline's sides: one along each side of the girdle, and at a
+  // sharp corner (a marquise's or pear's point, a step cut's corners) bevels
+  // between, their normals at most 22.5° apart. Sides along the girdle alone
+  // meet in a mitre, which at a marquise's 111° point reaches out
+  // 1/cos(55.6°) = 1.8 times as far as the sides and showed beyond the
+  // girdle on a 0.25 ct stone; the bevels follow the round corner an outward
+  // offset of the outline would have (S2). A round's 22.5° corners get none.
+  // Each line is set off from the stone's section at its own `anchor`: the
+  // side's middle, or the corner it bevels.
+  type Side = { n: V2; anchor: V2; bevel: boolean; edge: number; corner: number };
+  // Corner j sits between girdle sides j − 1 and j; how many pieces its turn
+  // is split into at most.
+  const corners = P.map((_, j) => {
+    const i = (j - 1 + m) % m;
+    const a0 = Math.atan2(normals[i][1], normals[i][0]);
+    let turn = Math.atan2(normals[j][1], normals[j][0]) - a0;
+    while (turn <= 0) turn += 2 * Math.PI;
+    const most = turn > Math.PI / 6 && turn < Math.PI ? Math.ceil(turn / (Math.PI / 8)) : 1;
+    return { a0, turn, most };
+  });
+  const sidesFor = (pieces: number[]): Side[] => {
+    const out: Side[] = [];
+    for (let i = 0; i < m; i++) {
       const j = (i + 1) % m;
-      const n = normals[i];
-      const e: V3 = [P[j][0] - P[i][0], P[j][1] - P[i][1], 0];
-      const el = Math.hypot(e[0], e[1]);
-      const tan: V3 = [e[0] / el, e[1] / el, 0];
-      const midPt: V2 = [s * (P[i][0] + P[j][0]) / 2, s * (P[i][1] + P[j][1]) / 2];
-      const clear = (h: number) => circleBound(planes, [midPt[0] + n[0] * h, midPt[1] + n[1] * h, z], tan, r);
-      let lo = 0, hi = r + gc + 0.1;
-      while (clear(hi) < gc + 0.003) hi *= 2;
-      for (let k = 0; k < 24; k++) { const md = (lo + hi) / 2; if (clear(md) >= gc + 0.003) hi = md; else lo = md; }
-      return { n, h: n[0] * midPt[0] + n[1] * midPt[1] + hi };
-    });
-    const path = linesPolygon(lines);
-    const outer = linesPolygon(lines.map((l) => ({ n: l.n, h: l.h + r })));
-    return { path, outer };
+      out.push({ n: normals[i], anchor: [(P[i][0] + P[j][0]) / 2, (P[i][1] + P[j][1]) / 2], bevel: false, edge: i, corner: -1 });
+      const { a0, turn } = corners[j];
+      for (let k = 1; k < pieces[j]; k++) {
+        const a = a0 + (turn * k) / pieces[j];
+        out.push({ n: [Math.cos(a), Math.sin(a)], anchor: P[j], bevel: true, edge: -1, corner: j });
+      }
+    }
+    return out;
+  };
+  // A step cut's section square to a side: the girdle's support distance on
+  // that side times each station's scale. The wire runs along the side, so
+  // its round section lies in this plane, and its gap to those facets is a
+  // distance in the plane. On a bevel the same plane is the stone seen
+  // along the bevel, a projection, so the gap in it is never more than the
+  // real one: the bevel keeps at least the clearance asked.
+  const realGap = (support: number, u: number, z: number) => {
+    const st = stone.stations!.filter((x) => x.z <= stone.zGt + 1e-9);
+    let best = Infinity;
+    for (let k = 0; k + 1 < st.length; k++) {
+      const a: V2 = [support * st[k].s, st[k].z], b: V2 = [support * st[k + 1].s, st[k + 1].z];
+      const ex = b[0] - a[0], ey = b[1] - a[1];
+      const w = Math.min(1, Math.max(0, ((u - a[0]) * ex + (z - a[1]) * ey) / (ex * ex + ey * ey)));
+      best = Math.min(best, Math.hypot(u - a[0] - ex * w, z - a[1] - ey * w));
+    }
+    return best - r;
+  };
+  // A bevel faces a corner, where the stone's nearest part is the ridge
+  // down from it: there the planes' bound reads well short of the true gap,
+  // and a bevel set off by it would stand outside the mitre it was meant to
+  // cut (seen on a marquise's point). So a bevel is set off by the exact gap:
+  // the round wire is the union of balls along its centreline, and its gap
+  // at a point is the point's distance to the stone's faces less the radius.
+  // The faces: a step cut's own sections, a brilliant's hull (which holds its
+  // pavilion, so the true gap is never less).
+  const stoneFaces = stackFaces(P, stone.stations ?? stone.hull);
+  const exactGap = (c: V3) => {
+    let best = Infinity;
+    for (const f of stoneFaces) best = Math.min(best, pointFaceDistance(c, f));
+    return best - r;
+  };
+  const at = (z: number) => {
+    let pushed = 0;
+    const s = scaleAt(stone.hull, z);
+    // Each side set out until the wire's round section is the gallery
+    // clearance off the stone (on a brilliant, the exact circle bound against
+    // its pavilion's planes, so the gap is square to whichever facet is
+    // nearest; on a step cut, its real section), and clear of the seat.
+    const solved = new Map<number, number>();
+    const lineFor = ({ n, anchor, bevel, edge }: Side) => {
+      if (!bevel && solved.has(edge)) return { n, h: solved.get(edge)! };
+      const tan: V3 = [-n[1], n[0], 0];
+      const midPt: V2 = [s * anchor[0], s * anchor[1]];
+      const base = n[0] * midPt[0] + n[1] * midPt[1];
+      const support = n[0] * anchor[0] + n[1] * anchor[1];
+      const pt = (h: number): V3 => [midPt[0] + n[0] * h, midPt[1] + n[1] * h, z];
+      const stoneGap = (h: number) => bevel ? exactGap(pt(h))
+        : stone.stations ? realGap(support, base + h, z) : circleBound(planes, pt(h), tan, r);
+      const seatGap = (h: number) => circleBound(seatPlanes, pt(h), tan, r);
+      const ok = (h: number, seat: boolean) => stoneGap(h) >= gc + 0.003 && (!seat || seatGap(h) >= 0.01);
+      const solve = (seat: boolean) => {
+        let lo = 0, hi = r + gc + 0.1;
+        while (!ok(hi, seat)) hi *= 2;
+        for (let k = 0; k < 24; k++) { const md = (lo + hi) / 2; if (ok(md, seat)) hi = md; else lo = md; }
+        return hi;
+      };
+      const h = solve(true);
+      pushed = Math.max(pushed, stoneGap(h) - gc);
+      if (!bevel) solved.set(edge, base + h);
+      return { n, h: base + h };
+    };
+    // A round wire turns cleanly only on an arc of its own radius or more,
+    // and the clearance alone can ask a corner for a tighter one (a 0.25 ct
+    // princess's: 0.27 mm, under a 0.35 mm wire). So each corner's bevels
+    // are laid on an arc of radius ROUND: tangent to the sides either side
+    // where the clearance allows, otherwise slid out along the corner's
+    // bisector just far enough that every bevel keeps it. 0.1 mm over the
+    // wire's radius leaves each piece of a 22.5° turn long enough for its
+    // mitres (tubeSideFits).
+    const ROUND = r + 0.1;
+    const edgeSides = sidesFor(corners.map(() => 1));
+    const rounded = (sides: Side[]) => {
+      const lines = sides.map(lineFor);
+      for (let j = 0; j < m; j++) {
+        const ks = sides.map((sd, k) => (sd.bevel && sd.corner === j ? k : -1)).filter((k) => k >= 0);
+        if (!ks.length) continue;
+        const i = (j - 1 + m) % m;
+        const hi = lineFor(edgeSides[i]).h - ROUND, hj = lineFor(edgeSides[j]).h - ROUND;
+        const ni = normals[i], nj = normals[j];
+        const det = ni[0] * nj[1] - ni[1] * nj[0];
+        const C0: V2 = [(hi * nj[1] - hj * ni[1]) / det, (ni[0] * hj - nj[0] * hi) / det];
+        const tl = Math.hypot(ni[0] + nj[0], ni[1] + nj[1]);
+        const t: V2 = [(ni[0] + nj[0]) / tl, (ni[1] + nj[1]) / tl];
+        let b = 0;
+        for (const k of ks) {
+          const n = lines[k].n;
+          b = Math.max(b, (lines[k].h - (n[0] * C0[0] + n[1] * C0[1]) - ROUND) / (n[0] * t[0] + n[1] * t[1]));
+        }
+        const C: V2 = [C0[0] + t[0] * b, C0[1] + t[1] * b];
+        for (const k of ks) lines[k] = { n: lines[k].n, h: lines[k].n[0] * C[0] + lines[k].n[1] * C[1] + ROUND };
+      }
+      return lines;
+    };
+    // A round wire cannot turn tighter than its own radius: a corner of the
+    // centreline sharper than that folds the tube's inner side over itself
+    // (the loft keeps its volume, so only OCCT's fuse noticed, dropping a
+    // prong on a 3 ct princess). A mitre is a fold-free corner however
+    // sharp, so a corner whose bevels come out too short for the wire is
+    // split into fewer pieces, down to a plain mitre.
+    const pieces = corners.map((c) => c.most);
+    let sides = sidesFor(pieces), lines = rounded(sides), inner = clipLines(lines);
+    for (let round = 0; round < 8; round++) {
+      // A bevel is short and runs across the ridge, so its gap is checked
+      // along the side it actually gives, not only at its anchor, and it is
+      // pushed out until the whole side keeps the clearance (the sides along
+      // the girdle are as before: measured, their least gap is where it is
+      // set).
+      for (let pass = 0; pass < 8; pass++) {
+        let moved = false;
+        const P2 = inner.poly, q2 = P2.length;
+        lines.forEach((l, k) => {
+          if (!sides[k].bevel || !inner.used[k]) return;
+          let least = Infinity;
+          for (let i = 0; i < q2; i++) {
+            const a = P2[i], b = P2[(i + 1) % q2];
+            const md: V2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            if (Math.abs(l.n[0] * md[0] + l.n[1] * md[1] - l.h) > 1e-6) continue;
+            for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+              least = Math.min(least, exactGap([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, z]));
+            }
+          }
+          if (least < gc + 0.003) { l.h += gc + 0.003 - least + 1e-4; moved = true; }
+        });
+        if (!moved) break;
+        inner = clipLines(lines);
+      }
+      // Every side long enough for the mitres at its two ends.
+      const P2 = inner.poly, q2 = P2.length;
+      const tight = new Set<number>();
+      for (let i = 0; i < q2; i++) {
+        const a = P2[i], b = P2[(i + 1) % q2];
+        if (tubeSideFits(P2, i, r)) continue;
+        const md: V2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const k = lines.findIndex((l) => Math.abs(l.n[0] * md[0] + l.n[1] * md[1] - l.h) < 1e-6);
+        const sd = sides[k];
+        const at2 = sd?.bevel ? [sd.corner] : sd ? [sd.edge, (sd.edge + 1) % m] : [];
+        for (const c of at2) if (pieces[c] > 1) tight.add(c);
+      }
+      // One piece fewer a round, at each corner too tight for the wire.
+      if (!tight.size) break;
+      for (const c of tight) pieces[c]--;
+      sides = sidesFor(pieces); lines = rounded(sides); inner = clipLines(lines);
+    }
+    const path = inner.poly;
+    const outer = clipLines(lines.map((l) => ({ n: l.n, h: l.h + r }))).poly;
+    // A side along the girdle that the others cut off entirely.
+    const folded = sides.some((sd, k) => !sd.bevel && !inner.used[k]);
+    return { path, outer, pushed, folded };
   };
 
   const showing = (g: { outer: V2[] }) => Math.max(...g.outer.map((q) => polygonDistance(P, q)));
-  const why = (z: number, g: { path: V2[]; outer: V2[] }, skip: { hide?: boolean; avoid?: boolean } = {}): string | null => {
+  const why = (z: number, g: { path: V2[]; outer: V2[]; folded: boolean }, skip: { hide?: boolean; avoid?: boolean } = {}): string | null => {
     if (!isConvex(g.path)) return "its outline is not convex";
-    // Every side keeps its direction (no side folds away to nothing).
-    for (let i = 0; i < m; i++) {
-      const a = g.path[i], b = g.path[(i + 1) % m];
-      const e: V2 = [P[(i + 1) % m][0] - P[i][0], P[(i + 1) % m][1] - P[i][1]];
-      if ((b[0] - a[0]) * e[0] + (b[1] - a[1]) * e[1] < 0) return "a side of the gallery folds away";
-    }
+    // Every side along the girdle keeps a length (none folds away to nothing).
+    if (g.folded) return "a side of the gallery folds away";
+    const nq = g.path.length;
     // Hidden under the girdle from above.
-    if (!skip.hide && showing(g) > -0.01) return "it shows beyond the girdle";
+    // 0.003 mm to spare: the wire's outline from above is exactly this
+    // polygon (a mitred tube's silhouette is the mitre of its offsets).
+    if (!skip.hide && showing(g) > -0.003) return "it shows beyond the girdle";
+    // The whole wire keeps the gap, not only where each side is set off:
+    // set low on a marquise, 0.6 mm off, its corners came to 0.577 (S2).
+    // Measured to the stone's faces (a brilliant's hull, never nearer than
+    // the stone itself), at every corner and along every side.
+    for (let i = 0; i < nq; i++) {
+      const a = g.path[i], b = g.path[(i + 1) % nq];
+      for (const f of [0, 0.25, 0.5, 0.75]) {
+        if (exactGap([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, z]) < v.galleryClearance - 0.015) return "it comes too near the stone";
+      }
+    }
     // Clear of the culet, which only the band may come near.
-    for (let i = 0; i < m; i++) {
-      const a = g.path[i], b = g.path[(i + 1) % m];
+    for (let i = 0; i < nq; i++) {
+      const a = g.path[i], b = g.path[(i + 1) % nq];
       const ex = b[0] - a[0], ey = b[1] - a[1];
       const k = Math.min(1, Math.max(0, -(a[0] * ex + a[1] * ey) / (ex * ex + ey * ey)));
       if (Math.hypot(Math.hypot(a[0] + ex * k, a[1] + ey * k), z) - r < v.culetClearance + 0.01) return "it comes too near the culet";
     }
     // Clear of the band (a wire resting a hair above it is the near-tangent
     // contact OCCT fuses wrongly), and of any neighbouring stone.
-    for (let i = 0; i < m; i++) {
+    for (let i = 0; i < nq; i++) {
       for (const f of [0, 0.25, 0.5, 0.75]) {
         for (const poly of [g.path, g.outer]) {
-          const a = poly[i], b = poly[(i + 1) % m];
-          const q: V2 = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-          const hit = band.at(q[0], q[1]);
+          const a = poly[i], b = poly[(i + 1) % nq];
+          const pq: V2 = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+          const hit = band.at(pq[0], pq[1]);
           if (hit && z - r < hit.top + 0.1) return "it would sit on the band";
         }
         if (skip.avoid) continue;
-        const a = g.path[i], b = g.path[(i + 1) % m];
+        const a = g.path[i], b = g.path[(i + 1) % nq];
         const c: V3 = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, z];
         const tn = unitV([b[0] - a[0], b[1] - a[1], 0]);
         if (avoid.some((o) => circleBound(o.planes, c, tn, r) < o.clearance)) return "it meets the next stone";
@@ -1089,16 +1383,34 @@ function planGallery(
     return null;
   };
 
+  // Down as far as the culet and the band allow (why() keeps the wire
+  // culetClearance off the culet and 0.1 mm off the band): on a 0.25 ct
+  // marquise or emerald only a wire whose underside is level with the culet
+  // or a little below it hides under the girdle (S2). The culet stands
+  // culetClearance above the band, so this stops there.
   const heights: number[] = [];
-  for (let z = mid; z - r > 0.05; z -= 0.01) heights.push(z);
-  const plan = (x: { z: number; path: V2[]; outer: V2[] }): GalleryPlan => ({ z: x.z, mid, t, path: x.path, outer: x.outer });
+  for (let z = mid; z - r > -v.culetClearance; z -= 0.01) heights.push(z);
+  const plan = (x: { z: number; path: V2[]; outer: V2[]; pushed: number; folded: boolean }): GalleryPlan =>
+    ({ z: x.z, mid, t, path: x.path, outer: x.outer, seatPush: x.pushed });
   // Highest first, worked out only as far as needed: most stones take the
   // first height tried, and each one costs a few hundred circle bounds.
-  const computed: { z: number; path: V2[]; outer: V2[] }[] = [];
+  const computed: { z: number; path: V2[]; outer: V2[]; pushed: number; folded: boolean }[] = [];
   for (const z of heights) {
-    const x = { z, ...at(z) };
+    let x = { z, ...at(z) };
     computed.push(x);
-    if (!why(z, x)) return { plan: plan(x), lowered: mid - z, blocked: null, showing: null };
+    if (!why(z, x)) {
+      // Lowered: no lower than it must, to a millimetre's 400th. Every
+      // hundredth lower cost a 0.25 ct emerald's legs their way inside the
+      // joint below (S2).
+      if (computed.length > 1) {
+        let hi = computed[computed.length - 2].z, lo = z;
+        for (let k = 0; k < 3; k++) {
+          const md = (hi + lo) / 2, y = { z: md, ...at(md) };
+          if (!why(md, y)) { lo = md; x = y; } else hi = md;
+        }
+      }
+      return { plan: plan(x), lowered: mid - x.z, blocked: null, showing: null };
+    }
   }
   const sections = computed;
   // Hidden somewhere, but only where it meets the next stone: moving the head
@@ -1148,11 +1460,12 @@ function planGallery(
  * the seat (a slower cut), or the bends tighten below minBendRadius, which is
  * reported.
  */
-type LegChoice = { r: number; bend: number; mode: "clear" | "under-seat"; drop: number; delta: number; wrap: number };
+type LegChoice = { r: number; bend: number; mode: "clear" | "under-seat"; drop: number; delta: number; wrap: number; kick: number; fall: number };
 
 function layoutLeg(
   p: ProngPlan, stone: StoneProfile, v: BenchValues, band: BandProbe, planes: HalfSpace[],
-  gallery: GalleryPlan,
+  /** The gallery the leg runs through; null, a leg straight down from the post (see galleryOptional). */
+  gallery: GalleryPlan | null,
   hints: LegChoice[] = [],
   avoid: { planes: HalfSpace[]; clearance: number }[] = [],
   avoidPoints: { p: V3; r: number }[] = [],
@@ -1174,17 +1487,17 @@ function layoutLeg(
   const c = p.postCentre;
   const psi = Math.atan2(c[1], c[0]);
   const top: V3 = [c[0], c[1], p.postTop];
-  const gr = gallery.t / 2;
+  const gr = gallery ? gallery.t / 2 : 0;
 
   // Where the leg crosses the gallery: on the prong's normal line, at the
   // gallery's centreline, on the side nearest the post (inward normally;
   // outward when a thick wire set well off the stone runs outside the post).
   const inward: V2 = [-p.normal[0], -p.normal[1]];
-  const hits = [rayHit(gallery.path, p.postCentre, inward), rayHit(gallery.path, p.postCentre, p.normal)]
+  const hits = (gallery ? [rayHit(gallery.path, p.postCentre, inward), rayHit(gallery.path, p.postCentre, p.normal)] : [c])
     .filter((h): h is V2 => h != null)
     .sort((a, b) => Math.hypot(a[0] - c[0], a[1] - c[1]) - Math.hypot(b[0] - c[0], b[1] - c[1]));
   const crossXY = hits[0] ?? (() => {
-    const h = radialHit(gallery.path, psi);
+    const h = radialHit(gallery!.path, psi);
     return [h.r * Math.cos(psi), h.r * Math.sin(psi)] as V2;
   })();
 
@@ -1219,8 +1532,18 @@ function layoutLeg(
   const wantBend = v.minBendRadius * d + half;
   const tightest = BEND_MIN * d + half;     // the bench field's own minimum
   const turnOf = (a: V3, b: V3) => Math.acos(Math.min(1, Math.max(-1, dot(a, b))));
-  const build = (r: number, bend: number, mode: Mode, drop: number, delta: number, wrap = 1) => {
-    const W: V3 = [crossXY[0] - inward[0] * delta, crossXY[1] - inward[1] * delta, gallery.z];
+  // kick > 0: under the seat the leg first steps out along the prong's
+  // normal by `kick` over a fall of `fall`, then runs in through the wire
+  // (one bend more). For a post set so deep that, straight down, it passes
+  // the pavilion closer than the gap just under girdle − d (a marquise's at
+  // the deepest bearing, S2); before the gallery its leg stepped out there
+  // anyway, towards a foot further out.
+  const build = (r: number, bend: number, mode: Mode, drop: number, delta: number, wrap = 1, kick = 0, fall = 0) => {
+    const midOf = (cz: number): V3 => [c[0] + p.normal[0] * kick, c[1] + p.normal[1] * kick, cz - fall];
+    // Without a gallery, W is a point on the post below its seat, and the
+    // leg is S1's: the post straight down, one bend, the leg to the foot.
+    const W: V3 = [crossXY[0] - inward[0] * delta, crossXY[1] - inward[1] * delta,
+      gallery ? gallery.z : (mode === "clear" ? p.seatLow - 0.1 : stone.zGb - 0.02) - drop - 0.3];
     const fxy = footXY(r);
     const probe = band.at(fxy[0], fxy[1]);
     // How far along the leg the wire reaches either side of W.
@@ -1234,7 +1557,8 @@ function layoutLeg(
     for (let k = 0; k < 8; k++) {
       fits = true;
       const corner: V3 = [c[0], c[1], cz];
-      const u = unitV(sub(W, corner));                     // the leg through the gallery
+      const start = kick > 0 ? midOf(cz) : corner;
+      const u = unitV(sub(W, start));                      // the leg through the gallery
       // The knee: past the far side of the wire, plus room for its own bend.
       const t2 = used * Math.tan(turnOf(u, unitV(sub(foot, knee))) / 2);
       knee = add(W, scale(u, wrap * through(u) + t2));
@@ -1253,26 +1577,39 @@ function layoutLeg(
       // Too long even so and it tightens, never below the bench's own
       // tightest bend (a bend inside the prong's own radius folds the sweep
       // over itself): then this leg does not fit.
-      const above = Math.hypot(...sub(W, corner)) - wrap * through(u);
+      const above = Math.hypot(...sub(W, start)) - wrap * through(u);
+      // The bend at the top of the run through the wire: the corner's, or,
+      // kicking, the one at the foot of the step out.
+      const turnTop = kick > 0 ? Math.tan(turnOf(unitV(sub(start, corner)), u) / 2) : tanHalf(u);
       used = bend;
-      if (bend * tanHalf(u) > above - 0.05) {
-        used = Math.max(0, (above - 0.05) / Math.max(1e-9, tanHalf(u)));
+      if (bend * turnTop > above - 0.05) {
+        used = Math.max(0, (above - 0.05) / Math.max(1e-9, turnTop));
         if (used < tightest - 1e-9) { used = tightest; fits = false; }
       }
       if (t2 > Math.hypot(...sub(foot, knee)) - 0.2) fits = false;
-      const t1 = used * tanHalf(u);
+      const t1 = used * (kick > 0 ? tanHalf(unitV(sub(start, corner))) : tanHalf(u));
       // Normally the bend starts only once the post is clear of the seat all
       // round, so the cut never meets the bend (a torus against a plane is
       // the slowest intersection OCCT has).
       cz = (mode === "clear" ? p.seatLow - 0.1 : stone.zGb - 0.02) - t1 - drop;
-      const floor = W[2] + wrap * (gr + half) + 0.2;
+      const floor = W[2] + wrap * (gr + half) + 0.2 + (kick > 0 ? fall : 0);
       if (cz < floor) { cz = floor; fits = false; }
     }
+    // The corner has settled; the knee is put back on the line from it
+    // through W (the passes above placed it from the previous corner, up to
+    // 0.055 mm off the line on a 3 ct marquise), and the whole spine is then
+    // checked to be one a sweep can follow.
     const corner: V3 = [c[0], c[1], cz];
-    return {
-      points: [foot, knee, corner, top] as V3[], bends: [used, used], gallery: W,
-      bend: used, inBand: !!probe, fits, wrap,
-    };
+    const start = kick > 0 ? midOf(cz) : corner;
+    const u = unitV(sub(W, start));
+    for (let k = 0; k < 3; k++) {
+      const t2 = used * Math.tan(turnOf(u, unitV(sub(foot, knee))) / 2);
+      knee = add(W, scale(u, wrap * through(u) + t2));
+    }
+    const points = (kick > 0 ? [foot, knee, start, corner, top] : [foot, knee, corner, top]) as V3[];
+    const bendsUsed = points.slice(2).map(() => used);
+    if (!spineFits(points, bendsUsed)) fits = false;
+    return { points, bends: bendsUsed, gallery: W, bend: used, inBand: !!probe, fits, wrap, kick, fall };
   };
   type Built = ReturnType<typeof build>;
 
@@ -1354,15 +1691,15 @@ function layoutLeg(
   };
 
   const rHi = Math.hypot(c[0], c[1]) + 3 * d;
-  const search = (bend: number, mode: Mode, drop: number, delta: number, wrap: number) => {
-    const at = (r: number) => ({ ...build(r, bend, mode, drop, delta, wrap), r, drop, delta });
-    if (ok(build(rMin, bend, mode, drop, delta, wrap), mode)) return at(rMin);
+  const search = (bend: number, mode: Mode, drop: number, delta: number, wrap: number, kick = 0, fall = 0) => {
+    const at = (r: number) => ({ ...build(r, bend, mode, drop, delta, wrap, kick, fall), r, drop, delta });
+    if (ok(build(rMin, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(rMin);
     let prev = rMin;
     for (let x = rMin + 0.4; x <= rHi + 0.4 - 1e-9; x += 0.4) {
       const xx = Math.min(x, rHi);
-      if (ok(build(xx, bend, mode, drop, delta, wrap), mode)) {
+      if (ok(build(xx, bend, mode, drop, delta, wrap, kick, fall), mode)) {
         let a = prev, b = xx;
-        for (let k = 0; k < 9; k++) { const md = (a + b) / 2; if (ok(build(md, bend, mode, drop, delta, wrap), mode)) b = md; else a = md; }
+        for (let k = 0; k < 9; k++) { const md = (a + b) / 2; if (ok(build(md, bend, mode, drop, delta, wrap, kick, fall), mode)) b = md; else a = md; }
         return at(b);
       }
       prev = xx;
@@ -1374,16 +1711,29 @@ function layoutLeg(
   for (let f = 0.75; wantBend * f > tightest; f *= 0.75) bends.push(wantBend * f);
   if (bends[bends.length - 1] > tightest) bends.push(tightest);
   // How far out along the normal the leg may cross the wire and still pass
-  // through it with real overlap.
-  const deltaMax = Math.max(0, gr + half - 0.2);
-  const deltas = [0, 0.1, 0.2, 0.35, 0.5, 0.7, 1].filter((x) => x < deltaMax).concat(deltaMax > 0 ? [deltaMax] : []);
+  // through it with real overlap: 0.2 mm of the two sections overlapping,
+  // measured square to the wire. A post near a step cut's corner crosses
+  // the gallery's corner side at 45°, where a step along the normal moves
+  // the leg only 0.71 of it off the wire (and held to the normal step, an
+  // emerald's corner prongs had to slant in close by the chamfer, S2).
+  const perpMax = gallery ? Math.max(0, gr + half - 0.2) : 0;
+  const offWire = (delta: number) =>
+    Math.abs(polygonDistance(gallery!.path, [crossXY[0] - inward[0] * delta, crossXY[1] - inward[1] * delta]));
+  let deltaMax = perpMax;
+  if (gallery && perpMax > 0) {
+    let lo = perpMax, hi = 2 * perpMax;
+    if (offWire(hi) <= perpMax) lo = hi;
+    else for (let k = 0; k < 30; k++) { const md = (lo + hi) / 2; if (offWire(md) <= perpMax) lo = md; else hi = md; }
+    deltaMax = lo;
+  }
+  const deltas = [0, 0.1, 0.2, 0.35, 0.5, 0.7, 1, 1.4].filter((x) => x < deltaMax).concat(deltaMax > 0 ? [deltaMax] : []);
 
   type Chosen = Built & { r: number; drop: number; delta: number };
   let chosen: Chosen | null = null, mode: Mode = "clear";
   // A twin prong's answer first: a symmetric head lays out its prongs alike,
   // and the copies are then moved into place rather than rebuilt.
   for (const h of hints) {
-    const s = build(h.r, h.bend, h.mode, h.drop, h.delta, h.wrap);
+    const s = build(h.r, h.bend, h.mode, h.drop, h.delta, h.wrap, h.kick, h.fall);
     if (Math.abs(s.bend - h.bend) < 1e-9 && ok(s, h.mode)) { chosen = { ...s, r: h.r, drop: h.drop, delta: h.delta }; mode = h.mode; break; }
   }
   // Then the requested bend high under the seat, then lower down the post;
@@ -1397,9 +1747,36 @@ function layoutLeg(
   // default ring's; and on a 0.25 ct round the knee fell below the joint,
   // and the leg crossed it half outside the disc the joint is measured in).
   const drops = [0, 0.5, 1, 1.5, 2, 3];
-  const tiers: [boolean, boolean, number][] = [[true, true, 1], [true, false, 1], [true, false, 0], [false, false, 1], [false, false, 0]];
-  for (const [joint, ball, wrap] of tiers) {
+  // A leg that steps out under the seat (see build), as near the post as
+  // keeps the gap: tried only once no straight leg does, first inside the
+  // joint (stepping out clears the pavilion, and the run in through the
+  // wire is then steep enough to land inside it: a 0.25 ct princess's
+  // corner prongs, S2), and again, outside it, before the fallback.
+  const kicked = (joint: boolean) => {
+    if (!gallery) return null;
+    wantJoint = joint; wantBall = false;
+    for (const kick of [0.25, 0.35, 0.45, 0.6]) {
+      for (const fall of [0.6, 0.8, 1.0, 1.3]) {
+        for (const bend of bends) {
+          for (const delta of deltas) {
+            for (const wrap of [1, 0]) {
+              for (const m of ["clear", "under-seat"] as Mode[]) {
+                const found = search(bend, m, 0, delta, wrap, kick, fall);
+                if (found) { mode = m; return found; }
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  };
+  const tiers: ([boolean, boolean, number] | "kicked-joint" | "kicked")[] =
+    [[true, true, 1], [true, false, 1], [true, false, 0], "kicked-joint", [false, false, 1], [false, false, 0], "kicked"];
+  for (const tier of tiers) {
     if (chosen) break;
+    if (tier === "kicked-joint" || tier === "kicked") { chosen = kicked(tier === "kicked-joint"); continue; }
+    const [joint, ball, wrap] = tier;
     wantJoint = joint; wantBall = ball;
     search:
     for (const bend of ball ? bends.slice(0, 1) : bends) {
@@ -1423,9 +1800,13 @@ function layoutLeg(
     // a hair of the best, one that crosses the joint inside its disc.
     clearanceMet = false;
     let bestPav = -Infinity, bestJoint = false;
+    // Only as far out along the normal as the overlap allows square to it:
+    // the wider reach of an oblique crossing (see deltaMax) is for legs that
+    // keep the gap with it; here, where none does, it only took the leg
+    // further from the joint for a gap still short (a 0.25 ct emerald, S2).
     for (const wrap of [1, 0]) {
       if (chosen) break;
-      for (const delta of deltas) {
+      for (const delta of deltas.filter((x) => x <= perpMax + 1e-9)) {
         for (const drop of drops) {
           for (let x = rMin; x <= rHi + 1e-9; x += 0.2) {
             for (const m of ["clear", "under-seat"] as Mode[]) {
@@ -1443,11 +1824,20 @@ function layoutLeg(
         }
       }
     }
+    // Nothing keeps the culet and seat rules at all: any spine a sweep can
+    // follow, tightest bend, bends in the wire; else the last one tried,
+    // which layoutHead reports and the engine refuses to sweep.
+    if (!chosen) {
+      for (let x = rHi; x >= rMin - 1e-9 && !chosen; x -= 0.2) {
+        const s = build(x, tightest, "under-seat", 0, 0, 0);
+        if (s.fits) chosen = { ...s, r: x, drop: 0, delta: 0 };
+      }
+    }
     chosen ??= { ...build(rHi, tightest, "under-seat", 0, 0, 0), r: rHi, drop: 0, delta: 0 };
   }
   const m = measure(chosen);
   return {
-    choice: { r: chosen.r, bend: chosen.bend, mode, drop: chosen.drop, delta: chosen.delta, wrap: chosen.wrap } as LegChoice,
+    choice: { r: chosen.r, bend: chosen.bend, mode, drop: chosen.drop, delta: chosen.delta, wrap: chosen.wrap, kick: chosen.kick, fall: chosen.fall } as LegChoice,
     fits: chosen.fits,
     spine: {
       points: chosen.points, bends: chosen.bends, gallery: chosen.gallery,
@@ -1460,6 +1850,29 @@ function layoutLeg(
     bendClamped: chosen.bend < wantBend - 1e-9,
     bendUsed: (chosen.bend - half) / d,
   };
+}
+
+/**
+ * Whether a sweep can follow this spine: at every inner point the bend's
+ * tangent runs fit the straight runs either side of it, with 0.02 mm of
+ * straight between two bends, 0.2 mm at the foot and 0.05 mm under the cap.
+ * Two bends whose runs overlap make the path double back on itself, and OCCT
+ * dies sweeping it (a 0.25 ct cushion three-stone's side head, S2 review).
+ */
+export function spineFits(points: V3[], bends: number[]): boolean {
+  const n = points.length;
+  const t = points.map((p, k) => {
+    if (k === 0 || k === n - 1) return 0;
+    const a = unitV(sub(points[k + 1], p)), b = unitV(sub(points[k - 1], p));
+    const phi = Math.acos(Math.min(1, Math.max(-1, dot(a, b))));
+    return phi > Math.PI - 1e-6 ? 0 : bends[k - 1] / Math.tan(phi / 2);
+  });
+  for (let k = 0; k + 1 < n; k++) {
+    const len = Math.hypot(...sub(points[k + 1], points[k]));
+    const margin = k === 0 ? 0.2 : k + 1 === n - 1 ? 0.05 : 0.02;
+    if (!(t[k] + t[k + 1] <= len - margin)) return false;
+  }
+  return true;
 }
 
 /**
