@@ -29,7 +29,7 @@ import {
 } from "./cad-engine-brep.js";
 import { gemDims } from "./cad-engine.js";
 import { radialHit } from "./head-layout.js";
-import { resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
+import { benchBounds, resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
 import type { MetalType } from "./ring-spec.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
 
@@ -124,6 +124,8 @@ export type GalleryAudit = {
   loweredReported: boolean;
   /** Whether a thinner wire than asked was reported as an engine clamp (see placeGallery). */
   thinnedReported: boolean;
+  /** The alloy's minimum wall (galleryThickness's lower bound): no gallery is thinned below it. */
+  minWall: number;
   /**
    * I5b: how far the gallery reaches out beyond the girdle, seen from above,
    * at its worst over 360 directions (negative: that much inside the girdle).
@@ -395,6 +397,7 @@ export async function auditStructure(
       loweredReported: frame.bench.warnings.some((w) => w.kind === "engine-clamped" && /below the middle of the pavilion/.test(w.message)),
       thinnedReported: frame.bench.warnings.some((w) => w.kind === "engine-clamped" && w.key === "galleryThickness" && /would show beyond the girdle/.test(w.message)),
       beyondGirdle: plan ? beyondGirdle(part, frame, plan.z, tag) : NaN,
+      minWall: benchBounds("galleryThickness", ((spec.metalType as MetalType) ?? "platinum")).min,
     };
   });
 

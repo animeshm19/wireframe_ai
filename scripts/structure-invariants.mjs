@@ -106,7 +106,9 @@ export const BENCH_MEASURES = {
     // Thinner only where the engine said so, to hide it under the girdle
     // (Animesh's decision, S2), and then by exactly what it said.
     if (g.thinnedReported && num(g.bench?.galleryThickness) && g.bench.galleryThickness < v) {
-      return { ok: num(g.thicknessEstimate) && Math.abs(g.thicknessEstimate - g.bench.galleryThickness) <= 0.02,
+      // Never below the alloy's minimum wall, whatever the engine said.
+      return { ok: num(g.thicknessEstimate) && Math.abs(g.thicknessEstimate - g.bench.galleryThickness) <= 0.02 &&
+        !(num(g.minWall) && g.bench.galleryThickness < g.minWall - 1e-6),
         why: `gallery ${fmt(g.thicknessEstimate)} mm thick, thinned from ${fmt(v)} to ${fmt(g.bench.galleryThickness)} ± 0.02 (reported)` };
     }
     return { ok: num(g.thicknessEstimate) && Math.abs(g.thicknessEstimate - v) <= 0.02,
@@ -261,6 +263,9 @@ export const INVARIANTS = [
         // 0.01 allows for the section being read off a 0.002 mm mesh.
         { ok: num(g.thicknessEstimate) && g.thicknessEstimate >= t - 0.01,
           why: `${g.head} gallery ${fmt(g.thicknessEstimate)} thick, needs ${fmt(t)}` },
+        // A reported thinning still never goes below the alloy's minimum wall.
+        { ok: !num(g.minWall) || t >= g.minWall - 1e-6,
+          why: `${g.head} gallery thinned to ${fmt(t)}, under the minimum wall of ${fmt(g.minWall)}` },
         ];
       }));
     },
