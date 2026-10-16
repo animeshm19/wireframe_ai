@@ -252,6 +252,16 @@ export const INVARIANTS = [
         // Since S2 (Animesh's decision, STRUCTURE-LOG): where a wire of the
         // rule's thickness at mid-pavilion would show beyond the girdle, it
         // sits lower, by as much as hiding it takes, and that is reported.
+        // The old rule (±0.05 of mid-pavilion, always) is no longer the right
+        // answer because no gallery of that thickness and gap fits under the
+        // girdle there on most fancy cuts and small stones. Measured
+        // (structure-audit-s2, 55494e5): 148 of 216 centre galleries sit
+        // lower, all reported; the rule's height holds on round and cushion
+        // at 1 and 3 ct; the most lowered are 1 ct oval and marquise bench
+        // corners at 0.66 of mid-pavilion, a 0.25 ct marquise at 0.66,
+        // emerald 0.51; 8 designs, all asking galleryThickness 2.0 or a 0.6
+        // gap, are also thinned (2.0 -> 1.685 on the default ring; the
+        // all-max marquise to 0.766), never below the minimum wall.
         const lowered = num(g.planHeight) && g.planHeight < rule - 0.05;
         const where = lowered
           ? { ok: num(h) && Math.abs(h - g.planHeight) <= 0.05 && g.loweredReported === true,
