@@ -30,7 +30,7 @@ import {
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, radialHit, stepCutStations, stoneProfile,
+  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, radialHit, spineFits, stepCutStations, stoneProfile, tubeSideFits,
   type BandProbe, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type StoneProfile,
 } from "./head-layout.js";
 
@@ -875,6 +875,8 @@ function placePoint(p: V3, steps: Step[], direction = false): V3 {
 
 // -------------------------------------------------------------------- head --
 
+const signedArea2 = (p: Pt[]) => p.reduce((t, q, i) => { const r = p[(i + 1) % p.length]; return t + q[0] * r[1] - r[0] * q[1]; }, 0) / 2;
+
 /**
  * A gallery rail that follows the stone's outline.
  *
@@ -987,6 +989,9 @@ export function polyhedron(faces: V3[][]): Shape3D {
 export function asCastProng(spine: NonNullable<ProngPlan["spine"]>, d: number): Shape3D {
   const r = d / 2;
   const { points, bends } = spine;
+  // A spine whose bends overlap doubles back, and OCCT's sweep then aborts
+  // the whole kernel rather than throwing: refused here instead.
+  if (!spineFits(points, bends)) throw new Error("as-cast prong: its bends do not fit between its straight runs");
   const top = points[points.length - 1];
   const unit3 = (a: V3): V3 => { const L = Math.hypot(...a); return [a[0] / L, a[1] / L, a[2] / L]; };
   const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -1064,6 +1069,11 @@ export function asCastProng(spine: NonNullable<ProngPlan["spine"]>, d: number): 
  */
 export function galleryWire(path: V2[], z: number, t: number): Shape3D {
   const r = t / 2, n = path.length;
+  // A side too short for the mitres at its ends folds the tube's inner side
+  // over itself; the loft keeps its volume, so the check below cannot see it.
+  for (let k = 0; k < n; k++) {
+    if (!tubeSideFits(path, k, r)) throw new Error(`gallery: side ${k} is too short for a ${t.toFixed(3)} mm wire to turn at its ends`);
+  }
   const section = (k: number) => {
     const a = path[(k - 1 + n) % n], b = path[k], c = path[(k + 1) % n];
     const la = Math.hypot(b[0] - a[0], b[1] - a[1]), lb = Math.hypot(c[0] - b[0], c[1] - b[1]);
@@ -1079,8 +1089,12 @@ export function galleryWire(path: V2[], z: number, t: number): Shape3D {
   const perimeter = path.reduce((s, p, k) => s + Math.hypot(path[(k + 1) % n][0] - p[0], path[(k + 1) % n][1] - p[1]), 0);
   const want = Math.PI * r * r * perimeter;
   const got = measureVolume(solid);
-  if (!(Math.abs(got - want) <= want * 0.01) || solid.solids.length !== 1) {
-    throw new Error(`gallery failed its check: ${got.toFixed(4)} mm³ against ${want.toFixed(4)}, ${solid.solids.length} solid(s)`);
+  // And valid: a mitre folding over itself keeps the same signed volume.
+  const check = new (getOC().BRepCheck_Analyzer)(solid.wrapped, true, false);
+  const valid = check.IsValid();
+  check.delete();
+  if (!(Math.abs(got - want) <= want * 0.01) || solid.solids.length !== 1 || !valid) {
+    throw new Error(`gallery failed its check: ${got.toFixed(4)} mm³ against ${want.toFixed(4)}, ${solid.solids.length} solid(s)${valid ? "" : ", not valid"}`);
   }
   volumes.set(solid, got);
   return solid;
@@ -1293,7 +1307,7 @@ export function buildHead(
     if (ctx.checkGallery) {
       const before = volumes.get(wire) ?? measureVolume(wire);
       const after = measureVolume(cutOnce(wire, seatCutter(layout.stone, layout.values.seatTolerance)));
-      if (!(before - after <= 0.001)) {
+      if (!(Math.abs(before - after) <= 0.001)) {
         throw new Error(`the seat envelope cuts ${(before - after).toFixed(4)} mm³ from the gallery: its clearance is wrong`);
       }
     }
@@ -1306,6 +1320,11 @@ export function buildHead(
     // seat, and a rail underneath carries them: a halo is real metal work, not
     // gems floating at a radius.
     const haloR = girdleR * 0.22;
+    // Where outlineRail puts the rail's centreline (see it), for the ties below.
+    const railZ = pavH + girdleH - girdleR * 0.30;
+    const outlineMean = o.reduce((t, [x, y]) => t + Math.hypot(x, y), 0) / o.length;
+    const railScale = 1 + (haloR * 1.15) / (outlineMean * girdleR);
+    const outlinePoly: V2[] = signedArea2(o) < 0 ? o.map(([x, y]) => [x, y] as V2).reverse() : o.map(([x, y]) => [x, y] as V2);
     const count = Math.max(10, Math.round(outlineRadius(o) * girdleR * 3.2));
     const hd = gemDims(haloR);
     const seatZ = pavH + girdleH - hd.pavH;
@@ -1321,8 +1340,32 @@ export function buildHead(
         haloR * 0.85, haloR * 1.1,
         [r * c, r * sn, seatZ - haloR * 0.35], [0, 0, 1]
       ), { role: "halo-seat", index: i });
+      // Tied down to the halo rail where it does not reach it. The rail is
+      // the outline scaled, the seats the outline pushed out along each
+      // radius, and on a step cut's flat ends the two part by up to 0.7 mm:
+      // until S2 the interim rail happened to catch those seats, and without
+      // it an emerald halo came apart into six pieces. A short bar from the
+      // foot of the seat to the rail's centreline at the same angle, a plain
+      // cylinder like the bearers (S6 redesigns the halo).
+      // The rail's own radius here: the outline polygon it scales, along this
+      // ray (radiusAtAngle smooths a step cut's corners into a circle).
+      const along = radialHit(outlinePoly, a).r;
+      const railR = along * girdleR * railScale;
+      const railHalf = haloR * 0.55 * (along / outlineMean);
+      // Overlapping it by 0.1 mm both across (along this radius) and in
+      // height, or tied: the seat runs seatZ − 0.35 to + 0.75 accent radii,
+      // the rail railZ ± 0.55.
+      const across = haloR * 0.85 + railHalf - Math.abs(r - railR);
+      const upDown = Math.min(seatZ + haloR * 0.75, railZ + haloR * 0.55) - Math.max(seatZ - haloR * 0.35, railZ - haloR * 0.55);
+      if (across < 0.1 || upDown < 0.1) {
+        const from: V3 = [r * c, r * sn, seatZ - haloR * 0.30];
+        const to: V3 = [railR * c, railR * sn, railZ];
+        const span: V3 = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+        const len = Math.hypot(...span);
+        add(makeCylinder(haloR * 0.30, len, from, [span[0] / len, span[1] / len, span[2] / len]),
+          { role: "halo-seat", index: i });
+      }
     }
-    const railZ = pavH + girdleH - girdleR * 0.30;
     add(outlineRail(o, girdleR, haloR * 1.15, haloR * 0.55, railZ, haloR * 1.1),
       { role: "halo-rail" });
 
@@ -1347,7 +1390,11 @@ export function buildHead(
       const from: V3 = gallery
         ? (() => { const h = radialHit(gallery.path, a); return [h.r * c, h.r * sn, gallery.z] as V3; })()
         : [girdleR * 0.30 * c, girdleR * 0.30 * sn, railZ];
-      const to: V3 = [(outerR2 + haloR * 0.55) * c, (outerR2 + haloR * 0.55) * sn, railZ];
+      // Ends inside the rail, 0.2 accent radii past its centreline: at 0.55
+      // (the rail's half width) the end disc lay on the rail's outer wall,
+      // and on a marquise halo it met a seat there in two zero-area
+      // triangles once the gallery moved 0.01 mm (S2).
+      const to: V3 = [(outerR2 + haloR * 0.2) * c, (outerR2 + haloR * 0.2) * sn, railZ];
       const span: V3 = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
       const len = Math.hypot(...span);
       // A plain cylinder, not a loft. These bearers have the same radius at
@@ -1431,7 +1478,7 @@ function planSideStones(girdleR: number, outerR: number, ctx: SideContext, from 
     const planes = ctx.centre.planes.map(({ n, h }) => ({ n: [dot3(n, U), dot3(n, V), dot3(n, B)] as V3, h: h - dot3(n, S) }));
     const avoid = [{ planes, clearance: ctx.centre.clearance }];
     const avoidPoints = [{ p: toHead(ctx.centre.culet), r: ctx.centre.culetClearance }];
-    const layout = layoutHead("round", sideR, 4, bench.values, probe, { minProngDiameter, minGalleryThickness, avoid, avoidPoints });
+    const layout = layoutHead("round", sideR, 4, bench.values, probe, { minProngDiameter, minGalleryThickness, avoid, avoidPoints, galleryOptional: true });
     return { sgn, theta, steps, probe, avoid, avoidPoints, layout };
   });
 
