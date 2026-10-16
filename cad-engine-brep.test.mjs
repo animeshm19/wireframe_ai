@@ -918,6 +918,27 @@ test("the gallery is one valid solid of its analytic volume, and clear of the se
   }
 });
 
+test("every cut's outline is convex, and so is its gallery, which never turns tighter than the wire", async () => {
+  // The gallery is the girdle outline set outward, which can only fold where
+  // the outline is not convex: this is what makes the outward offset safe.
+  // Its corners are bevelled where the outline turns sharply (S2), and a
+  // bevel shorter than the wire's mitres need folds the tube's inner side,
+  // which the volume check cannot see.
+  const layout = await import("./.brepcheck/head-layout.js");
+  const cuts = ["round", "oval", "pear", "marquise", "cushion", "emerald", "princess"];
+  for (const cut of cuts) {
+    for (const carat of [0.25, 1, 3]) {
+      const R = mesh.girdleRadiusFor(cut, carat);
+      assert.ok(layout.isConvex(layout.stoneProfile(cut, R).girdle), `${cut} ${carat} ct: outline convex`);
+    }
+    const plan = brep.buildRingParts({ gemShape: cut }).heads.find((h) => h.head === "centre").layout.gallery;
+    assert.ok(layout.isConvex(plan.path), `${cut}: gallery path convex`);
+    for (let k = 0; k < plan.path.length; k++) {
+      assert.ok(layout.tubeSideFits(plan.path, k, plan.t / 2), `${cut}: gallery side ${k} long enough for the wire to turn`);
+    }
+  }
+});
+
 test("three-stone side heads keep clear of the centre stone and its culet", async () => {
   // Side heads' cast prongs stand tall; at 3 ct, or with 2 mm prongs and a
   // 1.5 mm culet gap, they reached the centre stone and came within 0.97 mm
