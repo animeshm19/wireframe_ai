@@ -402,7 +402,6 @@ function orderOnPlane(pts: V3[], n: V3): V3[] {
   });
 }
 
-/** Signed distance from a point to a convex polygon in the plane: negative inside. */
 /**
  * Whether a closed polygon turns the same way at every corner (collinear
  * corners allowed). The gallery is the girdle's outline set outward side by
@@ -421,6 +420,7 @@ export function isConvex(poly: V2[]): boolean {
   return sign !== 0;
 }
 
+/** Signed distance from a point to a convex polygon in the plane: negative inside. */
 export function polygonDistance(poly: V2[], q: V2): number {
   let inside = true, best = Infinity;
   for (let i = 0; i < poly.length; i++) {
@@ -833,7 +833,14 @@ export function layoutHead(
       warnings.push({ key: "galleryThickness", kind: "engine-clamped",
         message: `A gallery ${fmt(values.galleryThickness)} mm thick, ${fmt(values.galleryClearance)} mm off the stone, cannot be hidden under the girdle of this stone at any height; it sits ${fmt(g.lowered)} mm below the middle of the pavilion, where it shows least, ${fmt(g.showing)} mm beyond the girdle.` });
     } else if (g.lowered > 0.001) {
-      warn("galleryClearance", `The gallery sits ${fmt(g.lowered)} mm below the middle of the pavilion so that, ${fmt(values.galleryThickness)} mm thick and ${fmt(values.galleryClearance)} mm off the stone, it stays hidden under the girdle.`);
+      // Said for the reason it was: to hide it (the thickness and gap ask
+      // more room than the girdle gives at mid-pavilion), or the gap itself.
+      if (!g.whyLower || g.whyLower === "it shows beyond the girdle") {
+        warn("galleryThickness", `The gallery sits ${fmt(g.lowered)} mm below the middle of the pavilion so that, ${fmt(values.galleryThickness)} mm thick and ${fmt(values.galleryClearance)} mm off the stone, it stays hidden under the girdle.`);
+      } else {
+        warn(g.whyLower === "it comes too near the stone" ? "galleryClearance" : "galleryThickness",
+          `The gallery sits ${fmt(g.lowered)} mm below the middle of the pavilion: any higher, ${fmt(values.galleryThickness)} mm thick and ${fmt(values.galleryClearance)} mm off the stone, ${g.whyLower}.`);
+      }
     }
     if (g.blocked) blocked ??= g.blocked;
 
@@ -1025,7 +1032,7 @@ function clipLines(lines: { n: V2; h: number }[]): { poly: V2[]; used: boolean[]
     }
     poly = out;
   }
-  // Corners closer than a micron are one corner: a bevel that only just
+  // Corners closer than a tenth of a micron are one corner: a bevel that only just
   // cuts its corner would otherwise hand the loft a zero-length side.
   poly = poly.filter((p, i) => {
     const q = poly[(i + 1) % poly.length];
@@ -1082,22 +1089,37 @@ export function tubeSideFits(path: V2[], i: number, r: number): boolean {
   return Math.hypot(b[0] - a[0], b[1] - a[1]) >= r * (Math.tan(turnAt(i) / 2) + Math.tan(turnAt((i + 1) % n) / 2)) + 0.01;
 }
 
-/** Distance from q to a flat convex polygon. */
-function pointFaceDistance(q: V3, f: V3[]): number {
-  const n = unitV(newell(f));
-  const d = dot(sub(q, f[0]), n);
-  const p = sub(q, scale(n, d));
-  let inside = true;
-  let edge = Infinity;
-  for (let i = 0; i < f.length; i++) {
-    const a = f[i], b = f[(i + 1) % f.length];
-    const e = sub(b, a), ap = sub(p, a);
-    if (dot(cross(e, ap), n) < 0) inside = false;
-    const L2 = dot(e, e);
-    const w = L2 > 0 ? Math.min(1, Math.max(0, dot(sub(q, a), e) / L2)) : 0;
-    edge = Math.min(edge, Math.hypot(...sub(q, add(a, scale(e, w)))));
+/** A flat convex polygon with its plane worked out once, for faceDistance. */
+type Face = { pts: V3[]; n: V3; h: number };
+
+function prepareFaces(faces: V3[][]): Face[] {
+  return faces.map((pts) => { const n = unitV(newell(pts)); return { pts, n, h: dot(n, pts[0]) }; });
+}
+
+/**
+ * Distance from q to the nearest of the faces. A face's plane is never
+ * farther than the face itself, so a face whose plane already lies beyond
+ * the best found is skipped (most of them: the gallery's layout asks this
+ * thousands of times a head).
+ */
+function facesDistance(q: V3, faces: Face[]): number {
+  let best = Infinity;
+  for (const { pts, n, h } of faces) {
+    const d = dot(n, q) - h;
+    if (Math.abs(d) >= best) continue;
+    const p = sub(q, scale(n, d));
+    let inside = true, edge = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const e = sub(b, a);
+      if (dot(cross(e, sub(p, a)), n) < 0) inside = false;
+      const L2 = dot(e, e);
+      const w = L2 > 0 ? Math.min(1, Math.max(0, dot(sub(q, a), e) / L2)) : 0;
+      edge = Math.min(edge, Math.hypot(...sub(q, add(a, scale(e, w)))));
+    }
+    best = Math.min(best, inside ? Math.abs(d) : edge);
   }
-  return inside ? Math.abs(d) : edge;
+  return best;
 }
 
 /**
@@ -1105,7 +1127,7 @@ function pointFaceDistance(q: V3, f: V3[]): number {
  * much lower as it takes to stay hidden under the girdle, off the band, clear
  * of the culet and of any neighbouring stone. See GalleryPlan.
  */
-type GalleryFit = { plan: GalleryPlan; lowered: number; blocked: string | null; showing: number | null };
+type GalleryFit = { plan: GalleryPlan; lowered: number; blocked: string | null; showing: number | null; whyLower?: string | null };
 
 /**
  * The gallery, thinned where it must be: as planGallery at the thickness
@@ -1188,9 +1210,7 @@ function planGallery(
   // A step cut's section square to a side: the girdle's support distance on
   // that side times each station's scale. The wire runs along the side, so
   // its round section lies in this plane, and its gap to those facets is a
-  // distance in the plane. On a bevel the same plane is the stone seen
-  // along the bevel, a projection, so the gap in it is never more than the
-  // real one: the bevel keeps at least the clearance asked.
+  // distance in the plane. (Bevels use exactGap, below.)
   const realGap = (support: number, u: number, z: number) => {
     const st = stone.stations!.filter((x) => x.z <= stone.zGt + 1e-9);
     let best = Infinity;
@@ -1210,12 +1230,10 @@ function planGallery(
   // at a point is the point's distance to the stone's faces less the radius.
   // The faces: a step cut's own sections, a brilliant's hull (which holds its
   // pavilion, so the true gap is never less).
-  const stoneFaces = stackFaces(P, stone.stations ?? stone.hull);
-  const exactGap = (c: V3) => {
-    let best = Infinity;
-    for (const f of stoneFaces) best = Math.min(best, pointFaceDistance(c, f));
-    return best - r;
-  };
+  // Distances are unsigned: every side is set outward from the stone, so a
+  // point measured here is never inside it.
+  const stoneFaces = prepareFaces(stackFaces(P, stone.stations ?? stone.hull));
+  const exactGap = (c: V3) => facesDistance(c, stoneFaces) - r;
   const at = (z: number) => {
     let pushed = 0;
     const s = scaleAt(stone.hull, z);
@@ -1224,8 +1242,11 @@ function planGallery(
     // its pavilion's planes, so the gap is square to whichever facet is
     // nearest; on a step cut, its real section), and clear of the seat.
     const solved = new Map<number, number>();
+    const solvedBevels = new Map<string, number>();
     const lineFor = ({ n, anchor, bevel, edge }: Side) => {
       if (!bevel && solved.has(edge)) return { n, h: solved.get(edge)! };
+      const key = `${n[0]},${n[1]}`;
+      if (bevel && solvedBevels.has(key)) return { n, h: solvedBevels.get(key)! };
       const tan: V3 = [-n[1], n[0], 0];
       const midPt: V2 = [s * anchor[0], s * anchor[1]];
       const base = n[0] * midPt[0] + n[1] * midPt[1];
@@ -1243,7 +1264,7 @@ function planGallery(
       };
       const h = solve(true);
       pushed = Math.max(pushed, stoneGap(h) - gc);
-      if (!bevel) solved.set(edge, base + h);
+      if (!bevel) solved.set(edge, base + h); else solvedBevels.set(key, base + h);
       return { n, h: base + h };
     };
     // A round wire turns cleanly only on an arc of its own radius or more,
@@ -1389,7 +1410,7 @@ function planGallery(
   // or a little below it hides under the girdle (S2). The culet stands
   // culetClearance above the band, so this stops there.
   const heights: number[] = [];
-  for (let z = mid; z - r > -v.culetClearance; z -= 0.01) heights.push(z);
+  for (let z = mid; z - r > -v.culetClearance; z -= 0.03) heights.push(z);
   const plan = (x: { z: number; path: V2[]; outer: V2[]; pushed: number; folded: boolean }): GalleryPlan =>
     ({ z: x.z, mid, t, path: x.path, outer: x.outer, seatPush: x.pushed });
   // Highest first, worked out only as far as needed: most stones take the
@@ -1399,17 +1420,22 @@ function planGallery(
     let x = { z, ...at(z) };
     computed.push(x);
     if (!why(z, x)) {
-      // Lowered: no lower than it must, to a millimetre's 400th. Every
-      // hundredth lower cost a 0.25 ct emerald's legs their way inside the
-      // joint below (S2).
+      // Lowered: no lower than it must, to 0.002 mm (searched in 0.03 mm
+      // steps, then halved four times). A hundredth lower cost a 0.25 ct
+      // emerald's legs their way inside the joint below (S2).
+      // What held it down: the reason the height just above it was refused.
+      let whyLower: string | null = null;
       if (computed.length > 1) {
-        let hi = computed[computed.length - 2].z, lo = z;
-        for (let k = 0; k < 3; k++) {
+        const above = computed[computed.length - 2];
+        let hi = above.z, lo = z;
+        whyLower = why(above.z, above);
+        for (let k = 0; k < 4; k++) {
           const md = (hi + lo) / 2, y = { z: md, ...at(md) };
-          if (!why(md, y)) { lo = md; x = y; } else hi = md;
+          const w = why(md, y);
+          if (!w) { lo = md; x = y; } else { hi = md; whyLower = w; }
         }
       }
-      return { plan: plan(x), lowered: mid - x.z, blocked: null, showing: null };
+      return { plan: plan(x), lowered: mid - x.z, blocked: null, showing: null, whyLower };
     }
   }
   const sections = computed;
@@ -1431,7 +1457,9 @@ function planGallery(
   return {
     plan: plan(least), lowered: mid - least.z,
     blocked: other ? `the gallery ${other}` : null,
-    showing: Math.max(0, showing(least)),
+    // Shown only if it does show: hidden here but refused for something
+    // else (the band, the culet), it is not thinned for that (S2 review).
+    showing: showing(least) > -0.003 ? Math.max(0, showing(least)) : null,
   };
 }
 
@@ -1506,6 +1534,14 @@ function layoutLeg(
   let hi = band.axialMax - half - 0.1;
   if (lo > hi) lo = hi = Math.max(0, (lo + hi) / 2);
 
+  // The band under a foot, by its distance out: the search builds each foot
+  // many times over (every drop, offset and mode at the same distance), and
+  // probing the band is the dearest step of a build.
+  const probes = new Map<number, ReturnType<BandProbe["at"]>>();
+  const footProbe = (r: number, xy: V2) => {
+    if (!probes.has(r)) probes.set(r, band.at(xy[0], xy[1]));
+    return probes.get(r)!;
+  };
   const footXY = (r: number): V2 => {
     const e: V2 = [Math.cos(psi), Math.sin(psi)];
     const a = band.axial;
@@ -1545,7 +1581,7 @@ function layoutLeg(
     const W: V3 = [crossXY[0] - inward[0] * delta, crossXY[1] - inward[1] * delta,
       gallery ? gallery.z : (mode === "clear" ? p.seatLow - 0.1 : stone.zGb - 0.02) - drop - 0.3];
     const fxy = footXY(r);
-    const probe = band.at(fxy[0], fxy[1]);
+    const probe = footProbe(r, fxy);
     // How far along the leg the wire reaches either side of W.
     const through = (u: V3) => (gr + half + 0.1) / Math.max(0.2, -u[2]);
     const tanHalf = (u: V3) => Math.tan(Math.acos(Math.min(1, Math.max(-1, -u[2]))) / 2);
@@ -1726,7 +1762,10 @@ function layoutLeg(
     else for (let k = 0; k < 30; k++) { const md = (lo + hi) / 2; if (offWire(md) <= perpMax) lo = md; else hi = md; }
     deltaMax = lo;
   }
-  const deltas = [0, 0.1, 0.2, 0.35, 0.5, 0.7, 1, 1.4].filter((x) => x < deltaMax).concat(deltaMax > 0 ? [deltaMax] : []);
+  // Without a gallery the leg leaves the post itself, as in S1: no offset.
+  const deltas = gallery
+    ? [0, 0.1, 0.2, 0.35, 0.5, 0.7, 1, 1.4].filter((x) => x < deltaMax).concat(deltaMax > 0 ? [deltaMax] : [])
+    : [0];
 
   type Chosen = Built & { r: number; drop: number; delta: number };
   let chosen: Chosen | null = null, mode: Mode = "clear";
@@ -1830,10 +1869,10 @@ function layoutLeg(
     if (!chosen) {
       for (let x = rHi; x >= rMin - 1e-9 && !chosen; x -= 0.2) {
         const s = build(x, tightest, "under-seat", 0, 0, 0);
-        if (s.fits) chosen = { ...s, r: x, drop: 0, delta: 0 };
+        if (s.fits) { chosen = { ...s, r: x, drop: 0, delta: 0 }; mode = "under-seat"; }
       }
     }
-    chosen ??= { ...build(rHi, tightest, "under-seat", 0, 0, 0), r: rHi, drop: 0, delta: 0 };
+    if (!chosen) { chosen = { ...build(rHi, tightest, "under-seat", 0, 0, 0), r: rHi, drop: 0, delta: 0 }; mode = "under-seat"; }
   }
   const m = measure(chosen);
   return {
