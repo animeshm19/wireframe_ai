@@ -2043,20 +2043,28 @@ export function fuseMetal(parts: Shape3D[]): FuseResult {
     // up to 1e-3 mm did not help; moved 0.001 mm either way along any axis,
     // both found it, S2). So the part is fused once more moved 0.001 mm, far
     // inside any casting tolerance, along each axis in turn, and that is
-    // taken only if it joins the part and keeps every check: no metal lost,
-    // no more gained than the part. A part that truly does not touch stays
-    // apart, and every retry taken is counted (FuseResult.shiftedRetries).
+    // taken only if it is a true union that joins (below). A part that does
+    // not touch, or only grazes, stays apart, and every retry taken is
+    // counted (FuseResult.shiftedRetries, recorded by the structure audit).
     if (next && nv >= vol - 1e-6 && next.solids.length > out.solids.length) {
       const pv = measureVolume(parts[i]);
       for (const d of [[1e-3, 0, 0], [-1e-3, 0, 0], [0, 1e-3, 0], [0, -1e-3, 0], [0, 0, 1e-3], [0, 0, -1e-3]] as V3[]) {
-        let retry: Shape3D | null = null;
-        try { retry = out.fuse(parts[i].clone().translate(d) as Shape3D) as Shape3D; } catch { retry = null; }
-        if (!retry) continue;
-        const rv = measureVolume(retry);
-        if (retry.solids.length <= out.solids.length && rv >= vol - 1e-6 && rv <= vol + pv + 1e-6) {
-          next = retry; nv = rv; shiftedRetries++;
-          break;
-        }
+        const moved = parts[i].clone().translate(d) as Shape3D;
+        let retry: Shape3D | null = null, common = 0;
+        try {
+          retry = out.fuse(moved) as Shape3D;
+          common = measureVolume(out.clone().intersect(moved.clone()) as Shape3D);
+        } catch { retry = null; }
+        // Taken only as a true union that really joins: it adds exactly what
+        // the part brings less what it shares (OCCT's other silent failure
+        // returns the metal alone, the part lost), and the part overlaps the
+        // metal by a real amount, not the micron the move itself makes.
+        const rv = retry ? measureVolume(retry) : NaN;
+        const ok = retry != null && retry.solids.length <= out.solids.length && common >= 0.01 &&
+          Math.abs(rv - (vol + pv - common)) <= 1e-4 * (vol + pv);
+        if (ok) { next = retry; nv = rv; shiftedRetries++; break; }
+        moved.delete();
+        retry?.delete();
       }
     }
 
