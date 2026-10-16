@@ -52,6 +52,20 @@ None in S0. (Tests added only; none removed or loosened.)
 
 **S1, `586dccb`: "B-rep and mesh engines agree on every supported design".** The whole-ring metal bound (5%, 25% for halo and bezel) became a band-only comparison; every dimensional equality and the stone-volume bound are unchanged. Why: the B-rep head is now deliberately not the frozen mesh head (default ring 7.8% apart once seated). The prompt asked for under 0.1% on the band; measured B-rep against mesh band: flat and knife −0.040%, round −0.877%, comfort −2.027% (−2.011 to −2.032 across sizes 4–11, widths 1.4–8). The gap is the frozen mesh engine's polygon section; the B-rep band is exact against Pappus in another test. Bounds per profile: 0.1, 0.1, 0.95, 2.1%. **Open question 17.**
 
+**S2, `9a9f9fe`: I5 and I13 (galleryThickness) accept a reported lowering or thinning.** Before: the gallery's centre at mid-pavilion ±0.05 and its thickness as asked, always. Now:
+- a gallery may sit lower, but only at the height laid out, and only if the engine reported the lowering;
+- it may be thinner, but only to the thickness the engine reported, and never under the alloy's minimum wall (`55494e5`, added after the review).
+
+Why: on most fancy cuts and small stones no wire of the rule's thickness, at the gap asked, fits under the girdle at mid-pavilion. That is the decision the 7 Oct run attributed to Animesh (open question 24).
+
+Measured (`structure-audit-s2`, `55494e5`):
+- 148 of 216 centre galleries sit lower, all reported;
+- the rule's height holds on round and cushion at 1 and 3 ct;
+- the most lowered are at 0.66 of mid-pavilion;
+- 8 designs are thinned, e.g. 2.0 → 1.685 mm on the default ring.
+
+The numbers are now also in the code comment (`889ba4c`).
+
 ## Bench bounds changed
 
 None in S0. Bounds are as specified in the S0 prompt's table; `test:cad` asserts them row by row.
@@ -64,6 +78,8 @@ None in S0. Bounds are as specified in the S0 prompt's table; `test:cad` asserts
 The S0 test that pins the bench table records the new maximum, with a comment. Revisit in S3, when the legs end at a base.
 
 No other bound changed. Every other S1-wired field stitches at both bounds.
+
+**S2: none.** Neither gallery field's bound changed. The all-max bench corner on a 0.25 ct stone, which is outside the matrix, fails I3a, I5b and on the round I8: see open question 25. It is left to S3, with a size-dependent clamp preferred over a fixed bound.
 
 ## Open questions for the setter / caster
 
@@ -101,6 +117,28 @@ For Animesh (decisions, not bench questions):
 21. **Three-stone side stones open out when they must (S1).** Side stones are S6's, but their tall cast prongs reached the centre stone at 3 ct (1.4 mm³) and, with 2 mm prongs, came within 0.97 mm of a 1.5 mm culet. The splay starts at 0.45 rad as before and opens in 0.03 rad steps only until both side heads keep clear; the default 1 ct ring is unchanged.
 22. **fuseMetal seals specks of air (S1).** Near-tangent fuses left sealed cavities under 0.001 mm³ (STEP then wrote a solid with voids). The merge now rebuilds such a solid from its outer shell; larger cavities are left for the checks.
 23. **replicad runs every boolean twice (S1, finding).** `Shape.cut` and `Shape.fuse` construct the OCCT operation (which builds it) and then call `Build()` again. The seat cut now runs once (7.7 → 3.6 ms, identical result). `fuseMetal` still uses replicad's fuse; switching it would roughly halve resolve time. Not done in S1.
+
+24. **Gallery lowering and thinning (S2).** The 7 Oct run's commits record a decision by Animesh (2026-10-07):
+    - where a gallery of the bench thickness and gap would show beyond the girdle at mid-pavilion, it sits lower, reported;
+    - where no height hides it, it is thinned to the thickest that hides, never under the minimum wall, reported.
+
+    It was not in this log, so I could not confirm it. Effect: 148 of 216 centre galleries are lowered; 8 are thinned. **Please confirm.**
+25. **The all-max bench corner at 0.25 ct (S2, outside the matrix).** Measured with `node scripts/structure-audit.mjs '<all-max, gemSize 0.25>' --stage S2`:
+    - **culet** (asked 1.5): oval 0.846, pear 1.026, marquise 0.959. Already failing at S1: oval 1.222, round 1.410.
+    - **gallery beyond the girdle:** oval 0.525, pear 0.564, marquise 0.801, round 0.199 mm.
+    - **round STL:** 22 zero-area triangles (new at S2).
+    - All are one solid.
+
+    Proposed: add 0.25 and 3 ct all-max rows to the matrix, and give S3 size-dependent engine clamps rather than fixed bounds.
+26. **A "kicked" leg (S2).** Where no straight leg keeps the pavilion gap, the leg steps out under the seat and runs back in through the gallery (one more bend). Seen on the deepest-bearing marquise and the 0.25 ct princess's corner prongs. Please confirm, or say if you would rather clamp the bearing depth there.
+27. **`fuseMetal` shifted retry (S2).** A fuse that adds a solid is retried with the part moved 0.001 mm, and taken only as an exact union with ≥ 0.01 mm³ of overlap.
+    - Why: OCCT missed a 0.25 ct cushion's prong in the band at its exact position and found it 0.001 mm off.
+    - Counted in `shiftedRetries`; no design in the final matrix used it.
+    - Please confirm, or prefer that such designs fail I1.
+28. **Performance after S2** (q. 19 continued). `node scripts/perf-baseline.mjs --runs 9`:
+    - warm preview 151.6 ms (budget 186.0), resolve 1655.0 ms (budget 2249.4): both met;
+    - cold preview 353.4 ms: not met;
+    - like for like with S1 on the same machine: preview 1.75×, resolve 1.56×.
 
 ## Progress
 
@@ -145,3 +183,20 @@ Status: see `claude/tasks/S1.md`. Start `088c607`; commits `bce0d0d`..HEAD.
 - pavilionClearance max narrowed 0.60 → 0.40 ("Bench bounds changed"). The invariants now judge against the values asked, not the engine's clamped values (review finding).
 - Performance: see open question 19 (not cleanly met).
 - For S2: compare against `structure-audit-s1` (full). The interim rail is flat (q. 20); halos carry their bearers on it.
+
+### S2 — 2026-10-16 — the upper gallery (resumed from the 7 Oct run)
+
+Status: see `claude/tasks/S2.md`. Start `58039f3`; commits `63c1147`..HEAD. The 7 Oct run left 5 commits and uncommitted review fixes. Its last full audit read 3 crashed, 58 binding failures, 65 regressions. The uncommitted work measured better (0 crashed, 18 / 14) and was kept: nothing was reverted.
+- **Gallery:** a round wire at the rule of thirds, lowered (reported) where it would show from above. It follows the outline, with bevelled corners never tighter than the wire, and keeps galleryClearance (3D) from the stone. Every leg is routed through it.
+- **Baseline defects:** oval (dropped 1) and marquise (2 solids) both pass I1. The minimum pear prong ∩ gallery is 0.0465 mm³ (baseline 0.003).
+- **Full audit** `--stage S2 --compare s1` at `55494e5`: 237 designs, 0 crashed, 0 binding failures, 0 regressions, exit 0. I1 237/237; I4, I5 and I5b 216/216.
+- **Fast audit** at `889ba4c`: 34 designs, 0 / 0, exit 0.
+- **Suites:** test:brep 48/48, test:cad 32/32, build passes, lint 108 + 4 on tracked files (unchanged).
+- **Performance:** warm budgets met, cold not (q. 28).
+- **Engine and audit:** galleryWire refuses folds; halo ties and bearer ends fixed (attachment only, S6's); a checked fuse retry (q. 27); the audit records each gallery's minimum wall.
+- **For S3:**
+  - compare against `structure-audit-s2` (full);
+  - the I7 disc (q. 14);
+  - the 0.25 ct all-max corner (q. 25);
+  - the kicked legs (q. 26) may be replaced by legs ending in a base.
+
