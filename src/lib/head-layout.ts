@@ -485,7 +485,11 @@ export function clearanceBound(planes: HalfSpace[], q: V3): number {
 
 // ------------------------------------------------------------------ head --
 
-export type LayoutWarning = { key: BenchKey; kind: "engine-clamped"; message: string };
+export type LayoutWarning = {
+  key: BenchKey; kind: "engine-clamped" | "kicked-leg"; message: string;
+  /** For a clamp the stone's size forces: the value asked and the value built (see BenchWarning). */
+  asked?: number; delivered?: number;
+};
 
 /**
  * Where the band is, seen from a head. Built by the engine from the band's
@@ -563,6 +567,10 @@ export type ProngPlan = {
     pavilionClearance: number;
     /** Whether the foot lands on band metal (a split shank's slot or a narrow band can leave it hanging). */
     footInBand: boolean;
+    /** Whether the foot ends wholly inside the base, with nothing of the prong at or below its plateau (S3). */
+    footInBase: boolean;
+    /** How far the leg steps out under the seat, a kicked leg (S2); 0 for a straight one. */
+    kick: number;
   };
 };
 
@@ -601,6 +609,8 @@ export type HeadLayout = {
   warnings: LayoutWarning[];
   /** The upper gallery. Null for a head without prongs, or laid out without a band. */
   gallery: GalleryPlan | null;
+  /** The base and the saddle under it (S3). Null for a head without one. */
+  base: BasePlan | null;
   /**
    * Why this head cannot keep clear of a stone or point it was told to
    * avoid, if it cannot: then nothing short of moving the head helps, and the
@@ -624,6 +634,12 @@ export type LayoutOptions = {
   minGalleryThickness?: number;
   /** A head that may go without a gallery where its legs cannot pass through one (a three-stone's side heads, S6's). */
   galleryOptional?: boolean;
+  /**
+   * Give the head a base and saddle, with every prong's foot in the base
+   * (S3). The centre head of every prong setting; a three-stone's side heads
+   * still stand their prongs in the band until S6.
+   */
+  base?: boolean;
 };
 
 /** Prong directions, unchanged from the first engine. */
@@ -811,6 +827,7 @@ export function layoutHead(
   }
 
   let gallery: GalleryPlan | null = null;
+  let base: BasePlan | null = null;
   if (band && prongCount > 0) {
     const planes = hullPlanes(stone);
     const grow = CORNER_FACTOR * tol;
@@ -847,14 +864,53 @@ export function layoutHead(
     const legs = (through: GalleryPlan | null) => {
       const choices: LegChoice[] = [];
       return prongs.map((p) => {
-        const r = layoutLeg(p, stone, values, band, planes, through, choices, avoid, avoidPoints);
+        const r = layoutLeg(p, stone, values, band, planes, through, through ? base : null, choices, avoid, avoidPoints);
         if (!choices.some((c) => c.r === r.choice.r && c.bend === r.choice.bend && c.mode === r.choice.mode &&
           c.drop === r.choice.drop && c.delta === r.choice.delta && c.wrap === r.choice.wrap &&
-          c.kick === r.choice.kick && c.fall === r.choice.fall)) choices.push(r.choice);
+          c.kick === r.choice.kick && c.fall === r.choice.fall && c.straight === r.choice.straight && c.deep === r.choice.deep)) choices.push(r.choice);
         return r;
       });
     };
-    let laid = legs(gallery);
+    let laid: ReturnType<typeof legs>;
+    // The base, under the gallery: it needs the gallery's height and the
+    // posts' places, and the legs then need it. Sized first where the legs
+    // would land straight on through the gallery's centreline, then grown
+    // until every leg keeps its gaps: on a small stone the posts stand just
+    // outside the girdle above a low gallery, and a leg that has to come in
+    // to a base well inside them bends round under the girdle too close to
+    // the pavilion (0.25 ct round: 0.236 mm, asked 0.25). Grown 0.06 of the
+    // girdle at a time, to the girdle's own size; if no size keeps every gap,
+    // the one that keeps the most.
+    // Scored by the legs that fit and keep every gap, then the legs that fit
+    // at all, then the least gap kept.
+    const score = (l: typeof laid) => [
+      l.filter((r) => r.fits && r.clearanceMet && !r.otherShort).length,
+      l.filter((r) => r.fits).length,
+      Math.min(...l.map((r) => (r.fits ? r.spine.pavilionClearance : -1e9))),
+    ];
+    const better = (a: number[], b: number[]) => a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2] + 1e-9;
+    if (opts.base && gallery) {
+      // The landings first; then larger and smaller in turn, 0.06 of the
+      // girdle at a time, between nothing and the girdle's own size: on a
+      // 2 mm prong under a low gallery the legs run in steeply and land well
+      // inside where the estimate puts them (all-max marquise, S3).
+      const first = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0);
+      const tries = [first.sigma];
+      for (let k = 1; k <= 16; k++) tries.push(first.sigma + 0.06 * k, first.sigma - 0.06 * k);
+      let best: { base: BasePlan; laid: typeof laid; score: number[] } | null = null;
+      const seen = new Set<string>();
+      for (const at of tries.filter((x) => x >= 0 && x <= 1.05)) {
+        base = at === first.sigma ? first : planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at);
+        const key = base.sigma.toFixed(4);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const l = legs(gallery), sc = score(l);
+        if (!best || better(sc, best.score)) best = { base, laid: l, score: sc };
+        if (sc[0] === prongs.length) break;
+      }
+      base = best!.base;
+      laid = best!.laid;
+    } else laid = legs(gallery);
     // A three-stone's side head on a small ring (0.25 ct: the side stone is
     // 0.06 ct) has no room for a 0.8 mm prong to bend through a 0.7 mm wire
     // under it. Side heads are S6's; until then such a head goes without a
@@ -870,6 +926,7 @@ export function layoutHead(
     }
     let bendWarned = false;
     let short = Infinity;
+    const kicked: number[] = [];
     prongs.forEach((p, i) => {
       const r = laid[i];
       p.spine = r.spine;
@@ -884,11 +941,19 @@ export function layoutHead(
         short = Math.min(short, r.spine.pavilionClearance);
       }
       if (r.otherShort) blocked ??= `prong ${p.index + 1}'s leg cannot keep clear of the next stone`;
+      if (r.spine.kick > 0) kicked.push(p.index + 1);
       if (!r.fits) {
         warn("minBendRadius", `Prong ${p.index + 1}'s leg has no room to bend between its seat and the gallery on this stone even at the tightest bend.`);
         blocked ??= `prong ${p.index + 1}'s leg has no room to bend`;
       }
     });
+
+    // A kicked leg is a fallback (Animesh, on S2's question 26): reported,
+    // with why, every time one is laid out, and counted by the audit.
+    if (kicked.length) {
+      warnings.push({ key: "pavilionClearance", kind: "kicked-leg",
+        message: `Prong${kicked.length > 1 ? "s" : ""} ${kicked.join(", ")} step${kicked.length > 1 ? "" : "s"} out under the seat and run${kicked.length > 1 ? "" : "s"} back in through the gallery: no straight leg keeps ${fmt(values.pavilionClearance)} mm from the pavilion on this stone.` });
+    }
 
     // The seat cutter, cut down to a box round every part of each prong that
     // comes within reach of the envelope: the post's seat, and the bend too
@@ -931,7 +996,7 @@ export function layoutHead(
     }
   }
 
-  return { stone, prongs, values, warnings, gallery, blocked };
+  return { stone, prongs, values, warnings, gallery, base, blocked };
 }
 
 /** A rigid move about the head axis: a turn, or a reflection in a plane through the axis. */
@@ -1463,6 +1528,345 @@ function planGallery(
   };
 }
 
+// ------------------------------------------------------------------ base --
+
+/**
+ * A rounded outline: a convex core polygon grown by a disc of radius r (the
+ * core's Minkowski sum with the disc). Its sides run parallel to the core's,
+ * set out by r, and meet in arcs of radius r round the core's corners.
+ *
+ * Growing one by w is the same core at r + w, so the base's inner and outer
+ * edges, the saddle's plateau and its hole are one core at four radii:
+ * parallel curves, the same distance apart all round, which cannot fold. (An
+ * outline offset inward folds at a marquise's points; see outlineRail in the
+ * engine.) Lines and arcs extrude to planes and cylinders, which OCCT fillets
+ * far more reliably than the faceted tube the gallery is.
+ */
+export type Rounded = { core: V2[]; r: number };
+
+export type RoundedSegment =
+  | { kind: "line"; a: V2; b: V2 }
+  | { kind: "arc"; a: V2; m: V2; b: V2; c: V2 };
+
+/** The outline as lines and arcs, counter-clockwise, each arc before the side that leaves its corner. */
+export function roundedSegments(o: Rounded): RoundedSegment[] {
+  const K = o.core, n = K.length;
+  if (n === 1) {
+    // A point grown by a disc: a circle, as two half arcs.
+    const [cx, cy] = K[0];
+    return [
+      { kind: "arc", a: [cx + o.r, cy], m: [cx, cy + o.r], b: [cx - o.r, cy], c: K[0] },
+      { kind: "arc", a: [cx - o.r, cy], m: [cx, cy - o.r], b: [cx + o.r, cy], c: K[0] },
+    ];
+  }
+  const out: RoundedSegment[] = [];
+  const at = (k: number, nrm: V2): V2 => [K[k][0] + nrm[0] * o.r, K[k][1] + nrm[1] * o.r];
+  for (let k = 0; k < n; k++) {
+    const before = edgeNormal(K, (k - 1 + n) % n), after = edgeNormal(K, k);
+    if (o.r > 1e-9) {
+      const bis = [before[0] + after[0], before[1] + after[1]];
+      const L = Math.hypot(bis[0], bis[1]);
+      out.push({ kind: "arc", a: at(k, before), m: at(k, [bis[0] / L, bis[1] / L]), b: at(k, after), c: K[k] });
+    }
+    out.push({ kind: "line", a: at(k, after), b: at((k + 1) % n, after) });
+  }
+  return out;
+}
+
+/** The outline sampled every `step` mm or finer along it, counter-clockwise, as a closed polygon. */
+export function roundedPoints(o: Rounded, step = 0.05): V2[] {
+  const pts: V2[] = [];
+  for (const s of roundedSegments(o)) {
+    if (s.kind === "line") {
+      const n = Math.max(1, Math.ceil(Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) / step));
+      for (let i = 0; i < n; i++) pts.push([s.a[0] + ((s.b[0] - s.a[0]) * i) / n, s.a[1] + ((s.b[1] - s.a[1]) * i) / n]);
+    } else {
+      const c = s.c, r = o.r;
+      const a0 = Math.atan2(s.a[1] - c[1], s.a[0] - c[0]);
+      let sweep = Math.atan2(s.b[1] - c[1], s.b[0] - c[0]) - a0;
+      while (sweep <= 0) sweep += 2 * Math.PI;
+      const n = Math.max(2, Math.ceil((r * sweep) / step));
+      for (let i = 0; i < n; i++) pts.push([c[0] + r * Math.cos(a0 + (sweep * i) / n), c[1] + r * Math.sin(a0 + (sweep * i) / n)]);
+    }
+  }
+  return pts;
+}
+
+/**
+ * n points spread evenly by length round the outline, counter-clockwise,
+ * from where its first segment starts. Two outlines grown from cores with
+ * the same corners, sampled alike, correspond point for point, which is what
+ * the saddle's ruled side is lofted between.
+ */
+export function roundedSamples(o: Rounded, n: number): V2[] {
+  const dense = roundedPoints(o, 0.01);
+  const cum = [0];
+  for (let i = 1; i <= dense.length; i++) {
+    const a = dense[i - 1], b = dense[i % dense.length];
+    cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
+  }
+  const total = cum[cum.length - 1];
+  const out: V2[] = [];
+  let j = 0;
+  for (let k = 0; k < n; k++) {
+    const want = (total * k) / n;
+    while (cum[j + 1] < want) j++;
+    const a = dense[j], b = dense[(j + 1) % dense.length];
+    const w = (want - cum[j]) / Math.max(1e-12, cum[j + 1] - cum[j]);
+    out.push([a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w]);
+  }
+  return out;
+}
+
+/**
+ * A convex polygon cut down to at most `most` corners, dropping each time
+ * the corner whose loss takes least area (a convex polygon less a corner is
+ * still convex, and the sharp ones, a marquise's points, cost the most and
+ * stay), as many at a time as cost the same. The base and saddle are grown from it: each corner is an arc and
+ * each side a plane in the solids, and every face is one more surface for
+ * the fuse to intersect (a 16-cornered saddle took seconds, S3).
+ */
+function fewerCorners(P: V2[], most: number): V2[] {
+  const Q = [...P];
+  const loss = (i: number) => {
+    const a = Q[(i - 1 + Q.length) % Q.length], b = Q[i], c = Q[(i + 1) % Q.length];
+    return Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+  };
+  // Corners that cost the same go together, so a symmetric girdle keeps its
+  // symmetry: dropped one at a time, ties went by index and a marquise's
+  // base came out lopsided, its two halves laying out different legs.
+  while (Q.length > most) {
+    const L = Q.map((_, i) => loss(i));
+    const least = Math.min(...L), tie = 1e-9 * Math.max(...L);
+    const keep = Q.filter((_, i) => L[i] > least + tie);
+    if (keep.length < 3) break;
+    Q.splice(0, Q.length, ...keep);
+  }
+  return Q;
+}
+
+/**
+ * A convex polygon with every corner that does not turn (to 0.5°) left out:
+ * a corner that does not turn has no arc to grow, and the saddle's two
+ * outlines must have their arcs at the same corners (a marquise's girdle has
+ * straight runs of three).
+ */
+function turningCorners(P: V2[]): V2[] {
+  return P.filter((p, i) => {
+    const a = P[(i - 1 + P.length) % P.length], b = P[(i + 1) % P.length];
+    const u = Math.atan2(p[1] - a[1], p[0] - a[0]), w = Math.atan2(b[1] - p[1], b[0] - p[0]);
+    let t = Math.abs(w - u);
+    if (t > Math.PI) t = 2 * Math.PI - t;
+    return t > (0.5 * Math.PI) / 180 && Math.hypot(p[0] - a[0], p[1] - a[1]) > 1e-6;
+  });
+}
+
+/**
+ * The head's base and the saddle it sits in (S3).
+ *
+ * The base is a flat ring under the stone, following its outline: every
+ * prong's foot ends in it, and nothing of a prong reaches the band. It is
+ * max(prongDiameter, minWall) tall and that plus 0.3 mm wide, the extra
+ * giving a foot room to land square on it, and it sits low, just above the
+ * band, because a head set this close to the finger has no room for a base
+ * any higher: the culet is culetClearance off the band, and on a 0.25 ct
+ * stone the gallery already sits a few tenths of a millimetre above the
+ * culet.
+ *
+ * The saddle is the joint (architecture C in the S3 prompt: a saddle,
+ * hollow in the middle). A solid lofted from inside the band up to a flat
+ * plateau 0.15 mm above the band's highest point under the head, wide enough
+ * there to carry the whole base, narrowing on the way down to what the band
+ * can hold: on a 1.2 mm band it is a seat four times the band's width that
+ * the band rises into, on an 8 mm band nearly a straight-sided block. The
+ * base is sunk 0.1 mm into its plateau, so the two fuse with real overlap.
+ * Its middle is open, down through to the band: under the culet the nearest
+ * metal is still the band's own top, culetClearance away, as S1 set it, and
+ * light reaches the pavilion from below as well as through the basket.
+ *
+ * Why a separate saddle rather than the shank's own section widened under
+ * the head (architecture A): the shank is a single exact revolve on most
+ * rings, and a section that changes under the head would loft every band
+ * (slower to build and to show, and 0.05% out against the revolve, S0), and
+ * it cannot leave the middle open for the culet. Why not a hollow cone up to
+ * the stone (B, the bezel's under-gallery): there is no height for one; the
+ * stone sits culetClearance above the band.
+ */
+export type BasePlan = {
+  /** The convex core every outline of the base and saddle is grown from (see Rounded). */
+  core: V2[];
+  /** The base's inner and outer edges and the saddle's plateau, as radii about the core. */
+  rIn: number; rOut: number; plateauR: number;
+  /** The base's bottom and top, above the culet. */
+  zBottom: number; zTop: number;
+  /** Section thickness: the base's height and its narrowest width across. */
+  height: number; width: number;
+  /** The saddle's flat top. */
+  plateau: number;
+  /** The band's highest point under the saddle, which rises 0.03 mm through the plateau. */
+  bandTop: number;
+  /** The saddle's flat bottom, inside the band. */
+  saddleBottom: number;
+  /** The least gap from the base and saddle to the stone, and to the culet (exact distances to its faces). */
+  clearance: number; culetClearance: number;
+  /** Whether the base's top reaches the gallery: on a small stone the two meet. */
+  touchesGallery: boolean;
+  /** The core's scale of the girdle. */
+  sigma: number;
+};
+
+/** Highest band top among these points (stone frame), and whether any lay off the band. */
+function bandTopAmong(band: BandProbe, pts: V2[]): number {
+  let top = -Infinity;
+  for (const [x, y] of pts) {
+    const b = band.at(x, y);
+    if (b) top = Math.max(top, b.top);
+  }
+  return top;
+}
+
+const BASE_SINK = 0.1;          // how far the base sits into the saddle's plateau
+const PLATEAU_DROP = 0.03;      // the plateau under the band's crest, which rises through it
+const SADDLE_MARGIN = 0.3;      // the plateau beyond the base's outer edge
+
+/**
+ * Where the base goes. See BasePlan.
+ *
+ * Its size comes from the legs: each prong's run from the bottom of its post
+ * through the gallery, carried on down at the same slope, lands at some
+ * distance out from the axis at the base's height, and the base's middle is
+ * put where those land on average, so a leg needs as little bend at its knee
+ * as it can. Then it is grown until it keeps pavilionClearance from the
+ * stone and culetClearance from the culet, measured exactly. Its top keeps
+ * 0.25 mm below the gallery where the stone leaves the height for that; on a
+ * small stone it is sunk further into the saddle, never so far that a
+ * prong's foot would have less than 0.35 mm of base above the plateau to end
+ * in.
+ */
+function planBase(
+  stone: StoneProfile, v: BenchValues, d: number, band: BandProbe, gallery: GalleryPlan,
+  prongs: ProngPlan[], minWall: number,
+  /** The core's scale of the girdle to try, before the gaps grow it; by default, where the legs would land (see layoutHead). */
+  tryScale?: number,
+): BasePlan {
+  const height = Math.max(d, minWall);
+  const width = height + 0.3;
+  // The core is the girdle scaled, its inner edge rounded by only 0.25 mm:
+  // grown from a small core by a large radius, a princess's base came out
+  // nearly round, and its corner prongs, standing a seventh further out than
+  // the side ones, had nowhere near them to land.
+  const rIn = 0.25, rOut = rIn + width;
+  const faces = prepareFaces(stackFaces(stone.girdle, stone.stations ?? stone.hull));
+  const G = fewerCorners(turningCorners(stone.girdle), 8);
+
+  // A round stone's base is round: a circle, its radius the girdle's scaled
+  // (its girdle's sixteen sides are the stone's facets, not a shape to follow).
+  const outline = (sigma: number, r: number): Rounded => (stone.cut === "round"
+    ? { core: [[0, 0]], r: r + sigma * stone.girdleR }
+    : { core: G.map(([x, y]) => [x * sigma, y * sigma] as V2), r });
+  const gb = gallery.z - gallery.t / 2;
+
+  // The band's highest point under any base this head could have: the
+  // girdle's own footprint, its outline and a grid inside it, which holds
+  // every plateau the sizes below try. Read once: on a band the crest is on
+  // the head's axis (or beside a split shank's slot) whatever the base's
+  // size, and probing it for every size tried was most of the layout's time
+  // (42 ms of 70 on the default ring, S3).
+  const reach = roundedPoints(outline(1, rOut + SADDLE_MARGIN), 0.25);
+  const bandTop = (() => {
+    // Across the finger, where the crest is, every 0.05 mm (a split shank's
+    // slot edge is in there), and along it and round the outline more
+    // coarsely: the band only falls away along the finger.
+    const a = band.axial, far = Math.max(...reach.map((p) => Math.hypot(p[0], p[1])));
+    const pts: V2[] = [...reach];
+    for (let t = -far; t <= far; t += 0.05) pts.push([a[0] * t, a[1] * t]);
+    for (let t = -far; t <= far; t += 0.25) pts.push([-a[1] * t, a[0] * t]);
+    const top = bandTopAmong(band, pts.filter((q) => polygonDistance(reach, q) <= 0));
+    return Number.isFinite(top) ? top : band.topOnAxis;
+  })();
+  // The heights, the same for every size.
+  const heights = (() => {
+    const plateau = bandTop - PLATEAU_DROP;
+    // Sunk BASE_SINK into the plateau. Where that leaves less than 0.25 mm
+    // of daylight under the gallery, sunk further, but never so far that a
+    // foot has less than 0.75 d of base above the plateau to end in (a leg
+    // coming in at 45° needs 0.71 d), and never with its top above the
+    // gallery's middle: there the section at the gallery's height would
+    // cut the base (S3, light). On a small stone the base then meets the
+    // gallery's underside.
+    let zTop = Math.min(plateau - BASE_SINK + height, Math.max(gb - 0.25, plateau + 0.75 * d + 0.05));
+    zTop = Math.min(zTop, gallery.z - 0.05);
+    const zBottom = zTop - height;
+    return { plateau, bandTop, zBottom, zTop };
+  })();
+
+  // The base's middle where the legs would land at its height, straight on
+  // from the post through the gallery.
+  const gr = gallery.t / 2;
+  const landing = (zAt: number) => prongs.map((p) => {
+    const c = p.postCentre;
+    const inward: V2 = [-p.normal[0], -p.normal[1]];
+    const hit = rayHit(gallery.path, c, inward) ?? c;
+    const cz = p.seatLow - 0.1 - (v.minBendRadius * d + d / 2) * 0.3;
+    const k = (gallery.z - zAt) / Math.max(0.2, cz - gallery.z);
+    const q: V2 = [hit[0] + (hit[0] - c[0]) * k, hit[1] + (hit[1] - c[1]) * k];
+    return { psi: Math.atan2(c[1], c[0]), r: Math.hypot(q[0], q[1]) };
+  });
+  const middle = (sigma: number, psi: number) => (stone.cut === "round"
+    ? outline(sigma, rIn + width / 2).r
+    : radialHit(roundedPoints(outline(sigma, rIn + width / 2), 0.2), psi).r);
+
+  // The gaps to the stone and the culet: the base's top edges, its inner
+  // wall above the plateau and the saddle's hole round its rim.
+  const gaps = (sigma: number, h: typeof heights) => {
+    let gap = Infinity, culet = Infinity;
+    const test = (q: V3) => {
+      gap = Math.min(gap, facesDistance(q, faces));
+      culet = Math.min(culet, Math.hypot(q[0], q[1], q[2]));
+    };
+    for (const [x, y] of roundedPoints(outline(sigma, rIn), 0.15)) {
+      for (let z = h.plateau; z <= h.zTop + 1e-9; z += Math.max(0.05, (h.zTop - h.plateau) / 4)) test([x, y, z]);
+      test([x, y, h.zTop]);
+    }
+    for (const [x, y] of roundedPoints(outline(sigma, rOut), 0.15)) test([x, y, h.zTop]);
+    return { gap, culet };
+  };
+
+  // sigma by the landings, then grown as the gaps need. Halved first to
+  // find a sigma whose middle is near the landings: the base's middle grows
+  // with sigma (and with every girdle point's distance out).
+  let lo = 0, hi = 1.2;
+  for (let k = 0; k < 16; k++) {
+    const md = (lo + hi) / 2;
+    const h = heights;
+    const L = landing((h.zTop + h.plateau) / 2);
+    const off = L.reduce((t, { psi, r }) => t + middle(md, psi) - r, 0) / L.length;
+    if (off > 0) hi = md; else lo = md;
+  }
+  let sigma = Math.max(0, tryScale ?? (lo + hi) / 2);
+  let h = heights, g = gaps(sigma, h);
+  while ((g.gap < v.pavilionClearance || g.culet < v.culetClearance + 0.02) && sigma < 1.2) {
+    sigma += 0.02;
+    h = heights; g = gaps(sigma, h);
+  }
+
+  // The saddle's bottom: halfway down through the band on the axis, never
+  // nearer the bore than 0.15 mm (a split shank's slot: its rails').
+  const axial = band.axial;
+  const onAxis = band.at(0, 0) ?? band.at(axial[0] * (band.axialMin + 0.2), axial[1] * (band.axialMin + 0.2));
+  const thick = onAxis ? onAxis.top - onAxis.bottom : 1;
+  const zBot = Math.max(h.bandTop - 0.5 * thick, (onAxis ? onAxis.bottom : -Infinity) + 0.15);
+
+  const outerTop = roundedPoints(outline(sigma, rOut), 0.2).map(([x, y]) => [x, y, h.zTop] as V3);
+  return {
+    core: outline(sigma, 0).core, rIn: outline(sigma, rIn).r, rOut: outline(sigma, rOut).r, plateauR: outline(sigma, rOut + SADDLE_MARGIN).r,
+    zBottom: h.zBottom, zTop: h.zTop, height, width,
+    plateau: h.plateau, bandTop: h.bandTop, saddleBottom: zBot,
+    clearance: g.gap, culetClearance: g.culet, sigma,
+    touchesGallery: outerTop.some((q) => Math.hypot(polygonDistance(gallery.path, [q[0], q[1]]), q[2] - gallery.z) < gr + 0.01),
+  };
+}
+
 /**
  * One prong's leg: from the bottom of its post, straight down through the
  * gallery wire, bending at a knee below it, then down into the band.
@@ -1488,12 +1892,14 @@ function planGallery(
  * the seat (a slower cut), or the bends tighten below minBendRadius, which is
  * reported.
  */
-type LegChoice = { r: number; bend: number; mode: "clear" | "under-seat"; drop: number; delta: number; wrap: number; kick: number; fall: number };
+type LegChoice = { r: number; bend: number; mode: "clear" | "under-seat"; drop: number; delta: number; wrap: number; kick: number; fall: number; straight: boolean; deep: boolean };
 
 function layoutLeg(
   p: ProngPlan, stone: StoneProfile, v: BenchValues, band: BandProbe, planes: HalfSpace[],
   /** The gallery the leg runs through; null, a leg straight down from the post (see galleryOptional). */
   gallery: GalleryPlan | null,
+  /** The base the foot ends in (S3); null, the foot stands in the band as before (a three-stone's side heads, S6's). */
+  base: BasePlan | null,
   hints: LegChoice[] = [],
   avoid: { planes: HalfSpace[]; clearance: number }[] = [],
   avoidPoints: { p: V3; r: number }[] = [],
@@ -1542,7 +1948,13 @@ function layoutLeg(
     if (!probes.has(r)) probes.set(r, band.at(xy[0], xy[1]));
     return probes.get(r)!;
   };
+  // On a base, the foot goes straight out from the axis towards the post,
+  // as far out as the base allows: its inner and outer edges along that
+  // direction, less the foot's own radius.
+  const baseIn = base ? radialHit(roundedPoints({ core: base.core, r: base.rIn }, 0.05), psi).r : 0;
+  const baseOut = base ? radialHit(roundedPoints({ core: base.core, r: base.rOut }, 0.05), psi).r : 0;
   const footXY = (r: number): V2 => {
+    if (base) return [r * Math.cos(psi), r * Math.sin(psi)];
     const e: V2 = [Math.cos(psi), Math.sin(psi)];
     const a = band.axial;
     let along = r * (e[0] * a[0] + e[1] * a[1]);
@@ -1568,25 +1980,42 @@ function layoutLeg(
   const wantBend = v.minBendRadius * d + half;
   const tightest = BEND_MIN * d + half;     // the bench field's own minimum
   const turnOf = (a: V3, b: V3) => Math.acos(Math.min(1, Math.max(-1, dot(a, b))));
+  // tan of half the knee's turn, the turn held under 174°: a foot almost
+  // straight back up the leg (a base just under a low gallery) would put the
+  // knee tan(90°) away and the samples along it would never end. Such a leg
+  // fails its fit either way (its knee does not fit before the foot).
+  const kneeTan = (u: V3, foot: V3, knee: V3) => Math.tan(Math.min(turnOf(u, unitV(sub(foot, knee))), Math.PI - 0.1) / 2);
   // kick > 0: under the seat the leg first steps out along the prong's
   // normal by `kick` over a fall of `fall`, then runs in through the wire
   // (one bend more). For a post set so deep that, straight down, it passes
   // the pavilion closer than the gap just under girdle − d (a marquise's at
   // the deepest bearing, S2); before the gallery its leg stepped out there
   // anyway, towards a foot further out.
-  const build = (r: number, bend: number, mode: Mode, drop: number, delta: number, wrap = 1, kick = 0, fall = 0) => {
+  let deepFoot = false;
+  // straight: on a base, no knee: the run from the post through the wire
+  // carries straight on into the base, the foot where it reaches it (r is
+  // then not used). Where the base sits just under a low gallery there is no
+  // room for a knee between them (a princess's corner prongs, S3).
+  const build = (r: number, bend: number, mode: Mode, drop: number, delta: number, wrap = 1, kick = 0, fall = 0, straight = false) => {
     const midOf = (cz: number): V3 => [c[0] + p.normal[0] * kick, c[1] + p.normal[1] * kick, cz - fall];
     // Without a gallery, W is a point on the post below its seat, and the
     // leg is S1's: the post straight down, one bend, the leg to the foot.
     const W: V3 = [crossXY[0] - inward[0] * delta, crossXY[1] - inward[1] * delta,
       gallery ? gallery.z : (mode === "clear" ? p.seatLow - 0.1 : stone.zGb - 0.02) - drop - 0.3];
     const fxy = footXY(r);
-    const probe = footProbe(r, fxy);
+    const probe = base ? null : footProbe(r, fxy);
     // How far along the leg the wire reaches either side of W.
     const through = (u: V3) => (gr + half + 0.1) / Math.max(0.2, -u[2]);
     const tanHalf = (u: V3) => Math.tan(Math.acos(Math.min(1, Math.max(-1, -u[2]))) / 2);
     let cz = Math.max(stone.zGb - 0.3, W[2] + 1);
-    let foot: V3 = [fxy[0], fxy[1], band.topOnAxis - 0.45];
+    // On a base the foot ends just under its top, its end disc (square to
+    // the leg) wholly inside it, 0.03 mm under the top at the disc's
+    // highest. Or, where no leg ending there fits, deep: halfway between the
+    // plateau and the base's top, the disc's room the same above and below
+    // (just under the top, a 2 mm prong's legs on a 2 mm base had no length
+    // left to bend in: all-max marquise, S3). footOut holds the disc inside.
+    const onBase = (tilt: number) => (deepFoot ? (base!.plateau + base!.zTop - 0.02) / 2 : base!.zTop - 0.03 - half * Math.sin(tilt));
+    let foot: V3 = [fxy[0], fxy[1], base ? onBase(0) : band.topOnAxis - 0.45];
     let knee: V3 = W;
     let used = bend;
     let fits = true;
@@ -1596,10 +2025,12 @@ function layoutLeg(
       const start = kick > 0 ? midOf(cz) : corner;
       const u = unitV(sub(W, start));                      // the leg through the gallery
       // The knee: past the far side of the wire, plus room for its own bend.
-      const t2 = used * Math.tan(turnOf(u, unitV(sub(foot, knee))) / 2);
+      const t2 = straight ? 0 : used * kneeTan(u, foot, knee);
       knee = add(W, scale(u, wrap * through(u) + t2));
-      const tilt = Math.acos(Math.min(1, Math.max(-1, -unitV(sub(foot, knee))[2])));
-      if (probe) {
+      const tilt = Math.acos(Math.min(1, Math.max(-1, -unitV(sub(foot, straight ? W : knee))[2])));
+      if (straight) foot = add(W, scale(u, (W[2] - onBase(tilt)) / Math.max(1e-9, -u[2])));
+      else if (base) foot = [fxy[0], fxy[1], onBase(tilt)];
+      else if (probe) {
         // Seven tenths of the way through the band, never nearer its bore
         // than 0.15 mm (OCCT fuses a buried end seven times faster, S1).
         const slant = half * Math.sin(tilt);
@@ -1622,7 +2053,7 @@ function layoutLeg(
         used = Math.max(0, (above - 0.05) / Math.max(1e-9, turnTop));
         if (used < tightest - 1e-9) { used = tightest; fits = false; }
       }
-      if (t2 > Math.hypot(...sub(foot, knee)) - 0.2) fits = false;
+      if (!straight && t2 > Math.hypot(...sub(foot, knee)) - 0.2) fits = false;
       const t1 = used * (kick > 0 ? tanHalf(unitV(sub(start, corner))) : tanHalf(u));
       // Normally the bend starts only once the post is clear of the seat all
       // round, so the cut never meets the bend (a torus against a plane is
@@ -1638,14 +2069,20 @@ function layoutLeg(
     const corner: V3 = [c[0], c[1], cz];
     const start = kick > 0 ? midOf(cz) : corner;
     const u = unitV(sub(W, start));
-    for (let k = 0; k < 3; k++) {
-      const t2 = used * Math.tan(turnOf(u, unitV(sub(foot, knee))) / 2);
-      knee = add(W, scale(u, wrap * through(u) + t2));
+    if (straight) {
+      const tilt = Math.acos(Math.min(1, Math.max(-1, -u[2])));
+      foot = add(W, scale(u, (W[2] - onBase(tilt)) / Math.max(1e-9, -u[2])));
+    } else {
+      for (let k = 0; k < 3; k++) {
+        const t2 = used * kneeTan(u, foot, knee);
+        knee = add(W, scale(u, wrap * through(u) + t2));
+      }
     }
-    const points = (kick > 0 ? [foot, knee, start, corner, top] : [foot, knee, corner, top]) as V3[];
+    const legPoints = straight ? [foot] : [foot, knee];
+    const points = (kick > 0 ? [...legPoints, start, corner, top] : [...legPoints, corner, top]) as V3[];
     const bendsUsed = points.slice(2).map(() => used);
     if (!spineFits(points, bendsUsed)) fits = false;
-    return { points, bends: bendsUsed, gallery: W, bend: used, inBand: !!probe, fits, wrap, kick, fall };
+    return { points, bends: bendsUsed, gallery: W, bend: used, inBand: !!probe, fits, wrap, kick, fall, straight, deep: deepFoot };
   };
   type Built = ReturnType<typeof build>;
 
@@ -1690,7 +2127,21 @@ function layoutLeg(
   };
   // The foot stands outside a cylinder of culetClearance round the axis; the
   // rest of the prong is held to the culet by the exact distance above.
-  const footOut = (s: Built) => Math.hypot(s.points[0][0], s.points[0][1]) >= rMin - 1e-9;
+  // On a base: the foot's end disc wholly inside the base, its lowest point
+  // above the saddle's plateau, and the whole prong above the plateau too,
+  // so nothing of it reaches the saddle or the band (I6).
+  const footOut = (s: Built) => {
+    if (!base) return Math.hypot(s.points[0][0], s.points[0][1]) >= rMin - 1e-9;
+    const f = s.points[0], u = unitV(sub(s.points[1], f));
+    const r = Math.hypot(f[0], f[1]);
+    // The disc's reach up and down, and in and out along the radius.
+    const across = half * Math.sqrt(Math.max(0, 1 - u[2] * u[2]));
+    const ur = r > 1e-9 ? (u[0] * f[0] + u[1] * f[1]) / r : 0;
+    const out = half * Math.sqrt(Math.max(0, 1 - ur * ur));
+    if (f[2] - across < base.plateau + 0.01 || r - out < baseIn + 0.02 || r + out > baseOut - 0.02) return false;
+    return spineSamples(s.points, s.bends, half).every(({ c: q, t, slack }) =>
+      q[2] - half * Math.sqrt(Math.max(0, 1 - t[2] * t[2])) - slack >= base.plateau + 0.01);
+  };
   // Each run goes down: at least 0.3 mm of fall for every mm across (a
   // lowered corner once ended under its own foot, and OCCT's fuse returned
   // the prong alone, S1).
@@ -1727,8 +2178,27 @@ function layoutLeg(
   };
 
   const rHi = Math.hypot(c[0], c[1]) + 3 * d;
+  // from, from + step, ... while not past `to`, accumulated as the loops
+  // before S3 did, so a head without a base lays out exactly as it did.
+  const stepped = (from: number, to: number, step: number) => {
+    const xs: number[] = [];
+    for (let x = from; step > 0 ? x <= to + 1e-9 : x >= to - 1e-9; x += step) xs.push(x);
+    return xs;
+  };
+  // On a base, the distances out its width leaves a foot, nearest its middle first.
+  const baseRs = base ? (() => {
+    const lo = baseIn + half * 0.3, hi = baseOut - half * 0.3, mid = (lo + hi) / 2;
+    return [0, -1, 1, -2, 2, -3, 3].map((k) => mid + (k * (hi - lo)) / 6);
+  })() : [];
   const search = (bend: number, mode: Mode, drop: number, delta: number, wrap: number, kick = 0, fall = 0) => {
     const at = (r: number) => ({ ...build(r, bend, mode, drop, delta, wrap, kick, fall), r, drop, delta });
+    if (base) {
+      // Straight on into the base first: one bend fewer.
+      const st = build(baseRs[0], bend, mode, drop, delta, wrap, kick, fall, true);
+      if (ok(st, mode)) return { ...st, r: baseRs[0], drop, delta };
+      for (const r of baseRs) if (ok(build(r, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(r);
+      return null;
+    }
     if (ok(build(rMin, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(rMin);
     let prev = rMin;
     for (let x = rMin + 0.4; x <= rHi + 0.4 - 1e-9; x += 0.4) {
@@ -1772,7 +2242,8 @@ function layoutLeg(
   // A twin prong's answer first: a symmetric head lays out its prongs alike,
   // and the copies are then moved into place rather than rebuilt.
   for (const h of hints) {
-    const s = build(h.r, h.bend, h.mode, h.drop, h.delta, h.wrap, h.kick, h.fall);
+    deepFoot = h.deep;
+    const s = build(h.r, h.bend, h.mode, h.drop, h.delta, h.wrap, h.kick, h.fall, h.straight);
     if (Math.abs(s.bend - h.bend) < 1e-9 && ok(s, h.mode)) { chosen = { ...s, r: h.r, drop: h.drop, delta: h.delta }; mode = h.mode; break; }
   }
   // Then the requested bend high under the seat, then lower down the post;
@@ -1812,6 +2283,9 @@ function layoutLeg(
   };
   const tiers: ([boolean, boolean, number] | "kicked-joint" | "kicked")[] =
     [[true, true, 1], [true, false, 1], [true, false, 0], "kicked-joint", [false, false, 1], [false, false, 0], "kicked"];
+  for (const deep of base ? [false, true] : [false]) {
+  if (chosen) break;
+  deepFoot = deep;
   for (const tier of tiers) {
     if (chosen) break;
     if (tier === "kicked-joint" || tier === "kicked") { chosen = kicked(tier === "kicked-joint"); continue; }
@@ -1830,6 +2304,7 @@ function layoutLeg(
       }
     }
   }
+  }
   wantJoint = false; wantBall = false;
   let clearanceMet = true;
   if (!chosen) {
@@ -1843,14 +2318,17 @@ function layoutLeg(
     // the wider reach of an oblique crossing (see deltaMax) is for legs that
     // keep the gap with it; here, where none does, it only took the leg
     // further from the joint for a gap still short (a 0.25 ct emerald, S2).
+    for (const deep of base ? [false, true] : [false]) {
+    deepFoot = deep;
     for (const wrap of [1, 0]) {
       if (chosen) break;
       for (const delta of deltas.filter((x) => x <= perpMax + 1e-9)) {
         for (const drop of drops) {
-          for (let x = rMin; x <= rHi + 1e-9; x += 0.2) {
+          for (const x of base ? baseRs : stepped(rMin, rHi, 0.2)) {
             for (const m of ["clear", "under-seat"] as Mode[]) {
               if (m === "under-seat" && drop > 0) continue;
-              const s = build(x, wantBend, m, drop, delta, wrap);
+              for (const straight of base ? [true, false] : [false]) {
+              const s = build(x, wantBend, m, drop, delta, wrap, 0, 0, straight);
               if (!(s.fits && footOut(s) && descends(s))) continue;
               const ms = measure(s);
               if (ms.culet < culetTarget || ms.other < 0 || (m === "clear" && ms.seat < outsideSeat)) continue;
@@ -1858,30 +2336,37 @@ function layoutLeg(
               if (ms.pav > bestPav + 0.005 || (ms.pav > bestPav - 0.005 && j && !bestJoint)) {
                 bestPav = Math.max(bestPav, ms.pav); bestJoint = j; chosen = { ...s, r: x, drop, delta }; mode = m;
               }
+              }
             }
           }
         }
       }
     }
+    if (chosen) break;
+    }
     // Nothing keeps the culet and seat rules at all: any spine a sweep can
     // follow, tightest bend, bends in the wire; else the last one tried,
     // which layoutHead reports and the engine refuses to sweep.
     if (!chosen) {
-      for (let x = rHi; x >= rMin - 1e-9 && !chosen; x -= 0.2) {
+      deepFoot = !!base;
+      for (const x of base ? baseRs : stepped(rHi, rMin, -0.2)) {
         const s = build(x, tightest, "under-seat", 0, 0, 0);
-        if (s.fits) { chosen = { ...s, r: x, drop: 0, delta: 0 }; mode = "under-seat"; }
+        if (s.fits && (!base || footOut(s))) { chosen = { ...s, r: x, drop: 0, delta: 0 }; mode = "under-seat"; break; }
       }
     }
-    if (!chosen) { chosen = { ...build(rHi, tightest, "under-seat", 0, 0, 0), r: rHi, drop: 0, delta: 0 }; mode = "under-seat"; }
+    const last = base ? baseRs[0] : rHi;
+    if (!chosen) { chosen = { ...build(last, tightest, "under-seat", 0, 0, 0), r: last, drop: 0, delta: 0 }; mode = "under-seat"; }
   }
   const m = measure(chosen);
   return {
-    choice: { r: chosen.r, bend: chosen.bend, mode, drop: chosen.drop, delta: chosen.delta, wrap: chosen.wrap, kick: chosen.kick, fall: chosen.fall } as LegChoice,
+    choice: { r: chosen.r, bend: chosen.bend, mode, drop: chosen.drop, delta: chosen.delta, wrap: chosen.wrap, kick: chosen.kick, fall: chosen.fall, straight: chosen.straight, deep: chosen.deep } as LegChoice,
     fits: chosen.fits,
     spine: {
       points: chosen.points, bends: chosen.bends, gallery: chosen.gallery,
       pavilionClearance: m.pav,
       footInBand: chosen.inBand,
+      footInBase: !!base && footOut(chosen),
+      kick: chosen.kick,
     },
     mode,
     clearanceMet,

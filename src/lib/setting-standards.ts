@@ -329,9 +329,19 @@ export type BenchWarning = {
    * "clamped" and "outside-published" come from resolveBench; "engine-clamped"
    * from the engine, when a value inside the bounds cannot be built on this
    * particular stone (prongs so thick on a small stone that they would touch).
+   * "kicked-leg" from the engine too: a prong whose leg steps out under its
+   * seat because no straight leg keeps the pavilion gap (S2; accepted by
+   * Animesh as a fallback only, reported and counted).
    */
-  kind: "clamped" | "outside-published" | "engine-clamped";
+  kind: "clamped" | "outside-published" | "engine-clamped" | "kicked-leg";
   message: string;
+  /**
+   * For an engine clamp the stone's size forces, the value asked and the one
+   * built (Animesh's decision on S2's question 25: such clamps are reported
+   * with both, and the bounds stay as they are).
+   */
+  asked?: number;
+  delivered?: number;
 };
 
 export type ResolvedBench = {
