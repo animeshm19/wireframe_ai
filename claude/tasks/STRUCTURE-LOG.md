@@ -148,7 +148,7 @@ For Animesh (decisions, not bench questions):
     - cold preview 353.4 ms: not met;
     - like for like with S1 on the same machine: preview 1.75×, resolve 1.56×.
 
-    **Decided 2026-10-18 (warm is the budget; this also settles q. 19).** Because the worker now boots when it is spawned. Cold is still measured and reported every stage and must stay ≤ 500 ms. Every stage reports the like-for-like slowdown against the previous stage. If warm preview passes 186 ms or cold passes 500 ms, stop and report rather than continue.
+    **Decided 2026-10-18 (warm is the budget; this also settles q. 19).** The warm figure counts because the worker now boots when it is spawned. Cold is still measured and reported every stage and must stay ≤ 500 ms. Every stage reports the like-for-like slowdown against the previous stage. If warm preview passes 186 ms or cold passes 500 ms, stop and report rather than continue.
 
 ## Progress
 
