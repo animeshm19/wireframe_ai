@@ -18,7 +18,7 @@ import {
   setOC, draw, drawEllipse, makeLine, makeFace, makeSolid,
   assembleWire, makeCylinder, makeCircle, makeEllipse, measureVolume, exportSTEP, loft,
   makeCompound, genericSweep, makeThreePointArc, cast, getOC, iterTopo,
-  Plane, Sketch,
+  basicFaceExtrusion, Plane, Sketch, Vector,
   type Shape3D, type AnyShape, type Wire, type Face,
 } from "replicad";
 import {
@@ -30,8 +30,8 @@ import {
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, radialHit, spineFits, stepCutStations, stoneProfile, tubeSideFits,
-  type BandProbe, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type StoneProfile,
+  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, radialHit, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
+  type BandProbe, type BasePlan, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type Rounded, type StoneProfile,
 } from "./head-layout.js";
 
 // ------------------------------------------------------------------ kernel --
@@ -1152,6 +1152,78 @@ function cutSeat(part: Shape3D, cutter: Shape3D, what: string, mayMiss = false):
   return out;
 }
 
+/**
+ * A rounded outline as a closed wire of its exact lines and arcs, at height
+ * z; reversed, for a face's inner wire.
+ *
+ * Not one spline through it: fewer faces, but replicad's volume and area of
+ * a solid bounded by a long periodic spline came out up to 6% wrong, by an
+ * amount that moved with the spline's pole count (S3), and every boolean
+ * check in this file rests on those volumes. Lines and arcs extrude to planes
+ * and cylinders, which it measures exactly.
+ */
+function roundedWire(o: Rounded, z: number, reverse = false): Wire {
+  const at = (p: V2): V3 => [p[0], p[1], z];
+  const edges = roundedSegments(o).map((sg) => sg.kind === "line"
+    ? (reverse ? makeLine(at(sg.b), at(sg.a)) : makeLine(at(sg.a), at(sg.b)))
+    : (reverse ? makeThreePointArc(at(sg.b), at(sg.m), at(sg.a)) : makeThreePointArc(at(sg.a), at(sg.m), at(sg.b))));
+  return assembleWire(reverse ? edges.reverse() : edges);
+}
+
+/** Area of a rounded outline: the core's, its perimeter times r, and a disc of r. */
+function roundedArea(o: Rounded): number {
+  const K = o.core;
+  if (K.length === 1) return Math.PI * o.r * o.r;
+  let a = 0, per = 0;
+  for (let i = 0; i < K.length; i++) {
+    const p = K[i], q = K[(i + 1) % K.length];
+    a += p[0] * q[1] - q[0] * p[1];
+    per += Math.hypot(q[0] - p[0], q[1] - p[1]);
+  }
+  return Math.abs(a) / 2 + per * o.r + Math.PI * o.r * o.r;
+}
+
+/**
+ * The head's base and the saddle it sits in (see BasePlan in head-layout.ts),
+ * in the head's frame.
+ *
+ * The base is a flat ring: the face between its outer and inner outlines,
+ * extruded. The saddle is lofted, ruled, from its outline inside the band up
+ * to the plateau, the two outlines sampled alike from cores with the same
+ * corners so each point of one rules to the matching point of the other, and
+ * its hole is then cut down through it: one cut, of a prism through a solid
+ * it lies wholly across. Both are checked, as every boolean here is: the ring
+ * against its exact volume, the cut for taking metal, not all of it, and
+ * leaving one solid.
+ */
+export function baseParts(b: BasePlan): { saddle: Shape3D; ring: Shape3D } {
+  // A round stone's outlines are exact circles (a cylinder fuses fastest of
+  // all); any other cut's, its lines and arcs.
+  const loop = (o: Rounded, z: number, reverse = false) => o.core.length === 1
+    ? assembleWire([makeCircle(o.r, [o.core[0][0], o.core[0][1], z], [0, 0, reverse ? -1 : 1])])
+    : roundedWire(o, z, reverse);
+  const inner: Rounded = { core: b.core, r: b.rIn }, outer: Rounded = { core: b.core, r: b.rOut };
+  const h = b.zTop - b.zBottom;
+  // The hole's loop runs the other way round, as a face's inner wire must.
+  const ring = basicFaceExtrusion(makeFace(loop(outer, b.zBottom), [loop(inner, b.zBottom, true)]), new Vector([0, 0, h])) as Shape3D;
+  const wantRing = (roundedArea(outer) - roundedArea(inner)) * h;
+  const gotRing = measureVolume(ring);
+  if (!(Math.abs(gotRing - wantRing) <= wantRing * 0.01) || ring.solids.length !== 1) {
+    throw new Error(`base ring failed its check: ${gotRing.toFixed(4)} mm³ against ${wantRing.toFixed(4)}, ${ring.solids.length} solid(s)`);
+  }
+  volumes.set(ring, gotRing);
+
+  const plate: Rounded = { core: b.core, r: b.plateauR };
+  const saddle = basicFaceExtrusion(makeFace(loop(plate, b.saddleBottom)), new Vector([0, 0, b.plateau - b.saddleBottom])) as Shape3D;
+  const wantSaddle = roundedArea(plate) * (b.plateau - b.saddleBottom);
+  const gotSaddle = measureVolume(saddle);
+  if (!(Math.abs(gotSaddle - wantSaddle) <= wantSaddle * 0.01) || saddle.solids.length !== 1) {
+    throw new Error(`saddle failed its check: ${gotSaddle.toFixed(4)} mm³ against ${wantSaddle.toFixed(4)}, ${saddle.solids.length} solid(s)`);
+  }
+  volumes.set(saddle, gotSaddle);
+  return { saddle, ring };
+}
+
 /** A closed wire around a cut's outline, scaled and lifted. */
 function outlineWire(o: Pt[], girdleR: number, scale: number, z: number): Wire {
   const ring: V3[] = o.map(([x, y]) => [x * girdleR * scale, y * girdleR * scale, z]);
@@ -1200,6 +1272,8 @@ export type HeadContext = {
    * live preview, as the pavé seats are.
    */
   checkGallery?: boolean;
+  /** Build the head a base and saddle, its prongs standing in the base (LayoutOptions.base). */
+  base?: boolean;
 };
 
 export function buildHead(
@@ -1260,7 +1334,7 @@ export function buildHead(
 
   const layout = ctx.layout ?? layoutHead(cut, girdleR, prongCount, ctx.bench, ctx.band, {
     minProngDiameter: limits.minProngDia, minGalleryThickness: limits.minWall,
-    avoid: ctx.avoid, avoidPoints: ctx.avoidPoints,
+    avoid: ctx.avoid, avoidPoints: ctx.avoidPoints, base: ctx.base,
   });
   const metal: Shape3D[] = [];
   const stones: Shape3D[] = [centre];
@@ -1268,6 +1342,15 @@ export function buildHead(
   const stoneRoles: StoneRole[] = [centreRole];
   const prongAngles: number[] = layout.prongs.map((p) => p.angle);
   const add = (s: Shape3D, role: PartRole) => { metal.push(s); metalRoles.push(role); };
+
+  // The saddle and the base first: the merge fuses parts in order, and each
+  // then joins what is already there (the saddle the band, the base the
+  // saddle, every prong the base), so no fuse leaves the metal in two.
+  if (layout.base) {
+    const { saddle, ring } = baseParts(layout.base);
+    add(saddle, { role: "bridge" });
+    add(ring, { role: "base" });
+  }
 
   const seated: Shape3D[] = [];
   for (const p of layout.prongs) {
@@ -1568,6 +1651,12 @@ function buildSideStones(
 
 export type RingDims = {
   innerR: number; outerR: number; bandWidth: number; thickness: number;
+  /**
+   * The band's top under the centre head, from the finger's axis: outerR on
+   * a plain band, less or more where a lasso edit thins or thickens the
+   * band there. The culet stands culetClearance above it.
+   */
+  headBandTop: number;
   girdleR: number; stoneHeight: number;
   /** The stone's actual footprint, mm. Equal for a round; not for the others. */
   stoneL: number; stoneW: number;
@@ -1800,7 +1889,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
     // at 0.45 rad a side stone's edge sat where the two facing it go (the
     // default three-stone kept 0.045 mm from the pavilion to miss them).
     const lim = MANUFACTURING_LIMITS[alloy] ?? MANUFACTURING_LIMITS.platinum;
-    const sized = { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall };
+    const sized = { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall, base: true };
     const alone = layoutHead(cut, girdleR, prongCount, centreBench.values, centreProbe, sized);
     const same = (l: HeadLayout) => l.blocked == null &&
       JSON.stringify(l.values) === JSON.stringify(alone.values) && l.gallery?.z === alone.gallery?.z;
@@ -1814,7 +1903,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   }
 
   const head = buildHead(cut, girdleR, prongCount, style === "three_stone" ? "prong" : style,
-    { bench: centreBench.values, band: centreProbe, alloy, avoid: centreAvoid, layout: centreLayout, checkGallery: !!opts.seats });
+    { bench: centreBench.values, band: centreProbe, alloy, avoid: centreAvoid, layout: centreLayout, checkGallery: !!opts.seats, base: true });
   const bench: ResolvedBench = {
     ...centreBench,
     values: head.layout.values,
@@ -1877,7 +1966,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
     heads,
     bench,
     dims: {
-      innerR, outerR, bandWidth, thickness,
+      innerR, outerR, bandWidth, thickness, headBandTop: topAtHead,
       girdleR, stoneHeight: d.totalH,
       // From the cut's own outline, so the footprint reported is the footprint
       // built. Length is the long axis; for a round the two are equal.
