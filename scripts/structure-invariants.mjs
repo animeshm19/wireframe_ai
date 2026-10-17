@@ -293,16 +293,49 @@ export const INVARIANTS = [
       })));
     },
   },
+  // Split in S3, as I3 is: the S3 prompt builds the base for the centre head
+  // of every prong setting, and a three-stone's side heads get theirs in S6
+  // ("reusing what you build here"). Until then their prongs still stand in
+  // the band, so they are held by I6b, from S6. Nothing is dropped: every
+  // prong of every head is in one or the other.
   {
     id: "I6",
-    title: "every prong stands in the base (> 0.02 mm³) and not in the band",
-    requiredFrom: () => "S3",
+    title: "every centre prong stands in the base (> 0.02 mm³) and not in the band",
+    requiredFrom: (spec) => (prongHead(spec) ? "S3" : null),
     evaluate: (r) => {
-      if (!r.prongs.length) return na("no prongs");
-      return all(r.prongs.flatMap((p) => [
+      const ps = r.prongs.filter((p) => p.head === "centre");
+      if (!ps.length) return na("no prongs");
+      return all(ps.flatMap((p) => [
         { ok: num(p.inBase) && p.inBase > 0.02, why: `${p.head} prong ${p.index} in base ${fmt(p.inBase)} mm³` },
         { ok: num(p.inBand) && p.inBand <= 1e-6, why: `${p.head} prong ${p.index} in band ${fmt(p.inBand)} mm³` },
       ]));
+    },
+  },
+  {
+    id: "I6b",
+    title: "every side-head prong stands in its base (> 0.02 mm³) and not in the band",
+    requiredFrom: () => "S6",
+    evaluate: (r) => {
+      const ps = r.prongs.filter((p) => p.head !== "centre");
+      if (!ps.length) return na("no side heads");
+      return all(ps.flatMap((p) => [
+        { ok: num(p.inBase) && p.inBase > 0.02, why: `${p.head} prong ${p.index} in base ${fmt(p.inBase)} mm³` },
+        { ok: num(p.inBand) && p.inBand <= 1e-6, why: `${p.head} prong ${p.index} in band ${fmt(p.inBand)} mm³` },
+      ]));
+    },
+  },
+  {
+    id: "I12",
+    title: "the centre base's section ≥ max(prongDiameter, minWall), at a prong-free angle",
+    requiredFrom: (spec) => (prongHead(spec) ? "S3" : null),
+    evaluate: (r) => {
+      const bs = (r.bases ?? []).filter((b) => b.head === "centre");
+      if (!bs.length) return r.prongs.some((p) => p.head === "centre") ? fail("no base measured") : na("no prong head");
+      // 0.005 for the section being read off a 0.002 mm mesh.
+      return all(bs.map((b) => ({
+        ok: num(b.thickness) && b.thickness >= b.need - 0.005,
+        why: `base section ${fmt(b.thickness)} mm, needs ${fmt(b.need)}`,
+      })));
     },
   },
   // Known limits, for S3, which owns the joint: the disc is the prompt's

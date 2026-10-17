@@ -30,7 +30,7 @@ import {
 import { gemDims } from "./cad-engine.js";
 import { radialHit } from "./head-layout.js";
 import { benchBounds, resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
-import type { MetalType } from "./ring-spec.js";
+import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
 
 type V3 = [number, number, number];
@@ -134,6 +134,26 @@ export type GalleryAudit = {
   beyondGirdle: number;
 };
 
+/**
+ * A head's base (S3): the flat ring its prongs end in, and the saddle under
+ * it. Measured on the base part alone, from the untouched build.
+ */
+export type BaseAudit = {
+  head: HeadName;
+  part: number;
+  /** I12: the smaller of the base's height and width, read off its section in a half-plane between prong 0 and prong 1. */
+  thickness: number;
+  /** What it must be at least: max(prongDiameter built, the alloy's minimum wall). */
+  need: number;
+  /** Least distance from the base, and from the saddle, to the stone it holds. */
+  clearanceToStone: number;
+  saddleClearanceToStone: number;
+  /** Where the layout put it, above the culet: its bottom and top, and the saddle's plateau. */
+  zBottom: number; zTop: number; plateau: number;
+  /** Whether its top meets the gallery's underside (small stones). */
+  touchesGallery: boolean;
+};
+
 export type StructureAudit = {
   spec: Record<string, unknown>;
   /** The centre head's values as built: resolveBench, then any engine clamp. */
@@ -160,6 +180,9 @@ export type StructureAudit = {
   prongs: ProngAudit[];
   bearings: BearingAudit[];
   galleries: GalleryAudit[];
+  bases: BaseAudit[];
+  /** Centre prongs laid out as kicked legs (S2's fallback; Animesh's decision on question 26: counted). */
+  kickedLegs: number;
   joint: {
     /** Metal section at band-top + 0.10 mm, within girdleR × 1.2 of the head axis. */
     jointSectionArea: number;
@@ -305,7 +328,10 @@ export async function auditStructure(
   });
 
   const centreFrame = heads[0];
-  const bandTop = dims.outerR;
+  // The band's top under the head, as the engine read it to place the culet
+  // (outerR unless a lasso edit thins or thickens the band there). Reports
+  // before S3 took outerR.
+  const bandTop = dims.headBandTop ?? dims.outerR;
   const centre = {
     culetClearance: stoneAudits[0].culetClearance,
     culetInside: stoneAudits[0].culetInside,
@@ -322,6 +348,7 @@ export async function auditStructure(
   const bandIdx = idx((r) => r.role === "band");
   const galleryIdx = idx((r) => r.role === "gallery");
   const baseIdx = idx((r) => r.role === "base");
+  const bridgeIdx = idx((r) => r.role === "bridge");
   const stoneFor = (head: HeadName | undefined) =>
     stoneRoles.findIndex((r) => r.head === head && (r.role === "centre" || r.role === "side"));
   const sum = (xs: number[]) => xs.reduce((t, x) => t + x, 0);
@@ -330,6 +357,13 @@ export async function auditStructure(
   const sections = galleryIdx.map((g) => {
     const r = metalRoles[g];
     return sectionThickness(metalParts[g], heads.find((h) => h.head === r.head)!, `${r.head} gallery ${g}`);
+  });
+  // A prong head's base (S3; a bezel's under-gallery is tagged base too, and
+  // is not one).
+  const prongBaseIdx = baseIdx.filter((b) => heads.find((h) => h.head === metalRoles[b].head)?.style !== "bezel");
+  const baseSections = prongBaseIdx.map((b) => {
+    const r = metalRoles[b];
+    return sectionThickness(metalParts[b], heads.find((h) => h.head === r.head)!, `${r.head} base ${b}`);
   });
 
   const prongAudits: ProngAudit[] = [];
@@ -483,6 +517,25 @@ export async function auditStructure(
     }
   }
 
+  const baseAudits: BaseAudit[] = prongBaseIdx.map((b, k) => {
+    const r = metalRoles[b];
+    const frame = heads.find((h) => h.head === r.head)!;
+    const held = stones[stoneFor(r.head)];
+    const plan = frame.layout.base;
+    const saddle = bridgeIdx.find((i) => metalRoles[i].head === r.head);
+    const lim = (MANUFACTURING_LIMITS[(spec.metalType as MetalType) ?? "platinum"] ?? MANUFACTURING_LIMITS.platinum).minWall;
+    return {
+      head: r.head!, part: b,
+      thickness: baseSections[k],
+      need: Math.max(frame.bench.values.prongDiameter, lim),
+      clearanceToStone: distance(metalParts[b], held, `${r.head} base to stone`),
+      saddleClearanceToStone: saddle == null ? NaN : distance(metalParts[saddle], held, `${r.head} saddle to stone`),
+      zBottom: plan ? plan.zBottom : NaN, zTop: plan ? plan.zTop : NaN, plateau: plan ? plan.plateau : NaN,
+      touchesGallery: !!plan?.touchesGallery,
+    };
+  });
+  const kickedLegs = centreFrame.layout.prongs.filter((p) => (p.spine?.kick ?? 0) > 0).length;
+
   // -------------------------------------------------------------- joint --
   let joint: StructureAudit["joint"] = null;
   if (centreFrame.prongCount > 0) {
@@ -522,6 +575,8 @@ export async function auditStructure(
     prongs: prongAudits,
     bearings,
     galleries: galleryAudits,
+    bases: baseAudits,
+    kickedLegs,
     joint,
     stonePairs,
     maxStoneStoneOverlap: stonePairs.reduce((m, p) => Math.max(m, p.volume || 0), 0),
