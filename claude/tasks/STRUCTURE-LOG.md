@@ -123,6 +123,8 @@ For Animesh (decisions, not bench questions):
     - where no height hides it, it is thinned to the thickest that hides, never under the minimum wall, reported.
 
     It was not in this log, so I could not confirm it. Effect: 148 of 216 centre galleries are lowered; 8 are thinned. **Please confirm.**
+
+    **Decided 2026-10-18 (confirmed).** Where a gallery would show beyond the girdle, lower it first; thin it only where no height hides it, never below the alloy's minWall. Every lowering and thinning stays reported as `engine-clamped` with its reason, and S5's spec sheet must list them for the caster.
 25. **The all-max bench corner at 0.25 ct (S2, outside the matrix).** Measured with `node scripts/structure-audit.mjs '<all-max, gemSize 0.25>' --stage S2`:
     - **culet** (asked 1.5): oval 0.846, pear 1.026, marquise 0.959. Already failing at S1: oval 1.222, round 1.410.
     - **gallery beyond the girdle:** oval 0.525, pear 0.564, marquise 0.801, round 0.199 mm.
@@ -130,15 +132,23 @@ For Animesh (decisions, not bench questions):
     - All are one solid.
 
     Proposed: add 0.25 and 3 ct all-max rows to the matrix, and give S3 size-dependent engine clamps rather than fixed bounds.
+
+    **Decided 2026-10-18 (proposal accepted).** All-max rows at 0.25 ct and 3 ct join the full matrix from S3 and are binding. Impossible combinations get size-dependent engine clamps, reported in `warnings` with the value asked and the value delivered (e.g. culet asked 1.5, delivered 0.85); the global bounds are not narrowed. The 22 zero-area triangles in the round all-max STL are a defect, fixed in S3 so I8 passes on those rows.
 26. **A "kicked" leg (S2).** Where no straight leg keeps the pavilion gap, the leg steps out under the seat and runs back in through the gallery (one more bend). Seen on the deepest-bearing marquise and the 0.25 ct princess's corner prongs. Please confirm, or say if you would rather clamp the bearing depth there.
+
+    **Decided 2026-10-18 (accepted, as a fallback only).** Used only where no straight leg keeps the pavilion gap, reported in `warnings` (`kicked-leg`, with its reason) and counted per design in the audit. The user's bearing depth is not clamped to avoid it.
 27. **`fuseMetal` shifted retry (S2).** A fuse that adds a solid is retried with the part moved 0.001 mm, and taken only as an exact union with ≥ 0.01 mm³ of overlap.
     - Why: OCCT missed a 0.25 ct cushion's prong in the band at its exact position and found it 0.001 mm off.
     - Counted in `shiftedRetries`; no design in the final matrix used it.
     - Please confirm, or prefer that such designs fail I1.
+
+    **Decided 2026-10-18 (keep).** `shiftedRetries` stays counted in every audit report; any design in a stage's matrix that uses it is named in that stage's report.
 28. **Performance after S2** (q. 19 continued). `node scripts/perf-baseline.mjs --runs 9`:
     - warm preview 151.6 ms (budget 186.0), resolve 1655.0 ms (budget 2249.4): both met;
     - cold preview 353.4 ms: not met;
     - like for like with S1 on the same machine: preview 1.75×, resolve 1.56×.
+
+    **Decided 2026-10-18 (warm is the budget; this also settles q. 19).** Because the worker now boots when it is spawned. Cold is still measured and reported every stage and must stay ≤ 500 ms. Every stage reports the like-for-like slowdown against the previous stage. If warm preview passes 186 ms or cold passes 500 ms, stop and report rather than continue.
 
 ## Progress
 
@@ -200,3 +210,13 @@ Status: see `claude/tasks/S2.md`. Start `58039f3`; commits `63c1147`..HEAD. The 
   - the 0.25 ct all-max corner (q. 25);
   - the kicked legs (q. 26) may be replaced by legs ending in a base.
 
+### S3 decisions — 2026-10-18
+
+Animesh's answers to open questions 24–28, recorded before S3 started (each is also written under its question above):
+- **Q24 confirmed:** lower first, thin only where no height hides it, never below minWall; every lowering and thinning reported as `engine-clamped` with its reason; S5's spec sheet lists them for the caster.
+- **Q25 accepted:** 0.25 ct and 3 ct all-max rows join the full matrix from S3, binding; size-dependent engine clamps reported with asked and delivered values; no global bound narrowed; the round all-max STL's 22 zero-area triangles fixed in S3.
+- **Q26 accepted as a fallback only:** reported as `kicked-leg` in `warnings` with its reason and counted per design; bearing depth not clamped to avoid it.
+- **Q27 keep:** `shiftedRetries` counted in every report; any design using it is named.
+- **Q28 (and q. 19):** the warm figure is the budget. Cold is reported every stage and must stay ≤ 500 ms; like-for-like slowdown against the previous stage reported every time. Warm preview over 186 ms or cold over 500 ms stops the work for a report.
+
+Setter / caster questions 1–9 are still open; the bench defaults stay provisional.
