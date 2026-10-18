@@ -946,9 +946,11 @@ function flareRadius(joint: BlendJoint, flares: Shape3D[], frame: HeadFrame, err
     const { A, B, V, C } = padProfile(b.pad);
     if (joint === "shank") {
       // The outer face, V down to C: its offset at height z.
+      // The most it stands out beyond that face at any height: the flare is
+      // built into the pad (padOutline), whose own bottom corner, further
+      // out than the flare, is on the face.
       const faceAt = (z: number) => V[0] + ((C[0] - V[0]) * (V[1] - z)) / Math.max(1e-9, V[1] - C[1]);
-      const far = pts.reduce((m, p) => (p[0] > m[0] ? p : m));
-      return [far[0] - faceAt(far[1])];
+      return [Math.max(...pts.filter((p) => p[1] <= V[1] && p[1] >= C[1]).map((p) => p[0] - faceAt(p[1])))];
     }
     // Where the outer face, B down to V, leaves the wire, and the flare's
     // lowest point on that side.
