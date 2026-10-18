@@ -1923,13 +1923,19 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   // field's minimum, and reported with both numbers (Animesh, 2026-10-18:
   // clamps the stone's size forces, the bounds as they are). A prong head
   // only; a three-stone's centre is laid out with its side stones, below.
+  // The first try, at the gap asked, is the head's own layout when nothing
+  // is clamped, and is kept for it below: laid out twice, it cost the preview
+  // a third of its budget.
+  let askedLayout: HeadLayout | undefined;
   if (style !== "bezel" && style !== "three_stone") {
     const lim = MANUFACTURING_LIMITS[alloy] ?? MANUFACTURING_LIMITS.platinum;
     const sized = { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall, base: true };
-    const shows = (cc: number) => layoutHead(cut, girdleR, prongCount, { ...centreBench.values, culetClearance: cc }, probeAt(topAtHead + cc), sized)
-      .warnings.some((w) => w.key === "galleryThickness" && /cannot be hidden/.test(w.message));
+    const hides = (l: HeadLayout) => !l.warnings.some((w) => w.key === "galleryThickness" && /cannot be hidden/.test(w.message));
+    const shows = (cc: number) => !hides(layoutHead(cut, girdleR, prongCount, { ...centreBench.values, culetClearance: cc }, probeAt(topAtHead + cc), sized));
     const asked = centreBench.values.culetClearance, least = benchBounds("culetClearance", alloy).min;
-    if (asked > least + 1e-9 && shows(asked) && !shows(least)) {
+    askedLayout = layoutHead(cut, girdleR, prongCount, centreBench.values, probeAt(topAtHead + asked), sized);
+    if (asked > least + 1e-9 && !hides(askedLayout) && !shows(least)) {
+      askedLayout = undefined;
       let lo = least, hi = asked;
       // To 0.05 mm, the field's own step: each try lays the head out again.
       while (hi - lo > 0.05) { const md = (lo + hi) / 2; if (shows(md)) hi = md; else lo = md; }
@@ -2013,7 +2019,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   // the same one), so the shank's stones can keep off its saddle.
   if (!centreLayout && style !== "bezel") {
     const lim = MANUFACTURING_LIMITS[alloy] ?? MANUFACTURING_LIMITS.platinum;
-    centreLayout = layoutHead(cut, girdleR, prongCount, centreBench.values, centreProbe,
+    centreLayout = askedLayout ?? layoutHead(cut, girdleR, prongCount, centreBench.values, centreProbe,
       { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall, base: true });
   }
 
