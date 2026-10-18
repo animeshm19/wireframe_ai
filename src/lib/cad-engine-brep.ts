@@ -18,7 +18,7 @@ import {
   setOC, draw, drawEllipse, makeLine, makeFace, makeSolid,
   assembleWire, makeCylinder, makeCircle, makeEllipse, measureVolume, exportSTEP, loft,
   makeCompound, genericSweep, makeThreePointArc, cast, getOC, iterTopo,
-  basicFaceExtrusion, Plane, Sketch, Vector,
+  basicFaceExtrusion, Plane, Sketch, Vector, isShape3D,
   type Shape3D, type AnyShape, type Wire, type Face,
 } from "replicad";
 import {
@@ -1140,6 +1140,29 @@ function cutOnce(a: Shape3D, b: Shape3D): Shape3D {
     if (!op.IsDone() || op.HasErrors()) throw new Error("OCCT did not complete the cut");
     op.SimplifyResult(true, true, 1e-3);
     return cast(op.Shape()) as Shape3D;
+  } finally {
+    op.delete();
+    progress.delete();
+  }
+}
+
+/**
+ * A fuse, built once. replicad's fuse hands both shapes to the constructor,
+ * which builds the union, then calls Build() again and builds it a second
+ * time (S1, open question 23): the same union, at twice the cost. This is
+ * its every step once: the same operation, the same SimplifyResult. Throws
+ * where OCCT reports it failed, as replicad's does not.
+ */
+function fuseOnce(a: Shape3D, b: Shape3D): Shape3D {
+  const oc = getOC();
+  const progress = new oc.Message_ProgressRange();
+  const op = new oc.BRepAlgoAPI_Fuse(a.wrapped, b.wrapped, progress);
+  try {
+    if (!op.IsDone() || op.HasErrors()) throw new Error("OCCT did not complete the fuse");
+    op.SimplifyResult(true, true, 1e-3);
+    const out = cast(op.Shape());
+    if (!isShape3D(out)) throw new Error("the fuse is not a 3D shape");
+    return out as Shape3D;
   } finally {
     op.delete();
     progress.delete();
@@ -2305,7 +2328,7 @@ export function fuseMetal(parts: Shape3D[]): FuseResult {
 
   for (let i = 1; i < parts.length; i++) {
     let next: Shape3D | null = null;
-    try { next = out.fuse(parts[i]) as Shape3D; } catch { next = null; }
+    try { next = fuseOnce(out, parts[i]); } catch { next = null; }
 
     let nv = -1;
     if (next) { try { nv = measureVolume(next); } catch { nv = -1; } }
@@ -2327,7 +2350,7 @@ export function fuseMetal(parts: Shape3D[]): FuseResult {
         const moved = parts[i].clone().translate(d) as Shape3D;
         let retry: Shape3D | null = null, common = 0;
         try {
-          retry = out.fuse(moved) as Shape3D;
+          retry = fuseOnce(out, moved);
           common = measureVolume(out.clone().intersect(moved.clone()) as Shape3D);
         } catch { retry = null; }
         // Taken only as a true union that really joins: it adds exactly what
