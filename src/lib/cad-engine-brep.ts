@@ -971,6 +971,28 @@ export function polyhedron(faces: V3[][]): Shape3D {
 }
 
 /**
+ * A spine with every corner that barely turns taken out: a 0.5 ct oval's post
+ * turned 0.00007 rad at its knee, and sweeping the 0.08 µm arc there aborted
+ * the kernel. Under 1 mrad the corner goes, and the run below it is turned
+ * onto the line of the run above, so the post keeps its own direction (its
+ * cap sits square on it): the point below moves at most its run's length ×
+ * 0.001, about 2 µm on a prong.
+ */
+function straightened(points: V3[], bends: number[]): { points: V3[]; bends: number[] } {
+  const P = points.map((q) => [...q] as V3), B = [...bends];
+  const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  for (let k = P.length - 2; k >= 1; k--) {
+    const up = sub(P[k + 1], P[k]), down = sub(P[k - 1], P[k]);
+    const lu = Math.hypot(...up), ld = Math.hypot(...down);
+    if (Math.PI - Math.acos(Math.min(1, Math.max(-1, dot3(up, down) / (lu * ld)))) >= 1e-3) continue;
+    P[k - 1] = [P[k][0] - (up[0] / lu) * ld, P[k][1] - (up[1] / lu) * ld, P[k][2] - (up[2] / lu) * ld];
+    P.splice(k, 1);
+    B.splice(k - 1, 1);
+  }
+  return { points: P, bends: B };
+}
+
+/**
  * A prong as cast: a circle swept along its spine (foot, leg, knee, leg
  * through the gallery, corner, vertical post) and a rounded top.
  *
@@ -988,10 +1010,10 @@ export function polyhedron(faces: V3[][]): Shape3D {
  */
 export function asCastProng(spine: NonNullable<ProngPlan["spine"]>, d: number): Shape3D {
   const r = d / 2;
-  const { points, bends } = spine;
   // A spine whose bends overlap doubles back, and OCCT's sweep then aborts
   // the whole kernel rather than throwing: refused here instead.
-  if (!spineFits(points, bends)) throw new Error("as-cast prong: its bends do not fit between its straight runs");
+  if (!spineFits(spine.points, spine.bends)) throw new Error("as-cast prong: its bends do not fit between its straight runs");
+  const { points, bends } = straightened(spine.points, spine.bends);
   const top = points[points.length - 1];
   const unit3 = (a: V3): V3 => { const L = Math.hypot(...a); return [a[0] / L, a[1] / L, a[2] / L]; };
   const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
