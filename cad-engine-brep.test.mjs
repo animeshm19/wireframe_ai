@@ -12,6 +12,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import opencascade from "replicad-opencascadejs";
 import { setOC, measureVolume, measureDistanceBetween, makeVertex } from "replicad";
 import jscad from "@jscad/modeling";
@@ -26,6 +27,34 @@ before(async () => {
   pick = await import("./.brepcheck/studio-pick.js");
   brep = await import("./.brepcheck/cad-engine-brep.js");
 });
+
+/**
+ * One design built in a Node process of its own, as the structure audit
+ * builds them. OCCT's heap only grows (see cad-engine-brep.ts), and since S3
+ * the merge fillets the head: a test that resolved two dozen rings in one
+ * process reached the WASM heap's 4 GB and aborted at the 19th, on a design
+ * that builds cleanly alone. `task` is "ring" (buildRing's metrics) or
+ * "audit" (auditStructure's record, without the STL and STEP).
+ */
+function isolated(task, spec) {
+  const code = `
+    import { readFileSync } from "node:fs";
+    import opencascade from "replicad-opencascadejs";
+    import { setOC } from "replicad";
+    setOC(await opencascade({ wasmBinary: readFileSync("node_modules/replicad-opencascadejs/dist/replicad_single.wasm") }));
+    const spec = JSON.parse(process.argv[1]);
+    const out = process.argv[2] === "ring"
+      ? (await import("./.brepcheck/cad-engine-brep.js")).buildRing(spec).metrics
+      : await (await import("./.brepcheck/structure-audit.js")).auditStructure(spec, { stl: false, step: false });
+    const json = JSON.stringify(out, (_k, v) => (typeof v === "number" && !Number.isFinite(v) ? { nonFinite: String(v) } : v));
+    process.stdout.write("\\n@@" + json + "\\n");
+    process.exit(0);`;
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", code, JSON.stringify(spec), task],
+    { encoding: "utf8", maxBuffer: 1 << 28 });
+  const line = (r.stdout ?? "").split("\n").find((l) => l.startsWith("@@"));
+  assert.ok(r.status === 0 && line, `${JSON.stringify(spec)}: ${task} failed in its own process (${r.status ?? r.signal})\n${(r.stderr ?? "").slice(-2000)}`);
+  return JSON.parse(line.slice(2), (_k, v) => (v && typeof v === "object" && "nonFinite" in v ? Number(v.nonFinite) : v));
+}
 
 const thick = (w) => Math.min(2.6, Math.max(1.2, w * 0.62));
 const innerRadius = (size) => (11.63 + size * 0.8128) / 2;
@@ -204,7 +233,7 @@ test("every design fuses into ONE connected solid", () => {
     { gemShape: "marquise", prongCount: 4 }, { gemShape: "marquise", prongCount: 6 },
   ];
   for (const spec of cases) {
-    const { metrics } = brep.buildRing(spec);
+    const metrics = isolated("ring", spec);
     assert.equal(metrics.solidCount, 1,
       `${JSON.stringify(spec)} is ${metrics.solidCount} disconnected pieces — not castable`);
   }
@@ -972,9 +1001,8 @@ test("the merge leaves no sealed cavity and exports one manifold solid", async (
  * radius measured the one laid out (I13's measure for filletRadius).
  */
 async function checkBase(spec) {
-  const audit = await import("./.brepcheck/structure-audit.js");
   const { INVARIANTS, BENCH_MEASURES } = await import("./scripts/structure-invariants.mjs");
-  const r = await audit.auditStructure(spec, { stl: false, step: false });
+  const r = isolated("audit", spec);
   const tag = JSON.stringify(spec);
   assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
   for (const id of ["I6", "I7", "I12", "I14"]) {
