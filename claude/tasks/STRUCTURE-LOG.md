@@ -70,6 +70,8 @@ The numbers are now also in the code comment (`889ba4c`).
 
 **S3: I10c and I13 (pavilionClearance) accept "nothing there".** Before: a prong with no metal below girdle − d recorded NaN and failed. Now it records Infinity and passes: nothing of it can come near the pavilion. Seen on the oval with 2 mm prongs, whose feet end high in a 2 mm base. A failed measurement is still NaN and still fails.
 
+**S3: "shank styles change the metal they should" compares the twisted band with the plain band, not the whole rings.** Before: the twisted ring's metal within 8% of the plain ring's. Now: the band parts' metal within 8%, the same bound. Why: since S3 the head's saddle fills down to the band, and on a twisted section the band's top is tilted under the head, so the twisted ring carries the larger saddle; that measures the head, not the twist. Measured (default ring): whole rings 296.3 against 267.5 mm³ (+10.8%, failed); saddles 82.01 against 60.47; band parts 172.25 against 170.40 (+1.1%). The tapered and split checks (lighter than plain) still compare whole rings and pass.
+
 **S3: I7 is measured within the centre head's saddle plate** (open question 14, decided here as "the centre head's own metal"). Before: a disc of girdleR × 1.2 round the axis, which also cut a three-stone's side heads and a cathedral's struts, and on a 3 ct stone held only part of the base. The bound (`JOINT_AREA_RATIO`) is unchanged. Default ring: 9.52× the prong sections.
 
 ## Bench bounds changed

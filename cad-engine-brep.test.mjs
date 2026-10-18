@@ -365,9 +365,17 @@ test("shank styles change the metal they should", () => {
   assert.ok(vol("tapered") < plain, `tapered ${vol("tapered")} should be under plain ${plain}`);
   // A split shank has a slot cut out of it, so it must be lighter too.
   assert.ok(vol("split") < plain, `split ${vol("split")} should be under plain ${plain}`);
-  // A twist reorients the section without removing anything.
-  assert.ok(Math.abs(vol("twisted") - plain) / plain < 0.08,
-    `twisted ${vol("twisted")} should be close to plain ${plain}`);
+  // A twist reorients the section without removing anything. The band's
+  // own metal, since S3: the head's saddle fills down to the band, and on a
+  // twisted section the band's top is tilted under the head, so its saddle
+  // is the larger (82.0 mm³ against 60.5; the ring 296.3 against 267.5),
+  // which says nothing about the twist. The band alone: 172.25 against 170.40.
+  const band = (shankStyle) => {
+    const { metalParts, metalRoles } = brep.buildRingParts({ shankStyle });
+    return metalParts.reduce((t, s, i) => t + (metalRoles[i].role === "band" ? measureVolume(s) : 0), 0);
+  };
+  assert.ok(Math.abs(band("twisted") - band("plain")) / band("plain") < 0.08,
+    `twisted band ${band("twisted")} should be close to plain ${band("plain")}`);
 });
 
 test("STEP export is real boundary representation", async () => {
