@@ -140,6 +140,25 @@ export const BENCH_MEASURES = {
     }
     return { ok: true, why: "" };
   },
+  // S3b: where the feet end, as the geometry shows it: the mean of the feet's
+  // distance out ÷ the girdle's (to 0.03) and every foot (to 0.10: on a fancy
+  // cut the wire's corners are rounded, so the feet sit a little off the
+  // girdle's own shape). A taper the stone forces is judged by the value
+  // built where the engine reported it with both numbers, inside the bounds
+  // (it widens the basket, so heldTo, for holds that lower, does not apply).
+  basketTaper: (r, asked) => {
+    const b = r.basket;
+    if (!b) return { ok: false, why: "no basket measured" };
+    const { min, max } = r.bounds?.basketTaper ?? {};
+    const w = (r.bench?.warnings ?? []).find((x) => x.key === "basketTaper" && x.kind === "engine-clamped" &&
+      num(x.asked) && num(x.delivered) && Math.abs(x.asked - asked) < 1e-9 && num(min) && x.delivered >= min - 1e-9 && x.delivered <= max + 1e-9);
+    const v = w ? w.delivered : asked;
+    const worst = Math.max(...b.tapers.map((t) => Math.abs(t - v)));
+    return {
+      ok: num(b.taper) && Math.abs(b.taper - v) <= 0.03 && num(worst) && worst <= 0.10,
+      why: `feet at ${fmt(b.taper)} of the girdle on average, wants ${fmt(v)} ± 0.03 (worst foot ${fmt(worst)} off)${w ? ` (held from ${fmt(asked)}, reported)` : ""}`,
+    };
+  },
   // S2
   galleryClearance: (r, asked) => {
     const g = r.galleries.find((x) => x.head === "centre");
@@ -426,6 +445,51 @@ export const INVARIANTS = [
         if (!(num(saddleSeat) && saddleSeat >= JOINT_AREA_RATIO * p)) return fail(`saddle held over ${fmt(saddleSeat)} mm² of the band vs prongs ${fmt(p)} mm²`);
       }
       return pass(`${fmt(a)} vs ${fmt(p)}; seats ${fmt(baseSeat)}, ${fmt(saddleSeat)}`);
+    },
+  },
+  // S3b: the head below the stone is a basket on a joint that grows out of
+  // the band, not a plate on a puck (Animesh, on S3's question 30).
+  {
+    id: "I15",
+    title: "flush with the band: nothing at or under the band's line more than 0.05 mm beyond its flank, at the joint's front, middle and back",
+    requiredFrom: (spec) => (prongHead(spec) ? "S3" : null),
+    evaluate: (r) => {
+      if (!r.basket) return r.prongs.some((p) => p.head === "centre") ? fail("not measured") : na("no prong head");
+      const o = r.basket.overhang;
+      if (!(num(o) || o === -Infinity)) return fail(`overhang not measured`);
+      return o <= 0.05 ? pass(`${fmt(o)} mm${r.basket.overhangAt ? ` (${r.basket.overhangAt})` : ""}`) : fail(`${fmt(o)} mm beyond the flank at ${r.basket.overhangAt}`);
+    },
+  },
+  {
+    id: "I16",
+    title: "basket form: below the upper gallery the wire and pad within the feet's footprint + one prong diameter, every leg only coming in, and the base a ring open at the centre",
+    requiredFrom: (spec) => (prongHead(spec) ? "S3" : null),
+    evaluate: (r) => {
+      const b = r.basket;
+      if (!b) return r.prongs.some((p) => p.head === "centre") ? fail("not measured") : na("no prong head");
+      const cc = r.bench?.values?.culetClearance;
+      return all([
+        { ok: num(b.outside) && b.outside <= 0.01, why: `${fmt(b.outside)} mm outside the footprint + d${b.outsideAt ? `, ${b.outsideAt}` : ""}` },
+        // 0.02 for the 0.02 mm mesh the slices are read off.
+        // No leg below the gallery at all (a small stone, its wire just under
+        // the gallery): nothing to come in.
+        { ok: b.legsOut === -Infinity || (num(b.legsOut) && b.legsOut <= 0.02), why: `a leg reaches ${fmt(b.legsOut)} mm further out going down${b.legsOutAt ? `, ${b.legsOutAt}` : ""}` },
+        // Open at the centre: the culet's own clearance passes through it.
+        // 0.01 for the 0.02 mm mesh.
+        { ok: num(b.opening) && num(cc) && b.opening >= cc - 0.01, why: `the wire ${fmt(b.opening)} mm from the culet at its nearest, the culet gap ${fmt(cc)}` },
+        { ok: num(b.padOpening) && num(cc) && b.padOpening >= cc - 0.01, why: `the pad ${fmt(b.padOpening)} mm from the culet at its nearest, the culet gap ${fmt(cc)}` },
+      ]);
+    },
+  },
+  {
+    id: "I17",
+    title: "head metal (the base and joint, less the band) ≤ S3's for the same design (+1%)",
+    requiredFrom: (spec) => (prongHead(spec) ? "S3" : null),
+    evaluate: (r) => {
+      const b = r.basket, ref = r.reference?.headMetalS3;
+      if (!b) return r.prongs.some((p) => p.head === "centre") ? fail("not measured") : na("no prong head");
+      if (!num(ref)) return fail("no S3 figure for this design");
+      return b.headMetal <= ref * 1.01 ? pass(`${fmt(b.headMetal)} mm³ vs S3 ${fmt(ref)}`) : fail(`${fmt(b.headMetal)} mm³, S3 ${fmt(ref)}`);
     },
   },
   {

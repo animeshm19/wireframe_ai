@@ -1,0 +1,1272 @@
+{
+ "commit": "943430e",
+ "source": "claude/tasks/structure-audit-s3.json (full matrix) and structure-audit-s3b-start.json (the fast matrix rows the full one lacks)",
+ "formula": "volume of (centre base \u222a centre bridge) \u2212 band, parts as built with seats",
+ "designs": {
+  "{\"gemSize\":0.25}": {
+   "id": "{\"gemSize\":0.25}",
+   "headMetal": 49.60917177591804,
+   "crestInside": true
+  },
+  "{\"gemSize\":0.25,\"prongCount\":4}": {
+   "id": "{\"gemSize\":0.25,\"prongCount\":4}",
+   "headMetal": 49.60917177591804,
+   "crestInside": true
+  },
+  "{\"gemSize\":0.25,\"prongCount\":3}": {
+   "id": "{\"gemSize\":0.25,\"prongCount\":3}",
+   "headMetal": 49.60917177591804,
+   "crestInside": true
+  },
+  "{\"prongCount\":4}": {
+   "id": "{\"prongCount\":4}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"prongCount\":3}": {
+   "id": "{\"prongCount\":3}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"gemSize\":3,\"prongCount\":3}": {
+   "id": "{\"gemSize\":3,\"prongCount\":3}",
+   "headMetal": 81.11454086959442,
+   "crestInside": true
+  },
+  "{}": {
+   "id": "{}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"gemSize\":3,\"prongCount\":4}": {
+   "id": "{\"gemSize\":3,\"prongCount\":4}",
+   "headMetal": 81.11454086959442,
+   "crestInside": true
+  },
+  "{\"gemSize\":0.25,\"prongCount\":8}": {
+   "id": "{\"gemSize\":0.25,\"prongCount\":8}",
+   "headMetal": 49.60917177591804,
+   "crestInside": true
+  },
+  "{\"gemSize\":3}": {
+   "id": "{\"gemSize\":3}",
+   "headMetal": 81.11454086959442,
+   "crestInside": true
+  },
+  "{\"prongCount\":8}": {
+   "id": "{\"prongCount\":8}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"gemSize\":3,\"prongCount\":8}": {
+   "id": "{\"gemSize\":3,\"prongCount\":8}",
+   "headMetal": 81.11454086959442,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"oval\",\"prongCount\":3}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3,\"prongCount\":3}",
+   "headMetal": 89.49331537876583,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"prongCount\":3}",
+   "headMetal": 57.056367502644385,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"prongCount\":4}",
+   "headMetal": 63.490162409641435,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"oval\",\"prongCount\":4}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\"}": {
+   "id": "{\"gemShape\":\"oval\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3,\"prongCount\":4}",
+   "headMetal": 89.49331537876583,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25}",
+   "headMetal": 57.056367502644385,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3}",
+   "headMetal": 89.49331537876583,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"oval\",\"prongCount\":8}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"prongCount\":8}",
+   "headMetal": 63.490162409641435,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3,\"prongCount\":8}",
+   "headMetal": 89.49331537876583,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3,\"prongCount\":3}",
+   "headMetal": 90.48465781874143,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"prongCount\":3}",
+   "headMetal": 52.98343264247588,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"pear\",\"prongCount\":3}",
+   "headMetal": 71.73884421522422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"prongCount\":4}",
+   "headMetal": 60.934436696295506,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3,\"prongCount\":4}",
+   "headMetal": 90.48465781874143,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"pear\",\"prongCount\":4}",
+   "headMetal": 71.73884421522422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25}",
+   "headMetal": 52.98343264247588,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\"}": {
+   "id": "{\"gemShape\":\"pear\"}",
+   "headMetal": 71.73884421522422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3}",
+   "headMetal": 90.48465781874143,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3,\"prongCount\":8}",
+   "headMetal": 90.48465781874143,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"marquise\",\"prongCount\":3}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"prongCount\":8}",
+   "headMetal": 60.934436696295506,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3,\"prongCount\":3}",
+   "headMetal": 115.04771618609287,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"pear\",\"prongCount\":8}",
+   "headMetal": 71.73884421522422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"marquise\",\"prongCount\":4}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3,\"prongCount\":4}",
+   "headMetal": 134.84341959404625,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\"}": {
+   "id": "{\"gemShape\":\"marquise\"}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3}",
+   "headMetal": 115.04771618609287,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"marquise\",\"prongCount\":8}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3,\"prongCount\":8}",
+   "headMetal": 134.84341959404625,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"prongCount\":3}",
+   "headMetal": 42.25550705388108,
+   "crestInside": false
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"prongCount\":3}",
+   "headMetal": 50.922727230288494,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"cushion\",\"prongCount\":3}",
+   "headMetal": 69.73990339339166,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3,\"prongCount\":3}",
+   "headMetal": 83.2043297798799,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"prongCount\":4}",
+   "headMetal": 50.922727230288494,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"cushion\",\"prongCount\":4}",
+   "headMetal": 69.73990339339166,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3,\"prongCount\":4}",
+   "headMetal": 83.2043297798799,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25}",
+   "headMetal": 50.922727230288494,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\"}": {
+   "id": "{\"gemShape\":\"cushion\"}",
+   "headMetal": 69.73990339339166,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"prongCount\":8}",
+   "headMetal": 56.38917306794864,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3}",
+   "headMetal": 83.2043297798799,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3,\"prongCount\":8}",
+   "headMetal": 83.2043297798799,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"cushion\",\"prongCount\":8}",
+   "headMetal": 69.73990339339166,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25}",
+   "headMetal": 42.25550705388108,
+   "crestInside": false
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"prongCount\":3}",
+   "headMetal": 61.98264268769772,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"emerald\",\"prongCount\":3}",
+   "headMetal": 78.48028440307658,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3,\"prongCount\":3}",
+   "headMetal": 91.7077013072422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"prongCount\":4}",
+   "headMetal": 61.98264268769772,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"emerald\",\"prongCount\":4}",
+   "headMetal": 78.48028440307658,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3,\"prongCount\":4}",
+   "headMetal": 91.7077013072422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25}",
+   "headMetal": 61.98264268769772,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"prongCount\":4}",
+   "headMetal": 51.99083347801238,
+   "crestInside": false
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3}",
+   "headMetal": 91.7077013072422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\"}": {
+   "id": "{\"gemShape\":\"emerald\"}",
+   "headMetal": 78.48028440307658,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"prongCount\":3}",
+   "headMetal": 55.982497856793344,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"emerald\",\"prongCount\":8}",
+   "headMetal": 78.48028440307658,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3,\"prongCount\":8}",
+   "headMetal": 91.7077013072422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"princess\",\"prongCount\":3}",
+   "headMetal": 78.00379889284059,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"prongCount\":4}",
+   "headMetal": 55.982497856793344,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3,\"prongCount\":3}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3,\"prongCount\":3}",
+   "headMetal": 90.79524802423992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"princess\",\"prongCount\":4}",
+   "headMetal": 78.00379889284059,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25}",
+   "headMetal": 55.982497856793344,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3,\"prongCount\":4}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3,\"prongCount\":4}",
+   "headMetal": 90.79524802423992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\"}": {
+   "id": "{\"gemShape\":\"princess\"}",
+   "headMetal": 78.00379889284059,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3}",
+   "headMetal": 90.79524802423992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"prongCount\":8}",
+   "headMetal": 55.982497856793344,
+   "crestInside": true
+  },
+  "{\"gemSize\":0.25,\"setting\":\"halo\"}": {
+   "id": "{\"gemSize\":0.25,\"setting\":\"halo\"}",
+   "headMetal": 49.60917177591804,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"princess\",\"prongCount\":8}",
+   "headMetal": 78.00379889284059,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3,\"prongCount\":8}",
+   "headMetal": 90.79524802423992,
+   "crestInside": true
+  },
+  "{\"setting\":\"halo\"}": {
+   "id": "{\"setting\":\"halo\"}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"gemSize\":3,\"setting\":\"halo\"}": {
+   "id": "{\"gemSize\":3,\"setting\":\"halo\"}",
+   "headMetal": 81.11454086959442,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"halo\"}",
+   "headMetal": 57.056367502644385,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"oval\",\"setting\":\"halo\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"halo\"}",
+   "headMetal": 89.49331537876583,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"halo\"}",
+   "headMetal": 90.48465781874143,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"halo\"}",
+   "headMetal": 52.98343264247588,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"pear\",\"setting\":\"halo\"}",
+   "headMetal": 71.73884421522422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"setting\":\"halo\"}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"halo\"}",
+   "headMetal": 115.04771618609287,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"halo\"}",
+   "headMetal": 50.922727230288494,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"setting\":\"halo\"}",
+   "headMetal": 69.73990339339166,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"prongCount\":8}",
+   "headMetal": 51.99083347801238,
+   "crestInside": false
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"halo\"}",
+   "headMetal": 83.2043297798799,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"halo\"}",
+   "headMetal": 61.98264268769772,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"setting\":\"halo\"}",
+   "headMetal": 78.48028440307658,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"halo\"}",
+   "headMetal": 55.982497856793344,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"halo\"}",
+   "headMetal": 91.7077013072422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"princess\",\"setting\":\"halo\"}",
+   "headMetal": 78.00379889284059,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"halo\"}",
+   "headMetal": 90.79524802423992,
+   "crestInside": true
+  },
+  "{\"gemSize\":0.25,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemSize\":0.25,\"setting\":\"cathedral\"}",
+   "headMetal": 49.60917177591804,
+   "crestInside": true
+  },
+  "{\"setting\":\"cathedral\"}": {
+   "id": "{\"setting\":\"cathedral\"}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"gemSize\":3,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemSize\":3,\"setting\":\"cathedral\"}",
+   "headMetal": 81.11454086959442,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"oval\",\"setting\":\"cathedral\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"cathedral\"}",
+   "headMetal": 89.49331537876583,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"cathedral\"}",
+   "headMetal": 57.056367502644385,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"cathedral\"}",
+   "headMetal": 52.98343264247588,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"halo\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"halo\"}",
+   "headMetal": 42.25550705388108,
+   "crestInside": false
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"cathedral\"}",
+   "headMetal": 90.48465781874143,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"pear\",\"setting\":\"cathedral\"}",
+   "headMetal": 71.73884421522422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"cathedral\"}",
+   "headMetal": 115.04771618609287,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"setting\":\"cathedral\"}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"cathedral\"}",
+   "headMetal": 50.922727230288494,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"setting\":\"cathedral\"}",
+   "headMetal": 69.73990339339166,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"cathedral\"}",
+   "headMetal": 61.98264268769772,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"cathedral\"}",
+   "headMetal": 83.2043297798799,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"setting\":\"cathedral\"}",
+   "headMetal": 78.48028440307658,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"cathedral\"}",
+   "headMetal": 91.7077013072422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"cathedral\"}",
+   "headMetal": 55.982497856793344,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"princess\",\"setting\":\"cathedral\"}",
+   "headMetal": 78.00379889284059,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"cathedral\"}",
+   "headMetal": 90.79524802423992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"oval\",\"setting\":\"three_stone\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"cathedral\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"cathedral\"}",
+   "headMetal": 42.25550705388108,
+   "crestInside": false
+  },
+  "{\"gemSize\":0.25,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemSize\":0.25,\"setting\":\"three_stone\"}",
+   "headMetal": 49.60917177591804,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"pear\",\"setting\":\"three_stone\"}",
+   "headMetal": 71.73884421522422,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"prongCount\":8}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"prongCount\":8}",
+   "headMetal": 61.98264268769772,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"three_stone\"}",
+   "headMetal": 57.056367502644385,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"setting\":\"three_stone\"}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"three_stone\"}",
+   "headMetal": 52.98343264247588,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"setting\":\"three_stone\"}",
+   "headMetal": 69.73990339339166,
+   "crestInside": true
+  },
+  "{\"setting\":\"three_stone\"}": {
+   "id": "{\"setting\":\"three_stone\"}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"three_stone\"}",
+   "headMetal": 42.25550705388108,
+   "crestInside": false
+  },
+  "{\"gemShape\":\"emerald\",\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"setting\":\"three_stone\"}",
+   "headMetal": 78.48028440307658,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"three_stone\"}",
+   "headMetal": 50.922727230288494,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"three_stone\"}",
+   "headMetal": 83.2043297798799,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"three_stone\"}",
+   "headMetal": 55.982497856793344,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"three_stone\"}",
+   "headMetal": 61.98264268769772,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"princess\",\"setting\":\"three_stone\"}",
+   "headMetal": 78.00379889284059,
+   "crestInside": true
+  },
+  "{\"gemSize\":0.25,\"setting\":\"bezel\"}": {
+   "id": "{\"gemSize\":0.25,\"setting\":\"bezel\"}",
+   "headMetal": 11.883793690406463,
+   "crestInside": null
+  },
+  "{\"setting\":\"bezel\"}": {
+   "id": "{\"setting\":\"bezel\"}",
+   "headMetal": 32.26366648880233,
+   "crestInside": null
+  },
+  "{\"gemSize\":3,\"setting\":\"bezel\"}": {
+   "id": "{\"gemSize\":3,\"setting\":\"bezel\"}",
+   "headMetal": 67.83415174188906,
+   "crestInside": null
+  },
+  "{\"gemSize\":3,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemSize\":3,\"setting\":\"three_stone\"}",
+   "headMetal": 81.11454086959442,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":0.25,\"setting\":\"bezel\"}",
+   "headMetal": 11.557384697884364,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"oval\",\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"oval\",\"setting\":\"bezel\"}",
+   "headMetal": 31.501601888101938,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"bezel\"}",
+   "headMetal": 66.26795193418292,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":0.25,\"setting\":\"bezel\"}",
+   "headMetal": 11.875831157387504,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"pear\",\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"pear\",\"setting\":\"bezel\"}",
+   "headMetal": 32.24512793626437,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"bezel\"}",
+   "headMetal": 67.79605084293081,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":0.25,\"setting\":\"bezel\"}",
+   "headMetal": 14.974137749045628,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"marquise\",\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"setting\":\"bezel\"}",
+   "headMetal": 39.27465073981115,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"bezel\"}",
+   "headMetal": 82.25302642045011,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":0.25,\"setting\":\"bezel\"}",
+   "headMetal": 10.381827190655049,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"cushion\",\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"setting\":\"bezel\"}",
+   "headMetal": 28.71876479795101,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":0.25,\"setting\":\"bezel\"}",
+   "headMetal": 10.03173887084204,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"cushion\",\"gemSize\":3,\"setting\":\"bezel\"}",
+   "headMetal": 60.54923784641439,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"emerald\",\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"setting\":\"bezel\"}",
+   "headMetal": 27.877823367092873,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"bezel\"}",
+   "headMetal": 58.821090013684326,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":0.25,\"setting\":\"bezel\"}",
+   "headMetal": 13.818187706271422,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"bezel\"}",
+   "headMetal": 76.94113882295895,
+   "crestInside": null
+  },
+  "{\"gemShape\":\"princess\",\"setting\":\"bezel\"}": {
+   "id": "{\"gemShape\":\"princess\",\"setting\":\"bezel\"}",
+   "headMetal": 36.69310119879794,
+   "crestInside": null
+  },
+  "{\"bandWidth\":1.2}": {
+   "id": "{\"bandWidth\":1.2}",
+   "headMetal": 60.952689774974004,
+   "crestInside": true
+  },
+  "{\"bandWidth\":1.4}": {
+   "id": "{\"bandWidth\":1.4}",
+   "headMetal": 60.13296050652445,
+   "crestInside": true
+  },
+  "{\"bandWidth\":1.6}": {
+   "id": "{\"bandWidth\":1.6}",
+   "headMetal": 59.31321223909766,
+   "crestInside": true
+  },
+  "{\"bandWidth\":6}": {
+   "id": "{\"bandWidth\":6}",
+   "headMetal": 62.963387910743435,
+   "crestInside": true
+  },
+  "{\"bandProfile\":\"flat\"}": {
+   "id": "{\"bandProfile\":\"flat\"}",
+   "headMetal": 62.37050672098259,
+   "crestInside": true
+  },
+  "{\"bandWidth\":8}": {
+   "id": "{\"bandWidth\":8}",
+   "headMetal": 46.502467208047584,
+   "crestInside": true
+  },
+  "{\"bandProfile\":\"knife\"}": {
+   "id": "{\"bandProfile\":\"knife\"}",
+   "headMetal": 75.6456750768972,
+   "crestInside": true
+  },
+  "{\"bandProfile\":\"round\"}": {
+   "id": "{\"bandProfile\":\"round\"}",
+   "headMetal": 65.32384546992697,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"pear\",\"gemSize\":3,\"setting\":\"three_stone\"}",
+   "headMetal": 90.48465781874143,
+   "crestInside": true
+  },
+  "{\"shankStyle\":\"tapered\"}": {
+   "id": "{\"shankStyle\":\"tapered\"}",
+   "headMetal": 68.6783955646316,
+   "crestInside": true
+  },
+  "{\"shankStyle\":\"split\"}": {
+   "id": "{\"shankStyle\":\"split\"}",
+   "headMetal": 60.77841740078003,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"oval\",\"gemSize\":3,\"setting\":\"three_stone\"}",
+   "headMetal": 89.49331537876583,
+   "crestInside": true
+  },
+  "{\"bandProfile\":\"flat\",\"bandWidth\":1.2}": {
+   "id": "{\"bandProfile\":\"flat\",\"bandWidth\":1.2}",
+   "headMetal": 53.42536539909792,
+   "crestInside": true
+  },
+  "{\"bandProfile\":\"knife\",\"bandWidth\":1.2}": {
+   "id": "{\"bandProfile\":\"knife\",\"bandWidth\":1.2}",
+   "headMetal": 63.345495928078776,
+   "crestInside": true
+  },
+  "{\"shankStyle\":\"twisted\"}": {
+   "id": "{\"shankStyle\":\"twisted\"}",
+   "headMetal": 87.81998156505529,
+   "crestInside": true
+  },
+  "{\"bandProfile\":\"round\",\"bandWidth\":1.2}": {
+   "id": "{\"bandProfile\":\"round\",\"bandWidth\":1.2}",
+   "headMetal": 60.08542011086513,
+   "crestInside": true
+  },
+  "{\"bandWidth\":1.2,\"shankStyle\":\"split\"}": {
+   "id": "{\"bandWidth\":1.2,\"shankStyle\":\"split\"}",
+   "headMetal": 50.530365045532605,
+   "crestInside": true
+  },
+  "{\"bandWidth\":1.2,\"shankStyle\":\"tapered\"}": {
+   "id": "{\"bandWidth\":1.2,\"shankStyle\":\"tapered\"}",
+   "headMetal": 61.025807786891995,
+   "crestInside": true
+  },
+  "{\"bandWidth\":1.2,\"shankStyle\":\"twisted\"}": {
+   "id": "{\"bandWidth\":1.2,\"shankStyle\":\"twisted\"}",
+   "headMetal": 64.11431430226541,
+   "crestInside": true
+  },
+  "{\"regions\":[{\"start\":1.25,\"end\":1.9,\"thicknessScale\":0.75}]}": {
+   "id": "{\"regions\":[{\"start\":1.25,\"end\":1.9,\"thicknessScale\":0.75}]}",
+   "headMetal": 53.16151386909402,
+   "crestInside": true
+  },
+  "{\"regions\":[{\"start\":1.2,\"end\":1.95,\"widthScale\":1.6}]}": {
+   "id": "{\"regions\":[{\"start\":1.2,\"end\":1.95,\"widthScale\":1.6}]}",
+   "headMetal": 60.023696070075175,
+   "crestInside": true
+  },
+  "{\"bandWidth\":1.6,\"regions\":[{\"start\":1.2,\"end\":1.95,\"widthScale\":0.8}]}": {
+   "id": "{\"bandWidth\":1.6,\"regions\":[{\"start\":1.2,\"end\":1.95,\"widthScale\":0.8}]}",
+   "headMetal": 60.5637703843398,
+   "crestInside": true
+  },
+  "{\"regions\":[{\"start\":1.25,\"end\":1.9,\"profile\":\"flat\"}]}": {
+   "id": "{\"regions\":[{\"start\":1.25,\"end\":1.9,\"profile\":\"flat\"}]}",
+   "headMetal": 75.35121404668261,
+   "crestInside": true
+  },
+  "{\"ringSize\":3}": {
+   "id": "{\"ringSize\":3}",
+   "headMetal": 66.4182223798025,
+   "crestInside": true
+  },
+  "{\"ringSize\":16}": {
+   "id": "{\"ringSize\":16}",
+   "headMetal": 72.402427264174,
+   "crestInside": true
+  },
+  "{\"shankStones\":\"pave\"}": {
+   "id": "{\"shankStones\":\"pave\"}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"bearingDepth\":20}}": {
+   "id": "{\"bench\":{\"bearingDepth\":20}}",
+   "headMetal": 58.50287158858998,
+   "crestInside": true
+  },
+  "{\"bench\":{\"bearingDepth\":50}}": {
+   "id": "{\"bench\":{\"bearingDepth\":50}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"seatTolerance\":0}}": {
+   "id": "{\"bench\":{\"seatTolerance\":0}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"shankStones\":\"half_eternity\"}": {
+   "id": "{\"shankStones\":\"half_eternity\"}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"seatTolerance\":0.2}}": {
+   "id": "{\"bench\":{\"seatTolerance\":0.2}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"culetClearance\":0.1}}": {
+   "id": "{\"bench\":{\"culetClearance\":0.1}}",
+   "headMetal": 71.11329487224563,
+   "crestInside": true
+  },
+  "{\"bench\":{\"culetClearance\":1.5}}": {
+   "id": "{\"bench\":{\"culetClearance\":1.5}}",
+   "headMetal": 76.57943612452915,
+   "crestInside": true
+  },
+  "{\"bench\":{\"pavilionClearance\":0.1}}": {
+   "id": "{\"bench\":{\"pavilionClearance\":0.1}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"pavilionClearance\":0.4}}": {
+   "id": "{\"bench\":{\"pavilionClearance\":0.4}}",
+   "headMetal": 71.11329487224772,
+   "crestInside": true
+  },
+  "{\"bench\":{\"prongDiameter\":0.8}}": {
+   "id": "{\"bench\":{\"prongDiameter\":0.8}}",
+   "headMetal": 64.4986231604841,
+   "crestInside": true
+  },
+  "{\"bench\":{\"prongDiameter\":2}}": {
+   "id": "{\"bench\":{\"prongDiameter\":2}}",
+   "headMetal": 205.4237021607603,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":0.75}}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":0.75}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5}}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryClearance\":0.1}}": {
+   "id": "{\"bench\":{\"galleryClearance\":0.1}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryClearance\":0.6}}": {
+   "id": "{\"bench\":{\"galleryClearance\":0.6}}",
+   "headMetal": 66.48654181282843,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryThickness\":0.7}}": {
+   "id": "{\"bench\":{\"galleryThickness\":0.7}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"shankStones\":\"eternity\"}": {
+   "id": "{\"shankStones\":\"eternity\"}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"filletRadius\":0.8}}": {
+   "id": "{\"bench\":{\"filletRadius\":0.8}}",
+   "headMetal": 79.04318220887065,
+   "crestInside": true
+  },
+  "{\"bench\":{\"filletRadius\":0.1}}": {
+   "id": "{\"bench\":{\"filletRadius\":0.1}}",
+   "headMetal": 41.59945213179681,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryThickness\":2}}": {
+   "id": "{\"bench\":{\"galleryThickness\":2}}",
+   "headMetal": 66.48654181282843,
+   "crestInside": true
+  },
+  "{\"bench\":{\"setTipHeight\":0.3}}": {
+   "id": "{\"bench\":{\"setTipHeight\":0.3}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"setTipHeight\":0.8}}": {
+   "id": "{\"bench\":{\"setTipHeight\":0.8}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"princess\",\"gemSize\":3,\"setting\":\"three_stone\"}",
+   "headMetal": 90.79524802423992,
+   "crestInside": true
+  },
+  "{\"bench\":{\"minBendRadius\":0.5}}": {
+   "id": "{\"bench\":{\"minBendRadius\":0.5}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"minBendRadius\":3}}": {
+   "id": "{\"bench\":{\"minBendRadius\":3}}",
+   "headMetal": 68.44575121048601,
+   "crestInside": true
+  },
+  "{\"bench\":{\"bearingDepth\":20},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"bearingDepth\":20},\"gemShape\":\"oval\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"bench\":{\"bearingDepth\":20},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"bearingDepth\":20},\"gemShape\":\"marquise\"}",
+   "headMetal": 105.7899725720372,
+   "crestInside": true
+  },
+  "{\"bench\":{\"bearingDepth\":50},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"bearingDepth\":50},\"gemShape\":\"oval\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"bench\":{\"prongDiameter\":2},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"prongDiameter\":2},\"gemShape\":\"oval\"}",
+   "headMetal": 220.247833172691,
+   "crestInside": true
+  },
+  "{\"bench\":{\"bearingDepth\":50},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"bearingDepth\":50},\"gemShape\":\"marquise\"}",
+   "headMetal": 102.48719001985783,
+   "crestInside": true
+  },
+  "{\"bench\":{\"prongDiameter\":0.8},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"prongDiameter\":0.8},\"gemShape\":\"oval\"}",
+   "headMetal": 72.57009237611541,
+   "crestInside": true
+  },
+  "{\"bench\":{\"prongDiameter\":2},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"prongDiameter\":2},\"gemShape\":\"marquise\"}",
+   "headMetal": 212.0708439375732,
+   "crestInside": true
+  },
+  "{\"bench\":{\"prongDiameter\":0.8},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"prongDiameter\":0.8},\"gemShape\":\"marquise\"}",
+   "headMetal": 96.6693162282273,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":0.75},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":0.75},\"gemShape\":\"oval\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5},\"gemShape\":\"oval\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":0.75},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":0.75},\"gemShape\":\"marquise\"}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5},\"gemShape\":\"marquise\"}",
+   "headMetal": 105.27852538879992,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryClearance\":0.1},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"galleryClearance\":0.1},\"gemShape\":\"oval\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryClearance\":0.6},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"galleryClearance\":0.6},\"gemShape\":\"oval\"}",
+   "headMetal": 74.42155536287056,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryClearance\":0.1},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"galleryClearance\":0.1},\"gemShape\":\"marquise\"}",
+   "headMetal": 110.86310334397206,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryThickness\":0.7},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"galleryThickness\":0.7},\"gemShape\":\"oval\"}",
+   "headMetal": 76.523876301939,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryClearance\":0.6},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"galleryClearance\":0.6},\"gemShape\":\"marquise\"}",
+   "headMetal": 107.46488894939232,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryThickness\":0.7},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"galleryThickness\":0.7},\"gemShape\":\"marquise\"}",
+   "headMetal": 112.57662802930557,
+   "crestInside": true
+  },
+  "{\"bench\":{\"filletRadius\":0.1},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"filletRadius\":0.1},\"gemShape\":\"oval\"}",
+   "headMetal": 48.079381985726485,
+   "crestInside": true
+  },
+  "{\"bench\":{\"filletRadius\":0.8},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"filletRadius\":0.8},\"gemShape\":\"oval\"}",
+   "headMetal": 87.51828265629648,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryThickness\":2},\"gemShape\":\"oval\"}": {
+   "id": "{\"bench\":{\"galleryThickness\":2},\"gemShape\":\"oval\"}",
+   "headMetal": 74.42155536287056,
+   "crestInside": true
+  },
+  "{\"bench\":{\"filletRadius\":0.1},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"filletRadius\":0.1},\"gemShape\":\"marquise\"}",
+   "headMetal": 80.18451346880002,
+   "crestInside": true
+  },
+  "{\"bench\":{\"filletRadius\":0.8},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"filletRadius\":0.8},\"gemShape\":\"marquise\"}",
+   "headMetal": 115.76062276862302,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3}}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3}}",
+   "headMetal": 37.4729768909823,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3},\"gemShape\":\"marquise\"}",
+   "headMetal": 68.19845212571875,
+   "crestInside": true
+  },
+  "{\"bench\":{\"galleryThickness\":2},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"galleryThickness\":2},\"gemShape\":\"marquise\"}",
+   "headMetal": 107.72106575578766,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3},\"setting\":\"halo\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3},\"setting\":\"halo\"}",
+   "headMetal": 37.4729768909823,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8}}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8}}",
+   "headMetal": 283.18625860499867,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3},\"setting\":\"three_stone\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":0.75,\"bearingDepth\":20,\"culetClearance\":0.1,\"filletRadius\":0.1,\"galleryClearance\":0.1,\"galleryThickness\":0.7,\"minBendRadius\":0.5,\"pavilionClearance\":0.1,\"prongDiameter\":0.8,\"seatTolerance\":0,\"setTipHeight\":0.3},\"setting\":\"three_stone\"}",
+   "headMetal": 37.4729768909823,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"setting\":\"halo\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"setting\":\"halo\"}",
+   "headMetal": 283.18625860499867,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemSize\":3}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemSize\":3}",
+   "headMetal": 319.42504840182056,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemShape\":\"marquise\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemShape\":\"marquise\"}",
+   "headMetal": 451.4949320788427,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"emerald\",\"gemSize\":3,\"setting\":\"three_stone\"}",
+   "headMetal": 91.7077013072422,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemShape\":\"marquise\",\"gemSize\":3}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemShape\":\"marquise\",\"gemSize\":3}",
+   "headMetal": 444.9189625247826,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"setting\":\"three_stone\"}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"setting\":\"three_stone\"}",
+   "headMetal": 283.18625860499867,
+   "crestInside": true
+  },
+  "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"three_stone\"}": {
+   "id": "{\"gemShape\":\"marquise\",\"gemSize\":3,\"setting\":\"three_stone\"}",
+   "headMetal": 125.13801898523998,
+   "crestInside": true
+  },
+  "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemSize\":0.25}": {
+   "id": "{\"bench\":{\"asCastProngHeight\":5,\"bearingDepth\":50,\"culetClearance\":1.5,\"filletRadius\":0.8,\"galleryClearance\":0.6,\"galleryThickness\":2,\"minBendRadius\":3,\"pavilionClearance\":0.4,\"prongDiameter\":2,\"seatTolerance\":0.2,\"setTipHeight\":0.8},\"gemSize\":0.25}",
+   "headMetal": 267.3083446670042,
+   "crestInside": true
+  },
+  "{\"gemSize\":0.5,\"ringSize\":4}": {
+   "id": "{\"gemSize\":0.5,\"ringSize\":4}",
+   "headMetal": 61.06375564952525,
+   "crestInside": true
+  },
+  "{\"gemSize\":3,\"ringSize\":11}": {
+   "id": "{\"gemSize\":3,\"ringSize\":11}",
+   "headMetal": 80.24903132328247,
+   "crestInside": true
+  }
+ }
+}

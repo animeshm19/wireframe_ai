@@ -241,6 +241,22 @@ await Promise.all(Array.from({ length: Math.min(jobs, designs.length) }, worker)
 
 // --------------------------------------------------------------- verdicts --
 
+// I17's reference (S3b): each design's head metal as S3 built it, measured
+// on S3's own code (943430e) by the same formula (see the file). A row S3b
+// added only by basketTaper is the S3 row without it.
+const HEAD_REF = "claude/tasks/structure-head-metal-s3.json";
+if (existsSync(HEAD_REF)) {
+  const ref = JSON.parse(readFileSync(HEAD_REF, "utf8")).designs;
+  for (const r of results) {
+    if (!r.result || r.result.crash) continue;
+    let row = ref[r.id];
+    if (!row && r.spec?.bench && "basketTaper" in r.spec.bench) {
+      const { basketTaper: _t, ...rest } = r.spec.bench;
+      row = ref[idOf(normalise({ ...r.spec, bench: Object.keys(rest).length ? rest : undefined }))];
+    }
+    r.result.reference = { headMetalS3: row?.headMetal ?? null };
+  }
+}
 for (const r of results) r.invariants = evaluateDesign(r, r.result, stage, WIRED_IN);
 
 const requiredFailures = [];
