@@ -658,6 +658,13 @@ export function layoutHead(
   cut: GemCut, girdleR: number, prongCount: number, bench: BenchValues,
   band: BandProbe | null, opts: LayoutOptions = {},
 ): HeadLayout {
+  return layoutHeadOnce(cut, girdleR, prongCount, bench, band, opts);
+}
+
+function layoutHeadOnce(
+  cut: GemCut, girdleR: number, prongCount: number, bench: BenchValues,
+  band: BandProbe | null, opts: LayoutOptions = {},
+): HeadLayout {
   const stone = stoneProfile(cut, girdleR);
   const values: BenchValues = { ...bench };
   const warnings: LayoutWarning[] = [];
@@ -834,7 +841,28 @@ export function layoutHead(
     const seatPlanes = planes.map((pl) =>
       ({ n: pl.n, h: pl.h + grow * Math.hypot(pl.n[0], pl.n[1]) + tol * Math.abs(pl.n[2]) }));
 
-    const g = placeGallery(stone, values, planes, band, avoid, avoidPoints, opts.minGalleryThickness ?? 0);
+    let g = placeGallery(stone, values, planes, band, avoid, avoidPoints, opts.minGalleryThickness ?? 0);
+    // Where no height hides even the thinnest wire at the gap asked (a
+    // 0.25 ct stone with every bench value at its maximum: 0.6 mm off the
+    // stone, it showed 0.2 mm beyond the girdle, S2's question 25), the gap
+    // is held to the most that hides it, never under the field's own
+    // minimum, and reported with both numbers (Animesh, on question 25:
+    // a clamp the stone's size forces, the bounds as they are).
+    const gcMin = benchBounds("galleryClearance", "platinum").min;
+    // The centre head's only: a three-stone's side heads are S6's.
+    if (opts.base && g.showing != null && values.galleryClearance > gcMin + 1e-9) {
+      const asked = values.galleryClearance;
+      const at = (gc: number) => placeGallery(stone, { ...values, galleryClearance: gc }, planes, band, avoid, avoidPoints, opts.minGalleryThickness ?? 0);
+      const low = at(gcMin);
+      if (low.showing == null) {
+        let lo = gcMin, hi = asked, best = low;
+        while (hi - lo > 0.005) { const md = (lo + hi) / 2; const f = at(md); if (f.showing == null) { lo = md; best = f; } else hi = md; }
+        g = best;
+        values.galleryClearance = Math.floor(lo * 1000) / 1000;
+        warnings.push({ key: "galleryClearance", kind: "engine-clamped", asked, delivered: values.galleryClearance,
+          message: `Gap between gallery and stone: ${fmt(asked)} mm leaves no height where the gallery hides under the girdle of this stone, so ${fmt(values.galleryClearance)} mm is used.` });
+      }
+    }
     gallery = g.plan;
     if (g.thinned) {
       const asked = values.galleryThickness;
@@ -900,7 +928,7 @@ export function layoutHead(
       for (let k = 1; k <= 20; k++) tries.push(first.sigma + 0.06 * k);
       let best: { base: BasePlan; laid: typeof laid; score: number[] } | null = null;
       const seen = new Set<string>();
-      for (const at of tries.filter((x) => x >= 0 && x <= 1.05)) {
+      for (const at of tries.filter((x, k) => k === 0 || (x >= 0 && x <= 1.05))) {
         base = at === first.sigma ? first : planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at);
         const key = base.sigma.toFixed(4);
         if (seen.has(key)) continue;
@@ -908,6 +936,18 @@ export function layoutHead(
         const l = legs(gallery), sc = score(l);
         if (!best || better(sc, best.score)) best = { base, laid: l, score: sc };
         if (sc[0] === prongs.length) break;
+      }
+      // No size that holds the band's crest inside the opening keeps every
+      // leg's gaps: smaller bases with the crest run under the ring, from
+      // the least that keeps the base's own gaps (see BasePlan.crestInside).
+      if (best!.score[0] < prongs.length) {
+        const low = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, 0, undefined, false);
+        for (let at = low.sigma; at < first.sigma - 1e-9; at += 0.06) {
+          base = at === low.sigma ? low : planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at, undefined, false);
+          const l = legs(gallery), sc = score(l);
+          if (better(sc, best!.score)) best = { base, laid: l, score: sc };
+          if (sc[0] === prongs.length) break;
+        }
       }
       base = best!.base;
       laid = best!.laid;
@@ -934,7 +974,7 @@ export function layoutHead(
         // default ring's ring to 3.6 mm and its saddle to 4.0 mm, past the
         // girdle's 3.25 (S3). Past that the fillet is held (reported).
         out = Math.min(0.3, out); inn = Math.min(0.3, inn);
-        if (out > 1e-3 || inn > 1e-3) base = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, base.sigma, { out: Math.max(0, out), in: Math.max(0, inn) });
+        if (out > 1e-3 || inn > 1e-3) base = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, base.sigma, { out: Math.max(0, out), in: Math.max(0, inn) }, base.crestInside);
       }
       // The foot fillet held to what the feet leave room for on the base's
       // top (see baseFootFillet); under 0.05 mm, none: the feet are flared.
@@ -947,7 +987,9 @@ export function layoutHead(
         // all-max marquise's 0.8 mm flares on 2 mm prongs reached into the
         // stone (S3). Tested on its rims and the lines between, by the
         // hull's planes (a lower bound on the gap).
-        const clear = (pts: V3[]) => pts.every((q) => clearanceBound(planes, q) >= values.pavilionClearance &&
+        // 0.03 mm over the gap: the flare's surface between the points tested
+        // came 0.002 mm under it on a 0.25 ct marquise (S3).
+        const clear = (pts: V3[]) => pts.every((q) => clearanceBound(planes, q) >= values.pavilionClearance + 0.03 &&
           Math.hypot(q[0], q[1], q[2]) >= values.culetClearance + 0.02);
         const ring = (c: V3, rr: number) => Array.from({ length: 24 }, (_, k) => [c[0] + rr * Math.cos((k / 12) * Math.PI), c[1] + rr * Math.sin((k / 12) * Math.PI), c[2]] as V3);
         let column = false;
@@ -957,7 +999,7 @@ export function layoutHead(
           const rising = u[2] >= 0.3, uz = rising ? u[2] : 0.3;
           const E: V3 = rising ? add(f, scale(u, (base!.zTop - f[2]) / uz)) : [f[0], f[1], base!.zTop];
           const top: V3 = rising ? add(E, scale(u, (2 * fr) / uz)) : [E[0], E[1], base!.zTop + 2 * fr];
-          const lo = ring(E, d / 2 / uz + fr), hi = ring(top, 0.9 * d / 2);
+          const lo = ring(E, d / 2 / uz + fr), hi = ring(top, FLARE_NARROW * d / 2);
           // Its foot on the base's top, 0.02 mm inside both edges; or, as a
           // column, standing on the plateau clear of the band (0.03 mm over
           // it) wherever it overhangs the base.
@@ -1834,6 +1876,15 @@ export type BasePlan = {
   /** The core's scale of the girdle. */
   sigma: number;
   /**
+   * Whether the band's crest, where it rises through the plateau, is held
+   * inside the base's opening clear of its inner wall. Normally; on a
+   * narrow stone set across the band (a 0.25 ct marquise) holding it took
+   * the opening to 0.85 of the girdle and the legs out past the pavilion,
+   * so it may run under the ring instead, and the base's inner joint is
+   * flared where its fillet fails (S3).
+   */
+  crestInside: boolean;
+  /**
    * The blends' radii at its three joints (S3): where the prongs' feet meet
    * the base, the base the saddle, and the saddle the band. filletRadius,
    * held to 45% of the thinner of the two parts each joins (a fillet larger
@@ -1864,6 +1915,8 @@ const BASE_SINK = 0.1;          // how far the base sits into the saddle's plate
 const PLATEAU_DROP = 0.03;      // the plateau under the band's crest, which rises through it
 const SADDLE_MARGIN = 0.3;      // the plateau beyond the base's outer edge, at least
 /** The share of the thinner part a blend may take (the S3 prompt: "for example, at most 45%"). */
+/** A foot flare's top, as a share of the prong's radius (see flaredFoot in cad-engine-brep). */
+export const FLARE_NARROW = 0.7;
 export const BLEND_SHARE = 0.45;
 
 /**
@@ -1887,6 +1940,8 @@ function planBase(
   tryScale?: number,
   /** The ring widened by this much outward and inward (see layoutHead: room for the feet's blends). */
   widen = { out: 0, in: 0 },
+  /** Hold the band's crest inside the opening (see BasePlan.crestInside). */
+  holdCrest = true,
 ): BasePlan {
   const height = Math.max(d, minWall);
   // The blends' radii come first: the base must be wide enough for a foot
@@ -2037,7 +2092,7 @@ function planBase(
   // Never a point: a core of coincident corners has no sides to grow.
   let sigma = Math.max(0.05, tryScale ?? (lo + hi) / 2);
   let h = heights, g = gaps(sigma, h);
-  while ((g.gap < v.pavilionClearance || g.culet < v.culetClearance + 0.02 || !crestHeld(sigma)) && sigma < 1.2) {
+  while ((g.gap < v.pavilionClearance || g.culet < v.culetClearance + 0.02 || (holdCrest && !crestHeld(sigma))) && sigma < 1.2) {
     sigma += 0.02;
     h = heights; g = gaps(sigma, h);
   }
@@ -2081,6 +2136,7 @@ function planBase(
     zBottom: h.zBottom, zTop: h.zTop, height, width,
     plateau: h.plateau, bandTop: h.bandTop, saddleBottom: zBot, bandUnderEdge: Number.isFinite(underEdge) ? underEdge : zBot,
     clearance: g.gap, culetClearance: g.culet, sigma, blend, flare: { ...blend }, flareColumn: false, plateThickness: h.plateau - zBot,
+    crestInside: crestHeld(sigma),
     touchesGallery: outerTop.some((q) => Math.hypot(polygonDistance(gallery.path, [q[0], q[1]]), q[2] - gallery.z) < gr + 0.01),
   };
 }
@@ -2295,12 +2351,13 @@ function layoutLeg(
     const tanHalf = (u: V3) => Math.tan(Math.acos(Math.min(1, Math.max(-1, -u[2]))) / 2);
     let cz = Math.max(stone.zGb - 0.3, W[2] + 1);
     // On a base the foot ends just under its top, its end disc (square to
-    // the leg) wholly inside it, 0.03 mm under the top at the disc's
-    // highest. Or, where no leg ending there fits, deep: halfway between the
+    // the leg) wholly inside it, 0.1 mm under the top at the disc's highest
+    // (at 0.03 a steep 0.8 mm leg on a 0.25 ct stone had 0.018 mm³ in the
+    // base, short of I6's 0.02). Or, where no leg ending there fits, deep: halfway between the
     // plateau and the base's top, the disc's room the same above and below
     // (just under the top, a 2 mm prong's legs on a 2 mm base had no length
     // left to bend in: all-max marquise, S3). footOut holds the disc inside.
-    const onBase = (tilt: number) => (deepFoot ? (base!.plateau + base!.zTop - 0.02) / 2 : base!.zTop - 0.03 - half * Math.sin(tilt));
+    const onBase = (tilt: number) => (deepFoot ? (base!.plateau + base!.zTop - 0.02) / 2 : base!.zTop - 0.1 - half * Math.sin(tilt));
     let foot: V3 = [fxy[0], fxy[1], base ? onBase(0) : band.topOnAxis - 0.45];
     let knee: V3 = W;
     let used = bend;

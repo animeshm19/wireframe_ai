@@ -26,11 +26,11 @@ import {
   type GemCut, type SettingStyle, type BandProfile, type V3, type Pt,
 } from "./cad-engine.js";
 import {
-  resolveBench, type BenchValues, type BenchWarning, type ResolvedBench,
+  benchBounds, resolveBench, type BenchValues, type BenchWarning, type ResolvedBench,
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
+  envelopeFaces, filletArc, FLARE_NARROW, hullPlanes, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
   type BandProbe, type BasePlan, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type Rounded, type StoneProfile,
 } from "./head-layout.js";
 
@@ -1292,7 +1292,11 @@ export function flaredFoot(points: V3[], d: number, r: number, b: BasePlan, colu
   const E: V3 = rising ? add3(F, u, (b.zTop - F[2]) / uz) : [F[0], F[1], b.zTop];
   const wide = half / uz + r;
   const top: V3 = rising ? add3(E, u, (2 * r) / uz) : [E[0], E[1], b.zTop + 2 * r];   // 2r higher, on the run's axis
-  const narrow = 0.9 * half;
+  // Its top well inside the prong: the prong is a tilted tube, and where
+  // its first bend begins under the flare's top a rim at 0.9 of its radius
+  // came out through it by a hair, leaving a lens of top 0.0002 mm² that
+  // the export's 0.01 mm mesh drops (an oval on 0.8 mm prongs, S3).
+  const narrow = FLARE_NARROW * half;
   // From a hair under the top so the two overlap, not meet in a plane. Its
   // foot stays on the base's top (layoutHead holds its radius to that): a
   // foot overhanging the top's edge left a ledge 0.02 mm thick, 8 STL edges
@@ -1905,13 +1909,39 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   // held above where the band would be, not dropped into the gap). It used to
   // be a fixed outerR − 0.35, which put the culet 0.35 mm inside the band.
   const topAtHead = span(Math.PI / 2, 0, true)?.top ?? outerR;
-  const culetY = topAtHead + centreBench.values.culetClearance;
-  const centreProbe = bandProbe(span, {
-    theta0: Math.PI / 2, R0: culetY,
+  const probeAt = (R0: number) => bandProbe(span, {
+    theta0: Math.PI / 2, R0,
     // Stone x runs along ring X, so a point x across sits at a smaller angle.
     angle: (t, Z) => Math.PI / 2 - Math.atan2(t, Z),
     across: (x) => x, along: (_x, y) => -y, axial: [0, 1],
   }, slotHalf(Math.PI / 2), halfWidth(Math.PI / 2));
+
+  // A gap under the culet so large for the stone that no gallery hides under
+  // its girdle (S2's question 25: 1.5 mm under a 0.25 ct stone's 1.76 mm
+  // pavilion, the wire had to stay 1.5 mm off the culet, so too high and too
+  // wide to hide) is held to the most that lets it hide, never under the
+  // field's minimum, and reported with both numbers (Animesh, 2026-10-18:
+  // clamps the stone's size forces, the bounds as they are). A prong head
+  // only; a three-stone's centre is laid out with its side stones, below.
+  if (style !== "bezel" && style !== "three_stone") {
+    const lim = MANUFACTURING_LIMITS[alloy] ?? MANUFACTURING_LIMITS.platinum;
+    const sized = { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall, base: true };
+    const shows = (cc: number) => layoutHead(cut, girdleR, prongCount, { ...centreBench.values, culetClearance: cc }, probeAt(topAtHead + cc), sized)
+      .warnings.some((w) => w.key === "galleryThickness" && /cannot be hidden/.test(w.message));
+    const asked = centreBench.values.culetClearance, least = benchBounds("culetClearance", alloy).min;
+    if (asked > least + 1e-9 && shows(asked) && !shows(least)) {
+      let lo = least, hi = asked;
+      // To 0.05 mm, the field's own step: each try lays the head out again.
+      while (hi - lo > 0.05) { const md = (lo + hi) / 2; if (shows(md)) hi = md; else lo = md; }
+      const delivered = Math.floor(lo * 20) / 20;
+      centreBench.values.culetClearance = delivered;
+      centreBench.warnings.push({ key: "culetClearance", kind: "engine-clamped", asked, delivered,
+        message: `Gap under the culet: ${asked} mm leaves no height where the gallery hides under the girdle of this stone, so ${delivered} mm is used.` });
+    }
+  }
+
+  const culetY = topAtHead + centreBench.values.culetClearance;
+  const centreProbe = probeAt(culetY);
 
   // Stand the head up at +Y on top of the band: rotate its Z axis onto +Y, then
   // lift it so the culet clears the band by culetClearance.
@@ -2055,14 +2085,23 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   if (style === "cathedral") {
     // Shoulders sweeping up from the shank to meet the head. Built in the
     // ring's own frame rather than the head's, because they belong to the band:
-    // they start on its shoulder and rise to the stone.
+    // they start on its shoulder and rise to the head.
+    //
+    // Since S3 they end in the head's saddle: at each end of its plate along
+    // the band, half way down it and as far in as the strut's own end needs
+    // to be inside it. Before, they ended under the stone in mid-air, at
+    // 0.42 of the girdle and 0.55 of the way up the pavilion, joined to
+    // nothing but the prongs they happened to cross.
     const a = (42 * Math.PI) / 180;
+    const b = head.layout.base;
+    const plateEnd = b ? Math.max(...roundedPoints(b.plate, 0.05).filter(([, y]) => Math.abs(y) < 0.05).map(([x]) => Math.abs(x))) : girdleR * 0.42;
+    const midZ = b ? (b.plateau + b.saddleBottom) / 2 : d.pavH * 0.55 - (culetY - outerR);
+    // Its top no wider than the plate holds: 0.4 of the plate's depth.
+    const rTop = b ? Math.min(bandWidth * 0.18, 0.4 * b.plateThickness) : bandWidth * 0.18;
     for (const sgn of [-1, 1]) {
-      metalParts.push(strut(
-        [sgn * outerR * Math.sin(a), outerR * Math.cos(a) - 0.4, 0],
-        [sgn * girdleR * 0.42, outerR + d.pavH * 0.55, 0],
-        bandWidth * 0.30, bandWidth * 0.18
-      ));
+      const from: V3 = [sgn * outerR * Math.sin(a), outerR * Math.cos(a) - 0.4, 0];
+      const to: V3 = [sgn * (plateEnd - rTop - 0.1), culetY + midZ, 0];
+      metalParts.push(strut(from, to, bandWidth * 0.30, rTop));
       metalRoles.push({ role: "strut", head: "centre", index: sgn < 0 ? 0 : 1 });
     }
   }
@@ -2318,7 +2357,9 @@ function sealVoids(shape: Shape3D): { shape: Shape3D; filled: number } {
       const before = measureVolume(solid as Shape3D);
       const voids = rest.reduce((t, p) => t + p.v, 0);
       const ok = rest.every((p) => p.v < 1e-3 && inside(p.box)) &&
-        outer.s.solids.length === 1 && outer.v >= before - 1e-6 && outer.v <= before + voids + 1e-6;
+        // 1e-5 mm³ for the volume's own noise: a 3 ct princess halo's outer
+        // shell measured 1.7e-6 over the solid and its two specks (S3).
+        outer.s.solids.length === 1 && outer.v >= before - 1e-5 && outer.v <= before + voids + 1e-5;
       if (ok) { out.push(outer.s); filled += rest.length; } else out.push(solid as Shape3D);
     } finally {
       fixer.delete();
@@ -2563,7 +2604,9 @@ export function resolveRing(p: Parameters<typeof buildRingParts>[0]): FuseResult
     flareOnly.push(joint);
     blend = blendHead(fused.metal, parts, flareOnly);
   }
-  return { ...fused, metal: blend.metal, parts, blend };
+  // A fillet can seal a speck as a fuse can (see sealVoids).
+  const sealed = sealVoids(blend.metal);
+  return { ...fused, metal: sealed.shape, voidsFilled: fused.voidsFilled + sealed.filled, parts, blend: { ...blend, metal: sealed.shape } };
 }
 
 /**
