@@ -963,3 +963,110 @@ test("the merge leaves no sealed cavity and exports one manifold solid", async (
     assert.equal((text.match(/BREP_WITH_VOIDS/g) || []).length, 0, `${JSON.stringify(spec)} no voids in STEP`);
   }
 });
+
+/**
+ * What S3 promises of the centre head: every prong stands in the base and
+ * none in the band (I6), the joint just above the band is at least the
+ * prongs' own section (I7), the base's section is at least a prong's or the
+ * alloy's minimum wall (I12), and every joint is blended (I14), with the
+ * radius measured the one laid out (I13's measure for filletRadius).
+ */
+async function checkBase(spec) {
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const { INVARIANTS, BENCH_MEASURES } = await import("./scripts/structure-invariants.mjs");
+  const r = await audit.auditStructure(spec, { stl: false, step: false });
+  const tag = JSON.stringify(spec);
+  assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
+  for (const id of ["I6", "I7", "I12", "I14"]) {
+    const res = INVARIANTS.find((x) => x.id === id).evaluate(r, spec, { stage: "S3" });
+    assert.equal(res.status, "PASS", `${tag} ${id}: ${res.detail}`);
+  }
+  const m = BENCH_MEASURES.filletRadius(r, r.requested.filletRadius);
+  assert.ok(m.ok, `${tag}: blends ${m.why}`);
+  assert.equal(r.solidCount, 1, `${tag}: one solid`);
+  return r;
+}
+
+test("base: prongs in the base and not the band, the joint, the base's section, on every profile", async () => {
+  for (const bandProfile of ["comfort", "flat", "knife", "round"]) await checkBase({ bandProfile });
+});
+
+test("base: on the narrowest band with each profile", async () => {
+  for (const bandProfile of ["comfort", "flat", "knife", "round"]) await checkBase({ bandWidth: 1.2, bandProfile });
+});
+
+test("base: on split, tapered and twisted shanks, a wide band and a region edit under the head", async () => {
+  for (const spec of [{ shankStyle: "split" }, { bandWidth: 1.2, shankStyle: "split" }, { shankStyle: "tapered" },
+    { shankStyle: "twisted" }, { bandWidth: 8 }, { regions: [{ start: 1.25, end: 1.9, thicknessScale: 0.75 }] }]) {
+    await checkBase(spec);
+  }
+});
+
+test("base: fancy cuts, small and large stones, and the other prong settings", async () => {
+  for (const spec of [{ gemShape: "marquise" }, { gemShape: "emerald" }, { gemShape: "pear" }, { gemSize: 0.25 }, { gemSize: 3 },
+    { setting: "halo" }, { setting: "cathedral" }, { setting: "three_stone" }]) {
+    await checkBase(spec);
+  }
+});
+
+test("bench: the rounding where parts meet reaches the geometry", async () => {
+  // At its min and its max. Past what the parts can take it is held, and
+  // said so with both numbers (the measure accepts only a reported hold).
+  const std = await import("./.brepcheck/setting-standards.js");
+  for (const which of ["min", "max"]) {
+    const r = await checkBase({ bench: { filletRadius: std.benchBounds("filletRadius", "platinum")[which] } });
+    assert.ok(r.bench.customised.includes("filletRadius"), `filletRadius ${which} reached the engine`);
+  }
+});
+
+test("the head leaves the finger bore as it was, on every band", async () => {
+  // The bore is the ring size. The base, saddle and blends must neither add
+  // metal inside it nor take any from round it: the metal within 0.05 mm
+  // outside the bore, over the band's width, is the band's own, to 0.1%.
+  const { makeCylinder } = await import("replicad");
+  const variants = [{}, { bandProfile: "flat" }, { bandProfile: "knife" }, { bandProfile: "round" },
+    { bandWidth: 1.2 }, { bandWidth: 8 }, { shankStyle: "split" }, { shankStyle: "tapered" }, { shankStyle: "twisted" },
+    { regions: [{ start: 1.25, end: 1.9, thicknessScale: 0.75 }] }];
+  for (const spec of variants) {
+    const tag = JSON.stringify(spec);
+    const r = brep.resolveRing(spec);
+    const band = brep.buildRingParts(spec, { seats: true }).metalParts[0];
+    const metrics = brep.ringMetrics(r.metal, r.parts.stones, r.parts.dims);
+    const innerR = r.parts.dims.innerR, w = r.parts.dims.bandWidth;
+    assert.equal(metrics.innerDiameter, +(innerR * 2).toFixed(2), `${tag}: inner diameter`);
+    const shell = () => makeCylinder(innerR + 0.05, w + 2, [0, 0, -(w + 2) / 2]).cut(makeCylinder(innerR - 0.05, w + 4, [0, 0, -(w + 4) / 2]));
+    const ofRing = measureVolume(r.metal.intersect(shell())), ofBand = measureVolume(band.intersect(shell()));
+    assert.ok(Math.abs(ofRing - ofBand) <= ofBand * 0.001, `${tag}: metal by the bore ${ofRing} mm³ against the band's ${ofBand}`);
+  }
+});
+
+test("light reaches the pavilion: under the stone only prongs and the gallery", async () => {
+  // Seen from the side, between the base and the girdle a basket is open.
+  // The merged metal cut at the gallery's height, and half way down to the
+  // base where there is daylight between them: every piece of that section
+  // is a piece of the gallery's and prongs' own (with a foot's blend, which
+  // can rise to there on a small stone, on it), nothing stands alone, as a
+  // wall would, and the whole is no more than a quarter again of theirs.
+  const { makeFace, assembleWire, makeCircle, measureArea } = await import("replicad");
+  for (const spec of [{}, { gemShape: "oval" }, { gemShape: "emerald" }, { gemSize: 0.25 }, { bandWidth: 1.2 }]) {
+    const tag = JSON.stringify(spec);
+    const r = brep.resolveRing(spec);
+    const fresh = brep.buildRingParts(spec, { seats: true });
+    const h = fresh.heads[0], g = h.layout.gallery, b = h.layout.base;
+    const heights = [g.z];
+    if (b.zTop < g.z - g.t / 2) heights.push((b.zTop + g.z - g.t / 2) / 2);
+    const basket = brep.fuseMetal(fresh.metalParts.filter((_, i) => ["gallery", "prong"].includes(fresh.metalRoles[i].role) && fresh.metalRoles[i].head === "centre")).metal;
+    for (const z of heights) {
+      const at = [h.culet[0] + h.axis[0] * z, h.culet[1] + h.axis[1] * z, h.culet[2] + h.axis[2] * z];
+      const disc = () => makeFace(assembleWire([makeCircle(h.girdleR * 1.5, at, h.axis)]));
+      const all = r.metal.intersect(disc()), own = basket.intersect(disc());
+      assert.ok(measureArea(own) > 0, `${tag} at ${z.toFixed(3)}: the basket is cut`);
+      for (const f of all.faces) {
+        assert.ok(measureArea(own.intersect(f)) > 1e-6, `${tag} at ${z.toFixed(3)} mm: a piece of metal there (${measureArea(f).toFixed(3)} mm²) is not the gallery's or a prong's`);
+      }
+      // And no more than a quarter again of theirs: the feet's blends (the
+      // most, on a 0.25 ct stone, 14%), not a wall grown on them.
+      assert.ok(measureArea(all) <= 1.25 * measureArea(own), `${tag} at ${z.toFixed(3)} mm: ${measureArea(all)} mm² of metal, the basket's ${measureArea(own)}`);
+    }
+  }
+});
