@@ -54,6 +54,8 @@ export type ProngAudit = {
   head: HeadName;
   index: number;
   inBand: number;
+  /** Metal of this prong inside its head's saddle, mm³ (centre head; NaN elsewhere). */
+  inBridge: number;
   inStone: number;
   inGallery: number;
   inBase: number;
@@ -170,6 +172,10 @@ export type BlendAudit = {
   flarePlanned: Record<BlendJoint, number> | null;
   /** Measured, per joint: the least and greatest fillet radius in its sections, or the flare's added radius, and how many were read. */
   measured: Partial<Record<BlendJoint, { min: number; max: number; faces: number }>>;
+  /** resolveRing found the blended metal still meshing open with every filleted joint flared. */
+  meshOpen: boolean;
+  /** The feet's flare was built as a column down to the plateau (no flare fitted on the base's top). */
+  flareColumn: boolean;
 };
 
 export type StructureAudit = {
@@ -178,6 +184,12 @@ export type StructureAudit = {
   bench: ResolvedBench;
   /** The centre head's values as asked: resolveBench alone. The invariants judge against these. */
   requested: BenchValues;
+  /**
+   * The bounds of the fields an engine clamp may hold by the stone's size,
+   * for this design's alloy, from setting-standards and not from the engine:
+   * the invariants accept a reported hold only inside them (review).
+   */
+  bounds: Record<"culetClearance" | "galleryClearance", { min: number; max: number }>;
   /** Microscopic sealed cavities the merge filled (fuseMetal → sealVoids). */
   voidsFilled: number;
   /** Fuses OCCT got wrong that a retry 0.001 mm over got right (see fuseMetal). */
@@ -208,6 +220,10 @@ export type StructureAudit = {
     prongSectionSum: number;
     prongDiameter: number;
     ratio: number;
+    /** The base's surface inside its saddle, mm² (S3, review): where the base is held. NaN with no base. */
+    baseSeat: number;
+    /** The band's surface inside the saddle, mm²: where the band holds the saddle. NaN with no base. */
+    saddleSeat: number;
   } | null;
   /** Pairwise stone ∩ stone, every pair whose boxes meet. */
   stonePairs: { a: number; b: number; volume: number }[];
@@ -397,6 +413,10 @@ export async function auditStructure(
     prongAudits.push({
       head: r.head!, index: r.index!,
       inBand: sum(bandIdx.map((b) => common(p, metalParts[b], `${tag} ∩ band`))),
+      // Into its own head's saddle (S3, review): a flared foot's column
+      // stands 0.01 mm into the plateau beside the base. Recorded, not yet
+      // judged (see S3.md).
+      inBridge: r.head === "centre" ? sum(bridgeIdx.filter((b) => metalRoles[b].head === r.head).map((b) => common(p, metalParts[b], `${tag} ∩ saddle`))) : NaN,
       inStone: common(p, held, `${tag} ∩ stone`),
       inGallery: sum(galleryIdx.map((g) => common(p, metalParts[g], `${tag} ∩ gallery ${g}`))),
       inBase: sum(baseIdx.map((b) => common(p, metalParts[b], `${tag} ∩ base ${b}`))),
@@ -578,7 +598,18 @@ export async function auditStructure(
       const area = measureArea(metal.intersect(disc as unknown as Shape3D) as Shape3D);
       const pd = bench.values.prongDiameter;
       const prongSectionSum = centreFrame.prongCount * Math.PI * (pd / 2) ** 2;
-      joint = { jointSectionArea: area, prongSectionSum, prongDiameter: pd, ratio: area / prongSectionSum };
+      // The plane above is the S3 prompt's, and on this head (a base sunk in
+      // a saddle whose plateau is just under the band's top) it cuts the base
+      // itself, so it shows the base is big enough, not that anything holds
+      // it (review). The two links that carry it, as the areas they meet
+      // over: the base's surface inside the saddle, and the band's.
+      let baseSeat = NaN, saddleSeat = NaN;
+      const bi = baseIdx.find((i) => metalRoles[i].head === "centre"), si = bridgeIdx.find((i) => metalRoles[i].head === "centre");
+      if (plan && bi != null && si != null) {
+        baseSeat = measureArea(metalParts[si].intersect(skinOf(metalParts[bi]) as unknown as Shape3D) as Shape3D);
+        saddleSeat = sum(bandIdx.map((k) => measureArea(metalParts[si].intersect(skinOf(metalParts[k]) as unknown as Shape3D) as Shape3D)));
+      }
+      joint = { jointSectionArea: area, prongSectionSum, prongDiameter: pd, ratio: area / prongSectionSum, baseSeat, saddleSeat };
     } catch (e) {
       errors.push(`joint section threw ${(e as Error)?.message ?? e}`);
     }
@@ -606,13 +637,18 @@ export async function auditStructure(
     }
   }
   const blend: BlendAudit = {
-    paths: resolved.blend.paths, failed: resolved.blend.failed,
+    paths: resolved.blend.paths, failed: resolved.blend.failed, meshOpen: !!resolved.blend.meshOpen,
+    flareColumn: !!plan?.flareColumn,
     planned: plan ? plan.blend : null, flarePlanned: plan ? plan.flare : null, measured,
   };
 
   const t3 = performance.now();
   return {
     spec, bench, requested, voidsFilled, shiftedRetries, blend,
+    bounds: {
+      culetClearance: benchBounds("culetClearance", (spec.metalType as MetalType) ?? "platinum"),
+      galleryClearance: benchBounds("galleryClearance", (spec.metalType as MetalType) ?? "platinum"),
+    },
     solidCount: metal.solids.length,
     dropped,
     metalVolume: vol(metal),
@@ -769,8 +805,16 @@ function measureBearing(
   const lower = prong.intersect(below) as Shape3D;
   // Nothing of the prong below girdle − d (a foot ending high in a 2 mm
   // base, S3): the rule has nothing to hold, so the gap is unbounded, not
-  // unmeasured.
-  const pavilionClearance = measureVolume(lower) > 1e-9 ? measureDistanceBetween(lower, stone) : Infinity;
+  // unmeasured. Only where the prong's box agrees that nothing reaches below
+  // the plane, though: an empty common is also how a boolean fails without
+  // throwing, and that stays NaN, a failure (review). The box is the loose
+  // one, so it can only send a real "nothing there" to NaN, never the other
+  // way.
+  const [lo3, hi3] = prong.boundingBox.bounds;
+  const lowest = Math.min(...[0, 1, 2, 3, 4, 5, 6, 7].map((k) =>
+    toHead(frame, [(k & 1 ? hi3 : lo3)[0], (k & 2 ? hi3 : lo3)[1], (k & 4 ? hi3 : lo3)[2]])[2]));
+  const pavilionClearance = measureVolume(lower) > 1e-9 ? measureDistanceBetween(lower, stone)
+    : lowest > cutZ ? Infinity : NaN;
 
   return {
     head, index, notchFloor, postFace, notch: notchFloor - postFace, postWidth,

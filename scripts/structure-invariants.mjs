@@ -53,8 +53,13 @@ const fmt = (x) => (num(x) ? String(+x.toFixed(4)) : String(x));
  * value built, for judging; else the value asked.
  */
 const heldTo = (r, key, asked) => {
+  // Only a hold that lowers the value, and not under the field's own minimum
+  // for the alloy, as the audit read it from the standards (review: the
+  // warning alone was taken on the engine's word).
+  const min = r.bounds?.[key]?.min;
   const w = (r.bench?.warnings ?? []).find((x) => x.key === key && x.kind === "engine-clamped" &&
-    num(x.asked) && num(x.delivered) && Math.abs(x.asked - asked) < 1e-9);
+    num(x.asked) && num(x.delivered) && Math.abs(x.asked - asked) < 1e-9 &&
+    x.delivered < asked - 1e-9 && num(min) && x.delivered >= min - 1e-9);
   return w ? w.delivered : asked;
 };
 
@@ -118,11 +123,15 @@ export const BENCH_MEASURES = {
   filletRadius: (r, v) => {
     const b = r.blend;
     if (!b?.planned) return { ok: false, why: "no blend measured" };
-    const held = (r.bench?.warnings ?? []).some((w) => w.key === "filletRadius" && w.kind === "engine-clamped");
+    // The hold must be reported with both numbers, and no joint may sit under
+    // the least it reports (review: any warning used to cover any joint).
+    const held = (r.bench?.warnings ?? []).find((w) => w.key === "filletRadius" && w.kind === "engine-clamped" &&
+      num(w.asked) && num(w.delivered) && Math.abs(w.asked - v) < 1e-9);
     for (const j of ["feet", "base", "shank"]) {
       const want = b.paths?.[j] === "flare" ? b.flarePlanned?.[j] : b.planned[j], m = b.measured?.[j];
       if (!num(want)) return { ok: false, why: `${j}: no radius laid out` };
       if (want < v - 1e-9 && !held) return { ok: false, why: `${j}: laid out at ${fmt(want)} mm, asked ${fmt(v)}, not reported` };
+      if (want < v - 1e-9 && want < held.delivered - 1e-9) return { ok: false, why: `${j}: laid out at ${fmt(want)} mm, under the ${fmt(held.delivered)} reported` };
       if (want > v + 1e-9) return { ok: false, why: `${j}: laid out at ${fmt(want)} mm, more than the ${fmt(v)} asked` };
       if (!m || !num(m.min) || !num(m.max)) return { ok: false, why: `${j}: ${b.paths?.[j] ?? "no"} blend not measured` };
       if (Math.abs(m.min - want) > 0.02 || Math.abs(m.max - want) > 0.02) {
@@ -406,9 +415,17 @@ export const INVARIANTS = [
       // A prong head whose joint could not be measured fails: a missing
       // number is never a pass (the cause is in result.errors).
       if (!r.joint) return r.prongs.some((p) => p.head === "centre") ? fail("joint not measured") : na("no prong head");
-      const { jointSectionArea: a, prongSectionSum: p } = r.joint;
-      return num(a) && a >= JOINT_AREA_RATIO * p
-        ? pass(`${fmt(a)} vs ${fmt(p)}`) : fail(`joint ${fmt(a)} mm² vs prongs ${fmt(p)} mm²`);
+      const { jointSectionArea: a, prongSectionSum: p, baseSeat, saddleSeat } = r.joint;
+      if (!(num(a) && a >= JOINT_AREA_RATIO * p)) return fail(`joint ${fmt(a)} mm² vs prongs ${fmt(p)} mm²`);
+      // And on a head with a base, both links that carry it (S3, review):
+      // the plane above cuts the base itself, so on its own it shows the base
+      // is big enough, not that the saddle holds it or the band the saddle.
+      // Stricter only.
+      if (r.bases?.some((b) => b.head === "centre")) {
+        if (!(num(baseSeat) && baseSeat >= JOINT_AREA_RATIO * p)) return fail(`base held over ${fmt(baseSeat)} mm² of its saddle vs prongs ${fmt(p)} mm²`);
+        if (!(num(saddleSeat) && saddleSeat >= JOINT_AREA_RATIO * p)) return fail(`saddle held over ${fmt(saddleSeat)} mm² of the band vs prongs ${fmt(p)} mm²`);
+      }
+      return pass(`${fmt(a)} vs ${fmt(p)}; seats ${fmt(baseSeat)}, ${fmt(saddleSeat)}`);
     },
   },
   {
