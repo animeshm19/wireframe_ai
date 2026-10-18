@@ -113,7 +113,7 @@ function fastMatrix() {
   d.push(design({ gemShape: "marquise", prongCount: 4 }));
   for (const gemSize of [0.25, 3]) d.push(design({ gemSize }));
   d.push(design({ ringSize: 4, gemSize: 0.5 }), design({ ringSize: 11, gemSize: 3 }));
-  for (const bandWidth of [1.6, 6]) d.push(design({ bandWidth }));
+  for (const bandWidth of [1.2, 1.6, 6]) d.push(design({ bandWidth }));
   for (const bandProfile of ["flat", "knife"]) d.push(design({ bandProfile }));
   for (const gemShape of ["round", "oval", "marquise"]) d.push(design({ setting: "halo", gemShape }));
   d.push(design({ setting: "cathedral" }), design({ setting: "three_stone" }));
@@ -139,9 +139,18 @@ function fullMatrix() {
       for (const gemSize of [0.25, 1, 3]) d.push(design({ setting, gemShape, gemSize }));
     }
   }
-  for (const bandWidth of [1.4, 1.6, 6, 8]) d.push(design({ bandWidth }));
+  for (const bandWidth of [1.2, 1.4, 1.6, 6, 8]) d.push(design({ bandWidth }));
   for (const bandProfile of ["flat", "knife", "round"]) d.push(design({ bandProfile }));
   for (const shankStyle of ["tapered", "split", "twisted"]) d.push(design({ shankStyle }));
+  // S3: the joint must hold on every band. The narrowest band with each
+  // profile and the split and tapered shanks, and lasso edits under the
+  // head that widen, thin and reshape the band there.
+  for (const bandProfile of ["flat", "knife", "round"]) d.push(design({ bandWidth: 1.2, bandProfile }));
+  for (const shankStyle of ["split", "tapered", "twisted"]) d.push(design({ bandWidth: 1.2, shankStyle }));
+  d.push(design({ regions: [{ start: 1.2, end: 1.95, widthScale: 1.6 }] }));
+  d.push(design({ regions: [{ start: 1.25, end: 1.9, thicknessScale: 0.75 }] }));
+  d.push(design({ regions: [{ start: 1.25, end: 1.9, profile: "flat" }] }));
+  d.push(design({ bandWidth: 1.6, regions: [{ start: 1.2, end: 1.95, widthScale: 0.8 }] }));
   for (const shankStones of ["pave", "half_eternity", "eternity"]) d.push(design({ shankStones }));
   for (const ringSize of [3, 16]) d.push(design({ ringSize }));
   // Bench corners, full set.
@@ -157,6 +166,10 @@ function fullMatrix() {
   for (const base of [{}, { gemShape: "marquise" }, { setting: "halo" }, { setting: "three_stone" }]) {
     for (const which of ["min", "max"]) d.push(cornerAll(base, which));
   }
+  // S3, Animesh's decision on S2's question 25: the all-max corner on a
+  // 0.25 ct and a 3 ct stone, binding, met by size-dependent engine clamps.
+  for (const gemSize of [0.25, 3]) d.push(cornerAll({ gemSize }, "max"));
+  d.push(cornerAll({ gemShape: "marquise", gemSize: 3 }, "max"));
   return d;
 }
 
