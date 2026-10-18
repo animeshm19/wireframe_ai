@@ -951,6 +951,7 @@ export function layoutHead(
           Math.hypot(q[0], q[1], q[2]) >= values.culetClearance + 0.02);
         const ring = (c: V3, rr: number) => Array.from({ length: 24 }, (_, k) => [c[0] + rr * Math.cos((k / 12) * Math.PI), c[1] + rr * Math.sin((k / 12) * Math.PI), c[2]] as V3);
         let column = false;
+        const innerC = roundedPoints({ core: base.core, r: base.rIn }, 0.15), outerC = roundedPoints({ core: base.core, r: base.rOut }, 0.15);
         const footFlare = (fr: number) => laid.every((lr) => {
           const f = lr.spine.points[0], u = unitV(sub(lr.spine.points[1], f));
           const rising = u[2] >= 0.3, uz = rising ? u[2] : 0.3;
@@ -960,7 +961,9 @@ export function layoutHead(
           // Its foot on the base's top, 0.02 mm inside both edges; or, as a
           // column, standing on the plateau clear of the band (0.03 mm over
           // it) wherever it overhangs the base.
-          const onTop = lo.every((q) => polygonDistance(inner, [q[0], q[1]]) >= 0.02 && polygonDistance(outer, [q[0], q[1]]) <= -0.02);
+          const onTop = lo.every((q) => (base!.core.length === 1
+            ? Math.hypot(q[0], q[1]) - base!.rIn >= 0.02 && base!.rOut - Math.hypot(q[0], q[1]) >= 0.02
+            : polygonDistance(innerC, [q[0], q[1]]) >= 0.02 && polygonDistance(outerC, [q[0], q[1]]) <= -0.02));
           const foot = column ? lo.map((q) => [q[0], q[1], base!.plateau] as V3) : [];
           const offBand = foot.every((q) => (band.at(q[0], q[1])?.top ?? -Infinity) <= base!.plateau - 0.04);
           return (column ? offBand : onTop) && clear([...lo, ...hi, ...foot, ...lo.map((q, k) => lerp(q, hi[k], 0.5))]);
@@ -1996,7 +1999,9 @@ function planBase(
     return [crest.along[0] * cx + crest.a[0] * cy, crest.along[1] * cx + crest.a[1] * cy] as V2;
   });
   const crestHeld = (sigma: number) => {
-    const inner = roundedPoints(outline(sigma, rIn), 0.05);
+    const o = outline(sigma, rIn);
+    if (o.core.length === 1) return crestRing.every((q) => Math.hypot(q[0], q[1]) - o.r <= -(blend.base + 0.05));
+    const inner = roundedPoints(o, 0.15);
     return crestRing.every((q) => polygonDistance(inner, q) <= -(blend.base + 0.05));
   };
 
@@ -2008,11 +2013,13 @@ function planBase(
       gap = Math.min(gap, facesDistance(q, faces));
       culet = Math.min(culet, Math.hypot(q[0], q[1], q[2]));
     };
-    for (const [x, y] of roundedPoints(outline(sigma, rIn), 0.15)) {
-      for (let z = h.plateau; z <= h.zTop + 1e-9; z += Math.max(0.05, (h.zTop - h.plateau) / 4)) test([x, y, z]);
+    // Every 0.25 mm round, at four heights up the inner wall: the stone's
+    // faces are planes, so the gap between samples cannot dip far.
+    for (const [x, y] of roundedPoints(outline(sigma, rIn), 0.25)) {
+      for (let z = h.plateau; z <= h.zTop + 1e-9; z += Math.max(0.05, (h.zTop - h.plateau) / 3)) test([x, y, z]);
       test([x, y, h.zTop]);
     }
-    for (const [x, y] of roundedPoints(outline(sigma, rOut), 0.15)) test([x, y, h.zTop]);
+    for (const [x, y] of roundedPoints(outline(sigma, rOut), 0.25)) test([x, y, h.zTop]);
     return { gap, culet };
   };
 
@@ -2045,14 +2052,18 @@ function planBase(
       : baseCore,
     r: plateR,
   });
+  // Halved to 0.02 mm (the band only falls away along it); its outline
+  // probed every 0.25 mm.
+  const tooHigh = (e: number) => roundedPoints(drawnOut(e), 0.25).some(([x, y]) => {
+    const bt = band.at(x, y);
+    return !!bt && bt.top > h.plateau - blend.shank - 0.1;
+  });
   let plate = drawnOut(0);
-  for (let e = 0; e <= 4 + 1e-9; e += 0.1) {
-    plate = drawnOut(e);
-    const tooHigh = roundedPoints(plate, 0.1).some(([x, y]) => {
-      const bt = band.at(x, y);
-      return !!bt && bt.top > h.plateau - blend.shank - 0.1;
-    });
-    if (!tooHigh) break;
+  if (tooHigh(0)) {
+    let lo = 0, hi = 4;
+    if (tooHigh(hi)) lo = hi;
+    else while (hi - lo > 0.02) { const md = (lo + hi) / 2; if (tooHigh(md)) lo = md; else hi = md; }
+    plate = drawnOut(hi);
   }
 
   // The saddle's bottom: halfway down through the band on the axis, never
@@ -2091,8 +2102,13 @@ function baseFootFillet(base: BasePlan, inner: V2[], outer: V2[], points: V3[], 
   return Math.min(g.roomOut / g.cotOut, g.roomIn / g.cotIn);
 }
 
-/** Where a foot's run comes up through the base's top, the room either side of its footprint, and its fillet's reach per unit radius either side. */
-function footGeometry(base: BasePlan, inner: V2[], outer: V2[], f: V3, u: V3, half: number) {
+/**
+ * Where a foot's run comes up through the base's top, the room either side
+ * of its footprint, and its fillet's reach per unit radius either side.
+ * `rooms` false leaves the rooms out (the dearest part: the layout's search
+ * asks only where the balance point is, many times a head).
+ */
+function footGeometry(base: BasePlan, inner: V2[], outer: V2[], f: V3, u: V3, half: number, rooms = true) {
   const E = add(f, scale(u, (base.zTop - f[2]) / u[2]));
   const rE = Math.hypot(E[0], E[1]), a = Math.atan2(E[1], E[0]);
   const reach = half / u[2] + 0.02;
@@ -2108,11 +2124,15 @@ function footGeometry(base: BasePlan, inner: V2[], outer: V2[], f: V3, u: V3, ha
   // edges not used twice where its tip feet's fillets ran off the top, S3).
   const er: V2 = rE > 1e-9 ? [E[0] / rE, E[1] / rE] : [1, 0], et: V2 = [-er[1], er[0]];
   let roomIn = Infinity, roomOut = Infinity;
-  for (let k = 0; k < 24; k++) {
+  // A round base's edges are circles round the axis: exact, and cheap.
+  const round = base.core.length === 1;
+  const dIn = (q: V2) => (round ? Math.hypot(q[0] - base.core[0][0], q[1] - base.core[0][1]) - base.rIn : polygonDistance(inner, q));
+  const dOut = (q: V2) => (round ? base.rOut - Math.hypot(q[0] - base.core[0][0], q[1] - base.core[0][1]) : -polygonDistance(outer, q));
+  for (let k = 0; rooms && k < 24; k++) {
     const c = Math.cos((k / 12) * Math.PI), sn = Math.sin((k / 12) * Math.PI);
     const q: V2 = [E[0] + er[0] * reach * c + et[0] * (half + 0.02) * sn, E[1] + er[1] * reach * c + et[1] * (half + 0.02) * sn];
-    roomIn = Math.min(roomIn, polygonDistance(inner, q));
-    roomOut = Math.min(roomOut, -polygonDistance(outer, q));
+    roomIn = Math.min(roomIn, dIn(q));
+    roomOut = Math.min(roomOut, dOut(q));
   }
   return {
     rE, inE, outE, reach, roomIn, roomOut,
@@ -2214,7 +2234,7 @@ function layoutLeg(
   const entryOffset = (points: V3[]) => {
     const f = points[0], u = unitV(sub(points[1], f));
     if (u[2] < 0.3) return 0;
-    const g = footGeometry(base!, baseInner, baseOuter, f, u, half);
+    const g = footGeometry(base!, baseInner, baseOuter, f, u, half, false);
     const best = (g.cotOut * (g.inE + g.reach) + g.cotIn * (g.outE - g.reach)) / (g.cotOut + g.cotIn);
     return g.rE - best;
   };
