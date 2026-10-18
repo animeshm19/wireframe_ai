@@ -93,6 +93,27 @@ export const BENCH_MEASURES = {
     const want = b.expected.zT + v;
     return { ok: num(b.top) && Math.abs(b.top - want) <= 0.05, why: `top ${fmt(b.top)} mm above the culet, wants ${fmt(want)} ± 0.05` };
   }),
+  // S3. Each joint of the centre head as built: filleted, its fillet faces'
+  // radius; flared, the flare's added radius; either way the radius the
+  // layout gave that joint ± 0.02. That is v itself unless the engine held
+  // it to what the parts could take and said so (an engine clamp reported
+  // with the value asked and the value built).
+  filletRadius: (r, v) => {
+    const b = r.blend;
+    if (!b?.planned) return { ok: false, why: "no blend measured" };
+    const held = (r.bench?.warnings ?? []).some((w) => w.key === "filletRadius" && w.kind === "engine-clamped");
+    for (const j of ["feet", "base", "shank"]) {
+      const want = b.paths?.[j] === "flare" ? b.flarePlanned?.[j] : b.planned[j], m = b.measured?.[j];
+      if (!num(want)) return { ok: false, why: `${j}: no radius laid out` };
+      if (want < v - 1e-9 && !held) return { ok: false, why: `${j}: laid out at ${fmt(want)} mm, asked ${fmt(v)}, not reported` };
+      if (want > v + 1e-9) return { ok: false, why: `${j}: laid out at ${fmt(want)} mm, more than the ${fmt(v)} asked` };
+      if (!m || !num(m.min) || !num(m.max)) return { ok: false, why: `${j}: ${b.paths?.[j] ?? "no"} blend not measured` };
+      if (Math.abs(m.min - want) > 0.02 || Math.abs(m.max - want) > 0.02) {
+        return { ok: false, why: `${j}: ${b.paths[j]} radius ${fmt(m.min)} to ${fmt(m.max)} mm, wants ${fmt(want)} ± 0.02` };
+      }
+    }
+    return { ok: true, why: "" };
+  },
   // S2
   galleryClearance: (r, v) => {
     const g = r.galleries.find((x) => x.head === "centre");
@@ -322,6 +343,17 @@ export const INVARIANTS = [
         { ok: num(p.inBase) && p.inBase > 0.02, why: `${p.head} prong ${p.index} in base ${fmt(p.inBase)} mm³` },
         { ok: num(p.inBand) && p.inBand <= 1e-6, why: `${p.head} prong ${p.index} in band ${fmt(p.inBand)} mm³` },
       ]));
+    },
+  },
+  {
+    id: "I14",
+    title: "every joint of the centre head blended, by fillet or by flare",
+    requiredFrom: (spec) => (prongHead(spec) ? "S3" : null),
+    evaluate: (r) => {
+      if (!(r.bases ?? []).some((b) => b.head === "centre")) return r.prongs.some((p) => p.head === "centre") ? fail("no base") : na("no prong head");
+      const paths = r.blend?.paths ?? {};
+      const bad = ["feet", "base", "shank"].filter((j) => paths[j] !== "fillet" && paths[j] !== "flare");
+      return bad.length ? fail(`no blend at ${bad.join(", ")}`) : pass(["feet", "base", "shank"].map((j) => `${j} ${paths[j]}`).join(", "));
     },
   },
   {

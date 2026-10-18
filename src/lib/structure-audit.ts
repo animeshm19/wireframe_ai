@@ -24,11 +24,11 @@ import {
   type Shape3D, type AnyShape,
 } from "replicad";
 import {
-  buildRingParts, fuseMetal, toSTEP, toSTL,
-  type PartRole, type StoneRole, type HeadFrame, type HeadName,
+  buildRingParts, resolveRing, toSTEP, toSTL, BLEND_JOINTS,
+  type PartRole, type StoneRole, type HeadFrame, type HeadName, type BlendJoint, type BlendPath,
 } from "./cad-engine-brep.js";
 import { gemDims } from "./cad-engine.js";
-import { radialHit } from "./head-layout.js";
+import { polygonDistance, radialHit, roundedPoints } from "./head-layout.js";
 import { benchBounds, resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
@@ -154,6 +154,24 @@ export type BaseAudit = {
   touchesGallery: boolean;
 };
 
+/**
+ * The centre head's blends (S3): which path each joint took, and what the
+ * merged metal shows of it. A filleted joint's radius is read off its fillet
+ * faces (a cylinder's or torus's own radius; any other surface, the circle
+ * through three points across it); a flared one's off the flare built.
+ */
+export type BlendAudit = {
+  paths: Partial<Record<BlendJoint, BlendPath>>;
+  /** Joints whose fillet failed its check, and why, before their flare was built. */
+  failed: { joint: BlendJoint; why: string }[];
+  /** The radius each joint was laid out with (filletRadius, held to what the parts can take). */
+  planned: Record<BlendJoint, number> | null;
+  /** The radius each joint's flare is built at, if flared. */
+  flarePlanned: Record<BlendJoint, number> | null;
+  /** Measured, per joint: the least and greatest fillet radius in its sections, or the flare's added radius, and how many were read. */
+  measured: Partial<Record<BlendJoint, { min: number; max: number; faces: number }>>;
+};
+
 export type StructureAudit = {
   spec: Record<string, unknown>;
   /** The centre head's values as built: resolveBench, then any engine clamp. */
@@ -164,6 +182,7 @@ export type StructureAudit = {
   voidsFilled: number;
   /** Fuses OCCT got wrong that a retry 0.001 mm over got right (see fuseMetal). */
   shiftedRetries: number;
+  blend: BlendAudit;
   solidCount: number;
   dropped: number;
   metalVolume: number;
@@ -258,9 +277,11 @@ export async function auditStructure(
 ): Promise<StructureAudit> {
   const errors: string[] = [];
   const t0 = performance.now();
-  const fused = buildRingParts(spec, { seats: true });
+  // The merge as the app makes it: fused, and the head's joints blended (S3).
+  const resolved = resolveRing(spec);
+  const fused = resolved.parts;
   const t1 = performance.now();
-  const { metal, dropped, voidsFilled, shiftedRetries } = fuseMetal(fused.metalParts);
+  const { metal, dropped, voidsFilled, shiftedRetries } = resolved;
   const t2 = performance.now();
 
   // The files first, straight off the fuse, as the app exports them: every
@@ -563,9 +584,26 @@ export async function auditStructure(
     }
   }
 
+  // ------------------------------------------------------------- blends --
+  const plan = centreFrame.layout.base;
+  const measured: BlendAudit["measured"] = {};
+  for (const j of BLEND_JOINTS) {
+    if (resolved.blend.paths[j] === "fillet") {
+      const radii = filletSections(j, metal, centreFrame, errors).filter((x) => Number.isFinite(x));
+      measured[j] = { min: Math.min(...radii), max: Math.max(...radii), faces: radii.length };
+    } else if (resolved.blend.paths[j] === "flare" && plan) {
+      const r = flareRadius(j, resolved.blend.flares[j] ?? [], centreFrame, errors);
+      measured[j] = { min: Math.min(...r), max: Math.max(...r), faces: r.length };
+    }
+  }
+  const blend: BlendAudit = {
+    paths: resolved.blend.paths, failed: resolved.blend.failed,
+    planned: plan ? plan.blend : null, flarePlanned: plan ? plan.flare : null, measured,
+  };
+
   const t3 = performance.now();
   return {
-    spec, bench, requested, voidsFilled, shiftedRetries,
+    spec, bench, requested, voidsFilled, shiftedRetries, blend,
     solidCount: metal.solids.length,
     dropped,
     metalVolume: vol(metal),
@@ -727,4 +765,180 @@ function measureBearing(
     stoneEdge, seatGap: notchFloor - stoneEdge, top, pavilionClearance,
     expected: expectedFor(frame, plan, asked),
   };
+}
+
+// --------------------------------------------------------------- blends --
+
+/**
+ * A filleted joint's radius, as a section through it shows it: the merged
+ * metal cut by planes square to the joint, and in each section the curve
+ * that runs from one part's surface to the other's, the circle through its
+ * two ends and middle. On a fillet that is the rolling ball's own circle.
+ * (Read off the faces instead, OCCT's B-spline fillet patches where a
+ * fillet runs past another feature read anywhere from 0.001 to 400 mm.)
+ *   feet   per prong, the plane holding its run into the base and the head's
+ *          axis: from the base's top (or a wall) to the prong's surface;
+ *   base   the plane through the axis between prong 0 and prong 1: from the
+ *          plateau to the base's inner and outer walls;
+ *   shank  the planes through the axis across and along the finger: from
+ *          the saddle's wall or underside to the band.
+ */
+function filletSections(joint: BlendJoint, metal: Shape3D, frame: HeadFrame, errors: string[]): number[] {
+  const b = frame.layout.base!;
+  const T = 3e-3;
+  const plateOut = densePoly(b.plate.core, b.plate.r), wallIn = densePoly(b.core, b.rIn), wallOut = densePoly(b.core, b.rOut);
+  const onPoly = (poly: [number, number][], p: V3) => Math.abs(polyDistance(poly, [p[0], p[1]])) < T;
+  const radiusOf = (a: V3, m: V3, c: V3) => {
+    const ab = Math.hypot(...add(m, a, -1)), bc = Math.hypot(...add(c, m, -1)), ca = Math.hypot(...add(a, c, -1));
+    const area = Math.hypot(...cross(add(m, a, -1), add(c, a, -1))) / 2;
+    return area > 1e-12 ? (ab * bc * ca) / (4 * area) : Infinity;
+  };
+  // The section of the metal by the plane through `at` (head frame) square
+  // to `normal`, its curves as [start, middle, end] in the head's frame.
+  const section = (at: V3, normal: V3) => {
+    const R = frame.girdleR * 3;
+    const disc = makeFace(assembleWire([makeCircle(R, toRing(frame, at), dirToRing(frame, normal))]));
+    const cut = metal.intersect(disc as unknown as Shape3D);
+    return cut.edges.map((e) => {
+      const at = (t: number) => { const v = e.pointAt(t); return toHead(frame, [v.x, v.y, v.z]); };
+      return Object.assign([at(0), at(0.5), at(1)] as [V3, V3, V3], { at, len: e.length });
+    });
+  };
+  const out: number[] = [];
+  try {
+    if (joint === "feet") {
+      for (const p of frame.layout.prongs) {
+        const F = p.spine!.points[0], u = unit(add(p.spine!.points[1], F, -1));
+        const E = add(F, u, (b.zTop - F[2]) / u[2]);
+        let n = cross(u, [0, 0, 1]);
+        if (Math.hypot(...n) < 1e-6) n = [-E[1], E[0], 0];
+        const half = p.d / 2;
+        const onProng = (q: V3) => {
+          const w = add(q, F, -1), t = dot(w, u);
+          return Math.abs(Math.hypot(...add(w, u, -t)) - half) < T;
+        };
+        const onBase = (q: V3) => Math.abs(q[2] - b.zTop) < T || onPoly(wallIn, q) || onPoly(wallOut, q);
+        for (const [a, m, c] of section(E, unit(n))) {
+          if (Math.hypot(...add(m, E, -1)) > 3 * b.blend.feet + p.d) continue;
+          if ((onBase(a) && onProng(c)) || (onBase(c) && onProng(a))) out.push(radiusOf(a, m, c));
+        }
+      }
+    } else if (joint === "base") {
+      // Square to each wall, where the ray between prong 0 and prong 1
+      // meets it: on a straight side, a plane through the axis at a slant
+      // to the wall cuts the fillet in an ellipse and reads it large.
+      const n = frame.prongAngles.length;
+      const ang = n >= 2 ? (frame.prongAngles[0] + frame.prongAngles[1]) / 2 : 0;
+      const onPlate = (q: V3) => Math.abs(q[2] - b.plateau) < T;
+      for (const wall of [wallIn, wallOut]) {
+        const hit = rayOnPoly(wall, ang);
+        const at: V3 = [hit.p[0], hit.p[1], b.plateau];
+        for (const [a, m, c] of section(at, [hit.t[0], hit.t[1], 0])) {
+          if (Math.hypot(a[0] - at[0], a[1] - at[1]) > 3 * b.blend.base && Math.hypot(c[0] - at[0], c[1] - at[1]) > 3 * b.blend.base) continue;
+          if ((onPlate(a) && onPoly(wall, c)) || (onPlate(c) && onPoly(wall, a))) out.push(radiusOf(a, m, c));
+        }
+      }
+    } else {
+      // On the saddle's wall only: its underside meeting the band is not
+      // filleted (see jointEdges), and a curve off it is the band's flank.
+      const onSaddle = (q: V3) => onPoly(plateOut, q) && q[2] <= b.plateau + T && q[2] > b.saddleBottom + T;
+      for (const n of [[0, 1, 0], [1, 0, 0]] as V3[]) {
+        for (const curve of section([0, 0, 0], n)) {
+          // One end on the saddle's wall or underside, the other off the
+          // saddle and below its plateau: on the band. The curve can carry
+          // on past the fillet down the band's flank as one edge, so the
+          // radius is the curve's own where it leaves the saddle: the circle
+          // through the end and the points a fifth and two fifths of the
+          // fillet's quarter turn along (taken from the edge's length).
+          const [a, , c] = curve;
+          const off = (q: V3) => !onSaddle(q) && q[2] < b.plateau - T;
+          const fromA = onSaddle(a) && off(c), fromC = onSaddle(c) && off(a);
+          if (!fromA && !fromC) continue;
+          const step = Math.min(0.2, (0.2 * Math.PI * b.blend.shank) / 2 / Math.max(1e-9, curve.len));
+          const t0 = fromA ? 0 : 1, sgn = fromA ? 1 : -1;
+          out.push(radiusOf(curve.at(t0), curve.at(t0 + sgn * step), curve.at(t0 + 2 * sgn * step)));
+        }
+      }
+    }
+  } catch (e) {
+    errors.push(`${joint} fillet section threw ${(e as Error)?.message ?? e}`);
+  }
+  return out;
+}
+
+/** A rounded outline's length round. */
+function platePerimeter(o: { core: [number, number][]; r: number }): number {
+  const K = o.core;
+  let per = 2 * Math.PI * o.r;
+  if (K.length > 1) for (let i = 0; i < K.length; i++) per += Math.hypot(K[(i + 1) % K.length][0] - K[i][0], K[(i + 1) % K.length][1] - K[i][1]);
+  return per;
+}
+
+/** Where a ray from the axis at angle a crosses a closed polygon, and the polygon's unit direction there. */
+function rayOnPoly(poly: [number, number][], a: number): { p: [number, number]; t: [number, number] } {
+  const h = radialHit(poly, a);
+  const p0 = poly[h.edge], p1 = poly[(h.edge + 1) % poly.length];
+  const L = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+  return { p: [h.r * Math.cos(a), h.r * Math.sin(a)], t: [(p1[0] - p0[0]) / L, (p1[1] - p0[1]) / L] };
+}
+
+/** A rounded outline (head-layout's Rounded), sampled every 0.01 mm. */
+function densePoly(core: [number, number][], r: number): [number, number][] {
+  return roundedPoints({ core, r }, 0.01);
+}
+const polyDistance = (poly: [number, number][], q: [number, number]) => polygonDistance(poly, q);
+/** A head-frame direction in the ring's frame. */
+function dirToRing(frame: HeadFrame, d: V3): V3 {
+  const y = cross(frame.axis, frame.xDir);
+  return add(add(frame.xDir.map((x) => x * d[0]) as V3, y, d[1]), frame.axis, d[2]);
+}
+
+/**
+ * A flared joint's added radius, read off the flare solids the merge fused
+ * in (S3's fallback):
+ *   feet   each flared foot's section at its foot, its radius less the
+ *          prong's footprint on the base's top;
+ *   base   the base flare's section 0.002 mm over the plateau: its area less
+ *          the base ring's, over the two walls' length;
+ *   shank  the skirt's section at its foot, less the plate's own area, over
+ *          the plate's outline.
+ */
+function flareRadius(joint: BlendJoint, flares: Shape3D[], frame: HeadFrame, errors: string[]): number[] {
+  const b = frame.layout.base!;
+  const sectionArea = (part: Shape3D, at: V3, normal: V3, R: number) => {
+    const disc = makeFace(assembleWire([makeCircle(R, at, normal)]));
+    return measureArea(part.intersect(disc as unknown as Shape3D) as Shape3D);
+  };
+  const area = (core: [number, number][], r: number) => {
+    if (core.length === 1) return Math.PI * r * r;
+    let a = 0;
+    for (let i = 0; i < core.length; i++) a += core[i][0] * core[(i + 1) % core.length][1] - core[(i + 1) % core.length][0] * core[i][1];
+    return Math.abs(a) / 2 + platePerimeter({ core, r: 0 }) * r + Math.PI * r * r;
+  };
+  try {
+    if (joint === "feet") {
+      // The flare's section just over the base's top, its radius less the
+      // prong's footprint there (its radius over the leg's lean).
+      return frame.layout.prongs.map((p, k) => {
+        const F = p.spine!.points[0], u = unit(add(p.spine!.points[1], F, -1));
+        const uz = Math.max(0.3, u[2]);
+        const E = add(F, u, (b.zTop - F[2]) / uz);
+        // Just under the base's top (see flaredFoot), where it is its full
+        // width: higher, it has already narrowed by its taper.
+        const z = b.zTop - 0.019;
+        return Math.sqrt(sectionArea(flares[k], toRing(frame, [E[0], E[1], z]), frame.axis, 3) / Math.PI) - p.d / 2 / uz;
+      });
+    }
+    if (joint === "base") {
+      const A = sectionArea(flares[0], toRing(frame, [0, 0, b.plateau + 0.002]), frame.axis, 20);
+      const ring = area(b.core, b.rOut) - area(b.core, b.rIn);
+      return [(A - ring) / (platePerimeter({ core: b.core, r: b.rOut }) + platePerimeter({ core: b.core, r: b.rIn }))];
+    }
+    const zLow = Math.max(b.saddleBottom, b.bandUnderEdge - 0.05);
+    const A = sectionArea(flares[0], toRing(frame, [0, 0, zLow + 0.002]), frame.axis, 20);
+    return [(A - area(b.plate.core, b.plate.r)) / platePerimeter(b.plate)];
+  } catch (e) {
+    errors.push(`${joint} flare section threw ${(e as Error)?.message ?? e}`);
+    return [NaN];
+  }
 }
