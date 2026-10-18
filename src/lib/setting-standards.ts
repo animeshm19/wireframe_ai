@@ -134,7 +134,8 @@ export type BenchCtx = { alloy: MetalType; girdleR: number; pavH: number };
 
 export type BenchGroup = "Seat" | "Prongs" | "Gallery" | "Clearances" | "Finishing";
 export type BenchUnit =
-  | "mm" | "mm above table" | "% of prong" | "× prong diameter" | "fraction of crown height";
+  | "mm" | "mm above table" | "% of prong" | "× prong diameter" | "fraction of crown height"
+  | "fraction of girdle radius";
 export type BenchStatus = "sourced default" | "sourced range, our point value" | "our default";
 export type BenchStage = "S1" | "S2" | "S3" | "S4" | "S6";
 
@@ -279,6 +280,18 @@ export const BENCH_FIELDS = [
     source: "https://www.ganoksin.com/article/cad-modeling-prong-settings/",
     status: "sourced default",
     wiredIn: "S2",
+    appliesTo: PRONG_HEADS,
+  },
+  {
+    key: "basketTaper",
+    label: "How far the prongs lean in under the stone",
+    help: "Where the prongs end under the stone, as a share of the stone's radius in each prong's direction. Smaller draws them in to a narrow basket that lets in more light and uses less metal; larger keeps them wide, a broader footing on the band.",
+    group: "Prongs",
+    unit: "fraction of girdle radius",
+    default: 0.60, min: 0.45, max: 0.90, step: 0.05,
+    source: "UNSOURCED, our default (an open-source jewellery CAD reference is said to use 55 to 70% for tulip heads; not verified)",
+    status: "our default",
+    wiredIn: "S3",
     appliesTo: PRONG_HEADS,
   },
   {

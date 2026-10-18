@@ -172,6 +172,8 @@ test("bench fields match the S0 table exactly", () => {
     asCastProngHeight: ["mm above table", 2.0, 0.75, 5.0, [0.75, 5.0], "sourced range, our point value", "S1", "Prongs"],
     galleryClearance:  ["mm", 0.25, 0.10, 0.60, [0.20, 0.30], "sourced range, our point value", "S2", "Gallery"],
     galleryThickness:  ["mm", "auto", "minWall", 2.0, undefined, "sourced default", "S2", "Gallery"],
+    // Added in S3b: where the prongs end under the stone (the S3b prompt's row).
+    basketTaper:       ["fraction of girdle radius", 0.60, 0.45, 0.90, undefined, "our default", "S3", "Prongs"],
     filletRadius:      ["mm", 0.30, 0.10, 0.80, undefined, "our default", "S3", "Finishing"],
     setTipHeight:      ["fraction of crown height", 0.5, 0.3, 0.8, undefined, "sourced default", "S4", "Prongs"],
     minBendRadius:     ["× prong diameter", 1.0, 0.5, 3.0, undefined, "our default", "S4", "Prongs"],
