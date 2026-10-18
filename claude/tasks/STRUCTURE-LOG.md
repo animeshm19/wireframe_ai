@@ -111,7 +111,6 @@ From `PROVISIONAL_INPUTS` (every bench field that is not a sourced default). Eac
 
 **Status 2026-10-07: still open.** Animesh will put questions 1–9 to the setter and caster later. Until answered, the defaults stand as provisional and must not be presented as verified. Every later prompt keeps this list and carries it into its report.
 
-
 1. **bearingDepth 40% of prong** (published 30–50%). Which depth does your setter cut?
 2. **seatTolerance 0.05 mm.** Unsourced. How much room around the girdle do you want in a cast seat?
 3. **culetClearance 0.30 mm.** Unsourced. Minimum gap you want under the culet?
@@ -133,6 +132,8 @@ For Animesh (decisions, not bench questions):
 14. **Joint section (I7, for S3).** The disc is the prompt's (girdleR × 1.2 round the centre axis), so on a three-stone it also cuts the side heads and on a cathedral the struts: 1 ct round reads 3.89 mm² as a prong ring, 6.54 as a three-stone, 6.78 as a cathedral, with the same centre head. A cathedral at 0.25 ct passes I7 on its struts alone. S3, which builds the base, should decide whether the joint is "metal under the centre head" or "the centre head's own metal".
 
     **Decided by S3 (2026-10-18), for Animesh to confirm:** the centre head's own metal. I7 is read on the prompt's plane within the centre head's saddle plate, and also needs the head's two links (base on saddle, saddle on band) each to hold the prong sum. See "Assertions changed".
+
+    **Decided 2026-10-18 (confirmed).** I7 measures the centre head's own metal, within its plate, plus the two seat links (base on saddle, saddle on band), each holding the prong sum.
 15. **Joint prong sum before S1 (I7).** It uses the effective prongDiameter, clamped to the alloy floor (0.80 mm), while until S1 wires the field the engine builds the raw formula (0.744 mm at 0.25 ct). This errs strict: the 0.25 ct rows read I7 FAIL at a true ratio of about 1.12. It is resolved when S1 makes the built prong the effective one.
 16. **Pavé culets clear their seat floors by 0.01 mm**, and on a full eternity band one accent sits under the head with its culet 0.44 mm inside the metal (I3c, S6).
 
@@ -182,18 +183,37 @@ For Animesh (decisions, not bench questions):
     - 127 of the holds are at the default 0.30; **38 deliver less than 0.10**, the field's own minimum; the lowest is **0.044** (the 0.25 ct round all-max row, asked 0.8), then 0.050 (emerald 0.25 ct, 8 prongs).
 
     The choice: keep the head compact and accept small foot fillets (as built), or give the feet a full fillet by a wider base top or thicker feet, which makes the head heavier and taller-looking. **Please decide.** A setter's view on the smallest foot fillet that casts cleanly would settle it (it is also setter question 8).
+
+    **Decided 2026-10-18 (compact, with a floor).** The foot fillet may stay below the asked filletRadius but is never delivered below 0.10 mm, the field's own minimum. Where a fillet of at least 0.10 cannot be made, that foot takes the designed flare instead. Every hold is reported as `engine-clamped` with asked and delivered. The real minimum is setter question 8 and stays provisional.
 30. **The saddle is wider than a narrow band (S3).** The saddle is a solid prism under the base, as wide as the base needs. On a 1.2–1.6 mm band it overhangs the band each side, seen in `width-1.6-front.png` and slice B. It is one solid, fused and blended to the band, and I7's saddle seat holds (lowest 1.61× the prong sum). It is a look a customer will see. Please confirm, or ask for a saddle that narrows to the band.
+
+    **Decided 2026-10-18 (rejected).** The saddle must taper into the band: nothing wider than the band at the band (S3b).
 31. **The saddle's underside is not filleted where it meets the band's flank (S3).** Where the saddle overhangs a band narrower than the head, its underside meets the band's flank. There the band turns under into its bore within a fillet's reach. OCCT either failed to fillet it (one side of a 1.2 mm band) or took two minutes to try, so that corner stays as cast. The saddle's wall to the band's top is filleted. For the caster's view.
+
+    **Decided 2026-10-18 (superseded by q. 30).** Once the joint is flush with the band's flanks the corner should not exist; any concave corner left must be filleted or flared, none left sharp.
 32. **A narrow stone set across the band can have the band's crest run under the base ring (S3).** Normally the crest is held inside the base's opening. On a 0.25 ct marquise holding it took the opening to 0.85 of the girdle and the legs out past the pavilion, so the layout lets the crest run under the ring and flares the base's inner joint where its fillet fails. The audit does not yet count how many designs take this; S4 should.
+
+    **Decided 2026-10-18 (accepted).** The audit counts it and names the designs (S3b).
 33. **Kicked legs (q. 26) at S3:** 90 legs on 30 designs: marquise 23 designs, pear 3, emerald 2, cushion 1, princess 1. The most are on 0.25 ct marquises (6 per head). All are reported. The base did not remove them, because a leg still has to pass the pavilion before it reaches the base.
+
+    **Decided 2026-10-18 (accepted, as q. 26).** Keep reporting the count.
 34. **Flare columns and prongs in the saddle (S3).** Where a foot comes up over the base top's edge and no flare fits on the top, the flare stands as a column from the plateau beside the base.
     - **60 designs** have one: marquise 21, princess 13, pear 8, emerald 6, oval 6, round 6.
     - On these the column carries the prong into the saddle: **348 centre prongs** touch it, by 0.010–0.072 mm³ each (`inBridge`).
     - I6 (not in the band) still holds on all of them.
     - Recorded, not judged. Please confirm it is acceptable.
+
+    **Decided 2026-10-18 (provisionally accepted).** Recount after S3b's reshape; the goal is fewer; report before and after.
 35. **Culet against gallery gap on the small all-max row (S3).** On the 0.25 ct round all-max row, more culet gap leaves less room for the gallery gap. The engine gives the culet the most that still hides the gallery, in 0.05 steps: culet 1.35 (asked 1.5), then the gallery gap 0.353 (asked 0.6). The other order (gallery first) would give a smaller culet. Please confirm the order.
+
+    **Decided 2026-10-18 (confirmed).** The culet has priority: it is the stone's most fragile point.
 36. **Fillets are read at sections, not all round (S3).** The audit reads each fillet's radius at a set of sections (each foot, eight places round the saddle's wall). It does not check that a fillet runs unbroken all the way round a joint, so a partial fillet could pass I14. Likewise a flare's radius is measured on the flare solid before the fuse, not on the merged metal. For S5 or S7.
+
+    **Decided 2026-10-18 (agreed).** Becomes a check in S7, not before.
+
 37. **`meshOpen` is stricter than I8 (S3, finding).** After the fuse the engine meshes the metal at the export's 0.01 mm, welds vertices at 1e-5 mm, and flares joints in turn until that mesh is closed. On 9 designs it never closes (`meshOpen`: oval 3 ct on every setting, 0.25 ct cushion on 8 prongs, pavilionClearance 0.1), so every joint is flared. Measured on `{"bench":{"pavilionClearance":0.1}}`: the 1e-5 weld collapses 2 of 20066 triangles; the exported STL keeps them distinct, with non-zero area, and I8 passes (0 edges not used twice, 0 zero-area, 1 component). So the flag is a false alarm against I8, and those 9 designs carry flares where fillets may have served. Not changed in S3: a triangle that thin may still trouble a slicer. To decide with the caster (S7).
+
+    **Decided 2026-10-18 (agreed).** Decided with the caster in S7, not before.
 
 ## Progress
 
@@ -288,3 +308,14 @@ Status: see `claude/tasks/S3.md`. Start `9f0399c`; commits `ab3c48d`..HEAD.
   - compare against `structure-audit-s3` (full);
   - mind the 15.6 ms of preview headroom;
   - count the crest-under-ring fallback (q. 32).
+
+### S3b decisions — 2026-10-18
+
+Animesh's answers to S3's questions, recorded before S3b started (each is also written under its question above):
+- **Q14 confirmed:** I7 is the centre head's own metal within its plate, plus both seat links.
+- **Q29 compact, with a floor:** foot fillets may be held below filletRadius, never below 0.10 mm; below that the foot is flared; every hold reported with asked and delivered.
+- **Q30 rejected:** the saddle tapers into the band (S3b). **Q31** superseded: no concave corner left sharp.
+- **Q32 accepted,** counted and named by the audit. **Q33 accepted** (q. 26). **Q34 provisionally accepted,** recounted after the reshape.
+- **Q35 confirmed:** culet before gallery gap. **Q36, Q37:** S7.
+
+Setter / caster questions 1–9 are still open; the bench defaults stay provisional.
