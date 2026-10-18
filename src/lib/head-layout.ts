@@ -1833,16 +1833,18 @@ function turningCorners(P: V2[]): V2[] {
  * stone the gallery already sits a few tenths of a millimetre above the
  * culet.
  *
- * The saddle is the joint (architecture C in the S3 prompt: a saddle,
- * hollow in the middle). A solid lofted from inside the band up to a flat
- * plateau 0.15 mm above the band's highest point under the head, wide enough
- * there to carry the whole base, narrowing on the way down to what the band
- * can hold: on a 1.2 mm band it is a seat four times the band's width that
- * the band rises into, on an 8 mm band nearly a straight-sided block. The
- * base is sunk 0.1 mm into its plateau, so the two fuse with real overlap.
- * Its middle is open, down through to the band: under the culet the nearest
- * metal is still the band's own top, culetClearance away, as S1 set it, and
- * light reaches the pavilion from below as well as through the basket.
+ * The saddle is the joint (architecture C in the S3 prompt: a saddle of its
+ * own, fused to the band, rather than the band's section). It is a solid
+ * prism: the plate's outline (the base's grown by at least SADDLE_MARGIN and
+ * drawn out along the band) extruded from inside the band up to a flat
+ * plateau PLATEAU_DROP under the band's highest point under the head, so the
+ * band's crest rises through it. The base is sunk BASE_SINK into the
+ * plateau, so the two fuse with real overlap. On a 1.2 mm band the plate is
+ * several times the band's width and overhangs it; on an 8 mm band it ends
+ * inside the band's width. Nothing of it stands above the band's top but the
+ * base, whose middle is open: under the culet the nearest metal is still the
+ * band's own top, culetClearance away, as S1 set it, and light reaches the
+ * pavilion through the basket between the base and the girdle.
  *
  * Why a separate saddle rather than the shank's own section widened under
  * the head (architecture A): the shank is a single exact revolve on most
@@ -1923,9 +1925,9 @@ function bandTopAmong(band: BandProbe, pts: V2[]): number {
 const BASE_SINK = 0.1;          // how far the base sits into the saddle's plateau
 const PLATEAU_DROP = 0.03;      // the plateau under the band's crest, which rises through it
 const SADDLE_MARGIN = 0.3;      // the plateau beyond the base's outer edge, at least
-/** The share of the thinner part a blend may take (the S3 prompt: "for example, at most 45%"). */
 /** A foot flare's top, as a share of the prong's radius (see flaredFoot in cad-engine-brep). */
 export const FLARE_NARROW = 0.7;
+/** The share of the thinner part a blend may take (the S3 prompt: "for example, at most 45%"). */
 export const BLEND_SHARE = 0.45;
 
 /**
