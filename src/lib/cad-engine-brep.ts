@@ -1210,13 +1210,11 @@ function roundedArea(o: Rounded): number {
  * in the head's frame.
  *
  * The base is a flat ring: the face between its outer and inner outlines,
- * extruded. The saddle is lofted, ruled, from its outline inside the band up
- * to the plateau, the two outlines sampled alike from cores with the same
- * corners so each point of one rules to the matching point of the other, and
- * its hole is then cut down through it: one cut, of a prism through a solid
- * it lies wholly across. Both are checked, as every boolean here is: the ring
- * against its exact volume, the cut for taking metal, not all of it, and
- * leaving one solid.
+ * extruded. The saddle is the plate's outline extruded from inside the band
+ * up to the plateau, a solid prism with no hole: it stops just under the
+ * band's top, so it closes nothing under the stone (the light check sections
+ * above it). Both are checked against their exact volumes and for being one
+ * solid.
  */
 export function baseParts(b: BasePlan): { saddle: Shape3D; ring: Shape3D } {
   const inner: Rounded = { core: b.core, r: b.rIn }, outer: Rounded = { core: b.core, r: b.rOut };
@@ -1952,16 +1950,20 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   if (style !== "bezel" && style !== "three_stone") {
     const lim = MANUFACTURING_LIMITS[alloy] ?? MANUFACTURING_LIMITS.platinum;
     const sized = { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall, base: true };
-    const hides = (l: HeadLayout) => !l.warnings.some((w) => w.key === "galleryThickness" && /cannot be hidden/.test(w.message));
+    const hides = (l: HeadLayout) => l.galleryShows == null;
     const shows = (cc: number) => !hides(layoutHead(cut, girdleR, prongCount, { ...centreBench.values, culetClearance: cc }, probeAt(topAtHead + cc), sized));
     const asked = centreBench.values.culetClearance, least = benchBounds("culetClearance", alloy).min;
     askedLayout = layoutHead(cut, girdleR, prongCount, centreBench.values, probeAt(topAtHead + asked), sized);
     if (asked > least + 1e-9 && !hides(askedLayout) && !shows(least)) {
       askedLayout = undefined;
       let lo = least, hi = asked;
-      // To 0.05 mm, the field's own step: each try lays the head out again.
-      while (hi - lo > 0.05) { const md = (lo + hi) / 2; if (shows(md)) hi = md; else lo = md; }
-      const delivered = Math.floor(lo * 20) / 20;
+      // Found to 0.01 mm, then the largest of the field's 0.05 mm steps at
+      // or under it that hides, tried rather than assumed: searched only to
+      // 0.05 and floored, the 0.25 ct all-max row was given 1.3 where 1.35
+      // hides (review). Each try lays the head out again.
+      while (hi - lo > 0.01) { const md = (lo + hi) / 2; if (shows(md)) hi = md; else lo = md; }
+      let delivered = Math.max(least, Math.floor((lo + 1e-9) * 20) / 20);
+      while (delivered - 0.05 >= least - 1e-9 && shows(delivered)) delivered = +(delivered - 0.05).toFixed(2);
       centreBench.values.culetClearance = delivered;
       centreBench.warnings.push({ key: "culetClearance", kind: "engine-clamped", asked, delivered,
         message: `Gap under the culet: ${asked} mm leaves no height where the gallery hides under the girdle of this stone, so ${delivered} mm is used.` });
@@ -2419,6 +2421,12 @@ export type BlendResult = {
   flares: Partial<Record<BlendJoint, Shape3D[]>>;
   /** Joints whose fillet failed its check (or had no room), and why, before they were flared. */
   failed: { joint: BlendJoint; why: string }[];
+  /**
+   * Set by resolveRing: the blended metal still meshes open at the export's
+   * 0.01 mm with every filleted joint flared (review: it had ended the
+   * search in silence). The audit's STL check measures the file itself.
+   */
+  meshOpen?: boolean;
 };
 
 /** A point of the ring in the centre head's frame (culet at the origin, +Z up the stone). */
@@ -2626,12 +2634,16 @@ export function resolveRing(p: Parameters<typeof buildRingParts>[0]): FuseResult
   // feet: 14 open edges at 0.01 mm, none at 0.005, S3). Each filleted joint
   // is flared in its place in turn, the feet first, until it does.
   const flareOnly: BlendJoint[] = [];
+  let closed = false;
   for (const joint of ["feet", "shank", "base"] as BlendJoint[]) {
-    if (meshClosed(blend.metal)) break;
+    if ((closed = meshClosed(blend.metal))) break;
     if (blend.paths[joint] !== "fillet") continue;
     flareOnly.push(joint);
     blend = blendHead(fused.metal, parts, flareOnly);
   }
+  // The last joint flared is not yet checked; only a ring with no closed
+  // mesh after all of them meshes again here.
+  if (!closed && !meshClosed(blend.metal)) blend = { ...blend, meshOpen: true };
   // A fillet can seal a speck as a fuse can (see sealVoids).
   const sealed = sealVoids(blend.metal);
   return { ...fused, metal: sealed.shape, voidsFilled: fused.voidsFilled + sealed.filled, parts, blend: { ...blend, metal: sealed.shape } };

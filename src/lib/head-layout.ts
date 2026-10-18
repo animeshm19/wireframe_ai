@@ -617,6 +617,12 @@ export type HeadLayout = {
    * caller should (a three-stone opens its side stones out, see the engine).
    */
   blocked: string | null;
+  /**
+   * How far the gallery shows beyond the girdle where no height hides it,
+   * mm; null where it hides. What the engine's culet clamp asks of a layout,
+   * rather than reading it from a warning's wording (review).
+   */
+  galleryShows: number | null;
 };
 
 export type LayoutOptions = {
@@ -805,6 +811,7 @@ function layoutHeadOnce(
   const avoid = opts.avoid ?? [];
   const avoidPoints = opts.avoidPoints ?? [];
   let blocked: string | null = null;
+  let galleryShows: number | null = null;
   if (prongs.length && (avoid.length || avoidPoints.length)) {
     const step = 0.05;
     const hits = (c: V3) =>
@@ -864,6 +871,7 @@ function layoutHeadOnce(
       }
     }
     gallery = g.plan;
+    galleryShows = g.showing;
     if (g.thinned) {
       const asked = values.galleryThickness;
       values.galleryThickness = g.plan.t;
@@ -1034,7 +1042,8 @@ function layoutHeadOnce(
         .map(([k, r]) => [k, r > 0 ? r : base!.flare[k as keyof BasePlan["flare"]]] as [string, number])
         .filter(([, r]) => r < values.filletRadius - 1e-9);
       if (held.length) {
-        const least = Math.min(...held.map(([, r]) => r));
+        // Rounded down, so no joint is ever under the value reported.
+        const least = Math.floor(Math.min(...held.map(([, r]) => r)) * 1000) / 1000;
         const where = { feet: "a prong meets the base", base: "the base meets its saddle", shank: "the saddle meets the band" } as Record<string, string>;
         warnings.push({ key: "filletRadius", kind: "engine-clamped", asked: values.filletRadius, delivered: least,
           message: `Rounding of ${fmt(values.filletRadius)} mm is more than this ring has room for where ${held.map(([k]) => where[k]).join(" and where ")}: ${held.map(([k, r]) => `${fmt(r)} mm where ${where[k]}`).join(", ")} is used (at most ${Math.round(BLEND_SHARE * 100)}% of the thinner part, and on a foot what the base's top leaves round it).` });
@@ -1125,7 +1134,7 @@ function layoutHeadOnce(
     }
   }
 
-  return { stone, prongs, values, warnings, gallery, base, blocked };
+  return { stone, prongs, values, warnings, gallery, base, blocked, galleryShows };
 }
 
 /** A rigid move about the head axis: a turn, or a reflection in a plane through the axis. */
