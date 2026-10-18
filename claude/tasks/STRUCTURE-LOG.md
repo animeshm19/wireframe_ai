@@ -66,13 +66,29 @@ Measured (`structure-audit-s2`, `55494e5`):
 
 The numbers are now also in the code comment (`889ba4c`).
 
-**S3: I3a, I4 (centre head), and I13 for culetClearance and galleryClearance accept a reported size clamp.** Before: judged against the value asked, always. Now: where the engine held the value by the stone's size and reported it as `engine-clamped` with `asked` and `delivered` (Animesh's decision on question 25), it is judged against the delivered value; a held value with no such warning still fails. Side heads are judged as before. Measured (full matrix): only the 0.25 ct round all-max row is held, the culet 1.5 → 1.3 mm and the gallery gap 0.6 → 0.467 mm. (`252509a`'s message says 1.35, from a probe at 0.01 mm steps before the search was set to the field's 0.05.) No other design is held.
+**S3, `0665f9a`: I3a, I4 (centre head), and I13 for culetClearance and galleryClearance accept a reported size clamp.** Before: judged against the value asked, always. Now: where the engine held the value by the stone's size and reported it as `engine-clamped` with `asked` and `delivered` (Animesh's decision on question 25), it is judged against the delivered value; a held value with no such warning still fails. Side heads are judged as before. Measured (full matrix, `structure-audit-s3` at `7c36cb5`): only the 0.25 ct round all-max row is held, the culet 1.5 → **1.35** mm and the gallery gap 0.6 → **0.353** mm. No other design is held on either field.
 
-**S3: I10c and I13 (pavilionClearance) accept "nothing there".** Before: a prong with no metal below girdle − d recorded NaN and failed. Now it records Infinity and passes: nothing of it can come near the pavilion. Seen on the oval with 2 mm prongs, whose feet end high in a 2 mm base. A failed measurement is still NaN and still fails.
+*Correction (the 1.35 figure).* The code `252509a` committed delivered **1.3** mm, not the 1.35 its message says. The 1.35 came from a probe in 0.01 mm steps before the search was set to the field's 0.05; the 0.05 search then floored to 1.3. This entry first recorded 1.3 and 0.467, which were right for `252509a`..`2f99d9e`. After the review, `3f810a2` searches to 0.01 and takes the largest 0.05 step that hides, so the code now delivers 1.35, and the gallery gap that follows has less room: 0.467 → 0.353. The history is not rewritten; `252509a`'s message stays as it is.
 
-**S3: "shank styles change the metal they should" compares the twisted band with the plain band, not the whole rings.** Before: the twisted ring's metal within 8% of the plain ring's. Now: the band parts' metal within 8%, the same bound. Why: since S3 the head's saddle fills down to the band, and on a twisted section the band's top is tilted under the head, so the twisted ring carries the larger saddle; that measures the head, not the twist. Measured (default ring): whole rings 296.3 against 267.5 mm³ (+10.8%, failed); saddles 82.01 against 60.47; band parts 172.25 against 170.40 (+1.1%). The tapered and split checks (lighter than plain) still compare whole rings and pass.
+Stricter since (`7c36cb5`): a held value counts only if `delivered < asked` and `delivered ≥` the field's lower bound for the design's alloy (recorded in the report as `bounds`).
 
-**S3: I7 is measured within the centre head's saddle plate** (open question 14, decided here as "the centre head's own metal"). Before: a disc of girdleR × 1.2 round the axis, which also cut a three-stone's side heads and a cathedral's struts, and on a 3 ct stone held only part of the base. The bound (`JOINT_AREA_RATIO`) is unchanged. Default ring: 9.52× the prong sections.
+**S3, `0665f9a`: I10c and I13 (pavilionClearance) accept "nothing there".** Before: a prong with no metal below girdle − d recorded NaN and failed. Now it records Infinity and passes: nothing of it can come near the pavilion. Seen on the oval with 2 mm prongs, whose feet end high in a 2 mm base. A failed measurement is still NaN and still fails. Stricter since (`7c36cb5`, review): Infinity only if the prong's bounding box, in the head frame, lies wholly above the cut; otherwise an empty section reads NaN and fails, so a boolean that silently returns nothing cannot pass. In the full matrix one design reads Infinity: `{"bench":{"prongDiameter":2},"gemShape":"oval"}`, prongs 0 and 3, confirmed by the box.
+
+**S3, `6c3dee1`: "shank styles change the metal they should" compares the twisted band with the plain band, not the whole rings.** Before: the twisted ring's metal within 8% of the plain ring's. Now: the band parts' metal within 8%, the same bound. Why: since S3 the head's saddle fills down to the band, and on a twisted section the band's top is tilted under the head, so the twisted ring carries the larger saddle; that measures the head, not the twist. Measured (default ring): whole rings 296.3 against 267.5 mm³ (+10.8%, failed); saddles 82.01 against 60.47; band parts 172.25 against 170.40 (+1.1%). The tapered and split checks (lighter than plain) still compare whole rings and pass.
+
+**S3, `0665f9a`: I7 is measured within the centre head's saddle plate** (open question 14, decided here as "the centre head's own metal"; Animesh to confirm). Before: a disc of girdleR × 1.2 round the axis, which also cut a three-stone's side heads and a cathedral's struts, and on a 3 ct stone held only part of the base. The bound (`JOINT_AREA_RATIO`, 1.0) is unchanged.
+- The plane itself also moved, in `6fc4f2d` (not logged then): from the band's outer radius to the prompt's band top + 0.10 under the head (`headBandTop`).
+- Matrix-wide, by the old disc on the new geometry, one row failed: the 0.25 ct all-max row, 13.6 mm² against 18.85 needed (0.72×). By the plate it reads 96.1 mm² (5.10×). So the change turned a failing row into a pass. The review pointed out that the plate at that height cuts the base ring, not the joint between base, saddle and band.
+- **Stricter since (`7c36cb5`, review):** where a centre base exists, I7 also needs each of the head's two links to be at least the prong sum: `baseSeat` (saddle ∩ the base's skin) and `saddleSeat` (saddle ∩ the band's skin). Default ring: plane 32.59 (9.52×), base seat 33.92, saddle seat 26.41, prong sum 3.42 mm².
+- Full matrix (`structure-audit-s3`): the lowest plane ratio is 3.56× (`{"bench":{"prongDiameter":2}}`), the lowest base seat 4.46× (the same design), the lowest saddle seat 1.61× (`{"bench":{"prongDiameter":2},"gemShape":"marquise"}`).
+
+**S3, `6fc4f2d`: I6 is split** (not logged at the time). I6 now binds on the centre head from S3: every centre prong in the base (> 0.02 mm³) and none in the band. Side-head prongs moved to a new **I6b**, binding from S6 with the side heads. Before, I6 was one rule over every prong, binding from S3. Why: S3 builds the base under the centre stone only. Three-stone side heads have no base until S6, and their prongs still stand in the band. At S3 all 23 designs with side heads fail I6b (not binding); every centre head passes I6 (230 of 230).
+
+**S3, bundled in `0665f9a`: where the shank fillet is read** (`filletSections`, in the commit message as "measurement only" but not logged). Before: the saddle-to-band fillet was read only in the two planes through the head's axis, across and along the finger. On a split shank the plane along the finger runs down the slot, finds no band, and read no fillet. Now it is read at eight places round the plate's wall: on the axis and along each side of the band, at 0.6 × the band's half width. Each plane is turned square to the fillet's own line where it leaves the wall. `a1ca66e` then shortened the step along each curve, because on an 8 mm band the third sample point lay on the band's flank (it read 0.4035 against 0.3 asked).
+- It is a measurement fix, not a looser rule. The bound (asked ± 0.02) is unchanged.
+- The review found it can still pass a partial fillet: it reads eight sections and does not check that the fillet runs all the way round. Not fixed; see open question 36.
+
+**S3, `7c36cb5`: I13 filletRadius is judged per joint.** Before, any `engine-clamped` filletRadius warning excused every joint laid out under the value asked. Now the warning must carry the value asked (the one being judged) and the value delivered, and no joint may be laid out under the delivered value. Stricter only.
 
 ## Bench bounds changed
 
@@ -115,6 +131,8 @@ For Animesh (decisions, not bench questions):
 13. **One failed boolean in the audit itself.** `{"shankStones":"eternity"}`: metal ∩ accent 12 returns 0.35961 mm³, more than the stone's own 0.35921, while 0.052 of the stone lies outside the metal. The audit records it as a measurement error (NaN, the invariant fails) rather than a number. That accent's culet is 0.44 mm inside the metal: it sits under the head.
 
 14. **Joint section (I7, for S3).** The disc is the prompt's (girdleR × 1.2 round the centre axis), so on a three-stone it also cuts the side heads and on a cathedral the struts: 1 ct round reads 3.89 mm² as a prong ring, 6.54 as a three-stone, 6.78 as a cathedral, with the same centre head. A cathedral at 0.25 ct passes I7 on its struts alone. S3, which builds the base, should decide whether the joint is "metal under the centre head" or "the centre head's own metal".
+
+    **Decided by S3 (2026-10-18), for Animesh to confirm:** the centre head's own metal. I7 is read on the prompt's plane within the centre head's saddle plate, and also needs the head's two links (base on saddle, saddle on band) each to hold the prong sum. See "Assertions changed".
 15. **Joint prong sum before S1 (I7).** It uses the effective prongDiameter, clamped to the alloy floor (0.80 mm), while until S1 wires the field the engine builds the raw formula (0.744 mm at 0.25 ct). This errs strict: the 0.25 ct rows read I7 FAIL at a true ratio of about 1.12. It is resolved when S1 makes the built prong the effective one.
 16. **Pavé culets clear their seat floors by 0.01 mm**, and on a full eternity band one accent sits under the head with its culet 0.44 mm inside the metal (I3c, S6).
 
@@ -157,6 +175,25 @@ For Animesh (decisions, not bench questions):
     - like for like with S1 on the same machine: preview 1.75×, resolve 1.56×.
 
     **Decided 2026-10-18 (warm is the budget; this also settles q. 19).** The warm figure counts because the worker now boots when it is spawned. Cold is still measured and reported every stage and must stay ≤ 500 ms. Every stage reports the like-for-like slowdown against the previous stage. If warm preview passes 186 ms or cold passes 500 ms, stop and report rather than continue.
+
+29. **The fillet where a prong meets the base is held small on most heads (S3).** filletRadius is held to 45% of the thinner part a fillet joins, and on a foot to the room the base's top leaves round it. Measured, `structure-audit-s3`:
+    - held on **137 of 251** designs (the feet only on 115; feet, base and shank on 21; base and shank only on 1), each reported as `engine-clamped` with asked and delivered;
+    - the default ring is one of them: asked 0.30, its feet built at **0.103 mm**; the base and shank fillets are 0.30;
+    - 127 of the holds are at the default 0.30; **38 deliver less than 0.10**, the field's own minimum; the lowest is **0.044** (the 0.25 ct round all-max row, asked 0.8), then 0.050 (emerald 0.25 ct, 8 prongs).
+
+    The choice: keep the head compact and accept small foot fillets (as built), or give the feet a full fillet by a wider base top or thicker feet, which makes the head heavier and taller-looking. **Please decide.** A setter's view on the smallest foot fillet that casts cleanly would settle it (it is also setter question 8).
+30. **The saddle is wider than a narrow band (S3).** The saddle is a solid prism under the base, as wide as the base needs. On a 1.2–1.6 mm band it overhangs the band each side, seen in `width-1.6-front.png` and slice B. It is one solid, fused and blended to the band, and I7's saddle seat holds (lowest 1.61× the prong sum). It is a look a customer will see. Please confirm, or ask for a saddle that narrows to the band.
+31. **The saddle's underside is not filleted where it meets the band's flank (S3).** Where the saddle overhangs a band narrower than the head, its underside meets the band's flank. There the band turns under into its bore within a fillet's reach. OCCT either failed to fillet it (one side of a 1.2 mm band) or took two minutes to try, so that corner stays as cast. The saddle's wall to the band's top is filleted. For the caster's view.
+32. **A narrow stone set across the band can have the band's crest run under the base ring (S3).** Normally the crest is held inside the base's opening. On a 0.25 ct marquise holding it took the opening to 0.85 of the girdle and the legs out past the pavilion, so the layout lets the crest run under the ring and flares the base's inner joint where its fillet fails. The audit does not yet count how many designs take this; S4 should.
+33. **Kicked legs (q. 26) at S3:** 90 legs on 30 designs: marquise 23 designs, pear 3, emerald 2, cushion 1, princess 1. The most are on 0.25 ct marquises (6 per head). All are reported. The base did not remove them, because a leg still has to pass the pavilion before it reaches the base.
+34. **Flare columns and prongs in the saddle (S3).** Where a foot comes up over the base top's edge and no flare fits on the top, the flare stands as a column from the plateau beside the base.
+    - **60 designs** have one: marquise 21, princess 13, pear 8, emerald 6, oval 6, round 6.
+    - On these the column carries the prong into the saddle: **348 centre prongs** touch it, by 0.010–0.072 mm³ each (`inBridge`).
+    - I6 (not in the band) still holds on all of them.
+    - Recorded, not judged. Please confirm it is acceptable.
+35. **Culet against gallery gap on the small all-max row (S3).** On the 0.25 ct round all-max row, more culet gap leaves less room for the gallery gap. The engine gives the culet the most that still hides the gallery, in 0.05 steps: culet 1.35 (asked 1.5), then the gallery gap 0.353 (asked 0.6). The other order (gallery first) would give a smaller culet. Please confirm the order.
+36. **Fillets are read at sections, not all round (S3).** The audit reads each fillet's radius at a set of sections (each foot, eight places round the saddle's wall). It does not check that a fillet runs unbroken all the way round a joint, so a partial fillet could pass I14. Likewise a flare's radius is measured on the flare solid before the fuse, not on the merged metal. For S5 or S7.
+37. **`meshOpen` is stricter than I8 (S3, finding).** After the fuse the engine meshes the metal at the export's 0.01 mm, welds vertices at 1e-5 mm, and flares joints in turn until that mesh is closed. On 9 designs it never closes (`meshOpen`: oval 3 ct on every setting, 0.25 ct cushion on 8 prongs, pavilionClearance 0.1), so every joint is flared. Measured on `{"bench":{"pavilionClearance":0.1}}`: the 1e-5 weld collapses 2 of 20066 triangles; the exported STL keeps them distinct, with non-zero area, and I8 passes (0 edges not used twice, 0 zero-area, 1 component). So the flag is a false alarm against I8, and those 9 designs carry flares where fillets may have served. Not changed in S3: a triangle that thin may still trouble a slicer. To decide with the caster (S7).
 
 ## Progress
 
@@ -228,3 +265,26 @@ Animesh's answers to open questions 24–28, recorded before S3 started (each is
 - **Q28 (and q. 19):** the warm figure is the budget. Cold is reported every stage and must stay ≤ 500 ms; like-for-like slowdown against the previous stage reported every time. Warm preview over 186 ms or cold over 500 ms stops the work for a report.
 
 Setter / caster questions 1–9 are still open; the bench defaults stay provisional.
+
+### S3 — 2026-10-18 — a base under the stone, a saddle to the shank, the corners blended
+
+Status: see `claude/tasks/S3.md`. Start `9f0399c`; commits `ab3c48d`..HEAD.
+- **Architecture C.**
+  - A flat base ring under the stone takes every prong's foot; no prong touches the band.
+  - It sits in a solid saddle prism fused to the band, its plateau 0.03 under the band's crest.
+  - Fillets on three joints (feet to base, base to saddle, saddle to band), with designed flares as the fallback.
+- **Stopped once on the perf rule** (warm 215.6 ms). Profiled: a duplicate `layoutHead` cost ~46 ms. Fixed in `2f99d9e`, geometry-identical.
+- **Full audit** `--stage S3 --compare s2` at `7c36cb5`: 251 designs, 0 crashed, 0 binding failures, 0 regressions, exit 0.
+  - I6, I7, I12 and I14 230/230.
+  - Least I7 ratios: plane 3.56×, base seat 4.46×, saddle seat 1.61×.
+  - Blends: feet fillet 109 / flare 121; base 158 / 72; shank 179 / 51.
+- **Suites:** test:brep 55/55, test:cad 32/32, build passes, lint 103 + 4 on tracked files (unchanged).
+- **Performance:**
+  - warm preview 170.4 / 186 (15.6 ms headroom), resolve 1420.5 / 2249.4, cold 338.2 / 500;
+  - like for like with S2: 1.10×, 0.85×, 0.94×.
+- **Matrix:** 237 → 251 rows (1.2 mm bands by profile and shank, region edits, all-max at 0.25 and 3 ct).
+- **For Animesh:** q. 14 (decided, to confirm) and q. 29–37. The foot-fillet hold (q. 29) is the main one.
+- **For S4:**
+  - compare against `structure-audit-s3` (full);
+  - mind the 15.6 ms of preview headroom;
+  - count the crest-under-ring fallback (q. 32).
