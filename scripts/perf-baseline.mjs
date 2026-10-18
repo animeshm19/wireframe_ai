@@ -12,7 +12,8 @@
  *            worker runs them (stones meshed at 0.008): what a slider
  *            movement costs in the Studio
  *   resolve  buildRingParts(spec, {seats:true}) + fuseMetal + ringMetrics
- *            the merge that is measured, checked and exported
+ *            the merge that is measured, checked and exported; since S3,
+ *            resolveRing (which also blends the head's joints) + ringMetrics
  *
  * Every measurement is its own Node process, booted and then timed once.
  * OCCT's heap only grows (see cad-engine-brep.ts), so a second run in the same
@@ -60,8 +61,8 @@ if (process.argv.includes("--child")) {
     brep.previewEdges(metalParts);
     if (stones.length) brep.previewMesh(stones, 0.008);
   } else {
-    const { metalParts, stones, dims } = brep.buildRingParts(spec, { seats: true });
-    const { metal } = brep.fuseMetal(metalParts);
+    // Since S3 the merge blends the head's joints too (resolveRing).
+    const { metal, parts: { stones, dims } } = brep.resolveRing(spec);
     brep.ringMetrics(metal, stones, dims);
   }
   process.stdout.write(JSON.stringify({ ms: performance.now() - t0 }));

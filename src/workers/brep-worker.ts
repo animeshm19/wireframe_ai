@@ -15,7 +15,7 @@
  */
 import wasmUrl from "replicad-opencascadejs/wasm?url";
 import {
-  buildRingParts, previewMesh, previewEdges, fuseMetal, ringMetrics, toSTEP, toSTL,
+  buildRingParts, previewMesh, previewEdges, resolveRing, ringMetrics, toSTEP, toSTL,
   initKernel,
   kernelHeapMB,
   type RingDims,
@@ -77,11 +77,11 @@ self.onmessage = async (e: MessageEvent) => {
 
     if (type === "RESOLVE") {
       report(20, "Rebuilding");
-      // seats: true — the merge is where pavé seats get cut. The preview skips
-      // them because they cost seconds and sit under the stones anyway.
-      const { metalParts, stones, dims } = buildRingParts(params, { seats: true });
+      // The merge is where pavé seats get cut (the preview skips them: they
+      // cost seconds and sit under the stones anyway), and where the head's
+      // joints are blended (S3; the preview shows them unrounded).
       report(45, "Merging solids");
-      const { metal, dropped } = fuseMetal(metalParts);
+      const { metal, dropped, parts: { stones, dims } } = resolveRing(params);
       report(85, "Measuring");
       const metrics = ringMetrics(metal, stones, dims as RingDims);
       const issues = checkManufacturability(params, metrics as any);

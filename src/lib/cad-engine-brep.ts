@@ -30,7 +30,7 @@ import {
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, radialHit, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
+  envelopeFaces, filletArc, hullPlanes, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
   type BandProbe, type BasePlan, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type Rounded, type StoneProfile,
 } from "./head-layout.js";
 
@@ -789,7 +789,7 @@ export function placeAccents(
 export type HeadName = "centre" | "side-left" | "side-right";
 export type PartRoleName =
   | "band" | "prong" | "gallery" | "base" | "bridge" | "strut" | "collar"
-  | "halo-seat" | "halo-rail" | "bearer" | "other";
+  | "halo-seat" | "halo-rail" | "bearer" | "flare" | "other";
 export type PartRole = { role: PartRoleName; head?: HeadName; index?: number };
 
 /**
@@ -1197,15 +1197,10 @@ function roundedArea(o: Rounded): number {
  * leaving one solid.
  */
 export function baseParts(b: BasePlan): { saddle: Shape3D; ring: Shape3D } {
-  // A round stone's outlines are exact circles (a cylinder fuses fastest of
-  // all); any other cut's, its lines and arcs.
-  const loop = (o: Rounded, z: number, reverse = false) => o.core.length === 1
-    ? assembleWire([makeCircle(o.r, [o.core[0][0], o.core[0][1], z], [0, 0, reverse ? -1 : 1])])
-    : roundedWire(o, z, reverse);
   const inner: Rounded = { core: b.core, r: b.rIn }, outer: Rounded = { core: b.core, r: b.rOut };
   const h = b.zTop - b.zBottom;
   // The hole's loop runs the other way round, as a face's inner wire must.
-  const ring = basicFaceExtrusion(makeFace(loop(outer, b.zBottom), [loop(inner, b.zBottom, true)]), new Vector([0, 0, h])) as Shape3D;
+  const ring = basicFaceExtrusion(makeFace(outlineLoop(outer, b.zBottom), [outlineLoop(inner, b.zBottom, true)]), new Vector([0, 0, h])) as Shape3D;
   const wantRing = (roundedArea(outer) - roundedArea(inner)) * h;
   const gotRing = measureVolume(ring);
   if (!(Math.abs(gotRing - wantRing) <= wantRing * 0.01) || ring.solids.length !== 1) {
@@ -1213,9 +1208,8 @@ export function baseParts(b: BasePlan): { saddle: Shape3D; ring: Shape3D } {
   }
   volumes.set(ring, gotRing);
 
-  const plate: Rounded = { core: b.core, r: b.plateauR };
-  const saddle = basicFaceExtrusion(makeFace(loop(plate, b.saddleBottom)), new Vector([0, 0, b.plateau - b.saddleBottom])) as Shape3D;
-  const wantSaddle = roundedArea(plate) * (b.plateau - b.saddleBottom);
+  const saddle = basicFaceExtrusion(makeFace(outlineLoop(b.plate, b.saddleBottom)), new Vector([0, 0, b.plateau - b.saddleBottom])) as Shape3D;
+  const wantSaddle = roundedArea(b.plate) * (b.plateau - b.saddleBottom);
   const gotSaddle = measureVolume(saddle);
   if (!(Math.abs(gotSaddle - wantSaddle) <= wantSaddle * 0.01) || saddle.solids.length !== 1) {
     throw new Error(`saddle failed its check: ${gotSaddle.toFixed(4)} mm³ against ${wantSaddle.toFixed(4)}, ${saddle.solids.length} solid(s)`);
@@ -1223,6 +1217,105 @@ export function baseParts(b: BasePlan): { saddle: Shape3D; ring: Shape3D } {
   volumes.set(saddle, gotSaddle);
   return { saddle, ring };
 }
+
+/** A rounded outline at height z: a circle on a round stone (a cylinder fuses fastest of all), else its lines and arcs. */
+function outlineLoop(o: Rounded, z: number, reverse = false): Wire {
+  return o.core.length === 1
+    ? assembleWire([makeCircle(o.r, [o.core[0][0], o.core[0][1], z], [0, 0, reverse ? -1 : 1])])
+    : roundedWire(o, z, reverse);
+}
+
+/**
+ * The base's flared joint (S3's fallback where its fillet fails): a ring
+ * round the base's foot, out from each wall by r at the plateau and closing
+ * on the wall 2r up (or just under the base's top on a low base). The outer
+ * slope less the inner one, one cut, checked.
+ */
+export function baseFlare(b: BasePlan, r: number): Shape3D {
+  const up = Math.min(2 * r, b.zTop - b.plateau - 0.05);
+  const k = r / Math.max(1e-9, up);
+  const outerSlope = loft([outlineLoop({ core: b.core, r: b.rOut + r + 0.05 * k }, b.plateau - 0.05), outlineLoop({ core: b.core, r: b.rOut - 0.02 }, b.plateau + up)], { ruled: true });
+  const innerSlope = loft([outlineLoop({ core: b.core, r: Math.max(0.01, b.rIn - r - 0.05 * k) }, b.plateau - 0.06), outlineLoop({ core: b.core, r: b.rIn + 0.02 }, b.plateau + up + 0.01)], { ruled: true });
+  const before = measureVolume(outerSlope);
+  const skirt = cutOnce(outerSlope, innerSlope);
+  const after = measureVolume(skirt);
+  if (!(after > 1e-4) || !(after < before - 1e-4) || skirt.solids.length !== 1) {
+    throw new Error(`base flare failed its check: ${before.toFixed(4)} → ${after.toFixed(4)} mm³, ${skirt.solids.length} solid(s)`);
+  }
+  return skirt;
+}
+
+/**
+ * The saddle's flared joint with the band (S3's fallback where its fillet
+ * fails): a skirt round the plate leaning out from its wall, from the
+ * plateau down to where the band stands lowest under its edge, by r there;
+ * where the band rises into the plate it meets an open angle, not a square
+ * inside corner.
+ */
+export function shankFlare(b: BasePlan, r: number): Shape3D {
+  const zLow = Math.max(b.saddleBottom, b.bandUnderEdge - 0.05);
+  // Its top just under the plateau and inside the wall, not level with the
+  // plateau: two faces in one plane are the fuse's worst case.
+  const skirt = loft([outlineLoop({ core: b.plate.core, r: b.plate.r + r }, zLow), outlineLoop({ core: b.plate.core, r: b.plate.r - 0.02 }, b.plateau - 0.02)], { ruled: true });
+  if (skirt.solids.length !== 1 || !(measureVolume(skirt) > 1e-3)) throw new Error("shank flare failed its check");
+  return skirt;
+}
+
+/** A prong and its flared foot as one solid, checked as fuseMetal checks a fuse: one solid, no metal lost. */
+function withFlare(prong: Shape3D, flare: Shape3D): Shape3D {
+  const before = Math.max(volumes.get(prong) ?? measureVolume(prong), volumes.get(flare) ?? measureVolume(flare));
+  const out = prong.fuse(flare) as Shape3D;
+  const after = measureVolume(out);
+  if (out.solids.length !== 1 || !(after >= before - 1e-6)) throw new Error(`a flared foot did not fuse with its prong: ${after.toFixed(4)} mm³, ${out.solids.length} solid(s)`);
+  volumes.set(out, after);
+  return out;
+}
+
+/**
+ * A prong's flared foot (S3's fallback where the foot fillet fails or has no
+ * room): an oblique cone standing on the base's top round where the run that
+ * ends in the base comes up through it, as wide there as the prong's
+ * footprint on the top (its radius over the leg's lean) and r more, and
+ * narrowing 2r up the run to just inside the prong. Standing on the top, not
+ * round the leg's own axis: a cone square to a leaning leg tilted its wide
+ * end up out of the base on the side it leans from, 0.215 mm from the
+ * pavilion on the default ring, and its far end reached the band (S3).
+ * Lofted between the two circles, ruled, checked against its volume.
+ */
+export function flaredFoot(points: V3[], d: number, r: number, b: BasePlan, column = b.flareColumn): Shape3D {
+  const F = points[0], u = unit3(sub3(points[1], F));
+  const half = d / 2;
+  // A run that barely rises (a kicked leg's first) is taken as rising at
+  // 0.3: the flare then stands upright over the foot.
+  const rising = u[2] >= 0.3;
+  const uz = rising ? u[2] : 0.3;
+  const E: V3 = rising ? add3(F, u, (b.zTop - F[2]) / uz) : [F[0], F[1], b.zTop];
+  const wide = half / uz + r;
+  const top: V3 = rising ? add3(E, u, (2 * r) / uz) : [E[0], E[1], b.zTop + 2 * r];   // 2r higher, on the run's axis
+  const narrow = 0.9 * half;
+  // From a hair under the top so the two overlap, not meet in a plane. Its
+  // foot stays on the base's top (layoutHead holds its radius to that): a
+  // foot overhanging the top's edge left a ledge 0.02 mm thick, 8 STL edges
+  // not used twice on a pear (S3).
+  // Where a foot comes up over the top's edge and no flare fits on the top
+  // (b.flareColumn), the flare stands at its full width from 0.01 mm into
+  // the plateau, a column beside the base, not a ledge (layoutHead keeps it
+  // clear of the band there).
+  const A: V3 = [E[0], E[1], column ? b.plateau - 0.01 : b.zTop - 0.02], M: V3 = [E[0], E[1], b.zTop];
+  const flare = loft(column
+    ? [assembleWire([makeCircle(wide, A, [0, 0, 1])]), assembleWire([makeCircle(wide, M, [0, 0, 1])]), assembleWire([makeCircle(narrow, top, [0, 0, 1])])]
+    : [assembleWire([makeCircle(wide, A, [0, 0, 1])]), assembleWire([makeCircle(narrow, top, [0, 0, 1])])], { ruled: true });
+  const h = top[2] - (column ? M[2] : A[2]);
+  const want = (Math.PI * h * (wide * wide + wide * narrow + narrow * narrow)) / 3 + (column ? Math.PI * wide * wide * (M[2] - A[2]) : 0);
+  const got = measureVolume(flare);
+  if (!(Math.abs(got - want) <= want * 0.02) || flare.solids.length !== 1) {
+    throw new Error(`flared foot failed its check: ${got.toFixed(4)} mm³ against ${want.toFixed(4)}`);
+  }
+  volumes.set(flare, got);
+  return flare;
+}
+const unit3 = (a: V3): V3 => { const L = Math.hypot(...a); return [a[0] / L, a[1] / L, a[2] / L]; };
+const add3 = (a: V3, b: V3, k = 1): V3 => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 
 /** A closed wire around a cut's outline, scaled and lifted. */
 function outlineWire(o: Pt[], girdleR: number, scale: number, z: number): Wire {
@@ -1372,10 +1465,17 @@ export function buildHead(
       // too, by the envelope clipped to this post (see ProngPlan.seatCutter).
       if (!p.seatCutter) throw new Error(`prong ${p.index} has no seat cutter and no twin to copy`);
       solid = cutSeat(asCastProng(p.spine, p.d), polyhedron(p.seatCutter), `prong ${p.index}`);
+      // A foot the base's top has no room to fillet is flared, and the flare
+      // is part of the prong (S3: designed in, not tried and failed at the
+      // merge; a twin is copied with it). For the merge only: the preview
+      // may leave blends out (the S3 prompt), and this one fuse per prong
+      // cost the preview 50 ms.
+      if (ctx.checkGallery && layout.base && layout.base.blend.feet === 0) solid = withFlare(solid, flaredFoot(p.spine.points, p.d, layout.base.flare.feet, layout.base));
     }
     seated.push(solid);
     add(solid, { role: "prong", index: p.index });
   }
+
 
   // The upper gallery (see GalleryPlan in head-layout.ts): a round wire
   // following the stone's outline under the girdle, through every leg.
@@ -1777,29 +1877,6 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
   const accents: Shape3D[] = [];
   const accentRoles: StoneRole[] = [];
 
-  if (shankStones !== "none") {
-    const L = shankStoneLayout(shankStones, outerR, bandWidth);
-    if (opts.seats) {
-      // Seats go into every rail: on a split shank the stones run down both.
-      bands = bands.map((bd) => cutAll(bd, L.count,
-        (i) => paveSeat(L.angleAt(i), outerR, L.seatCentre, L.stoneR)));
-      band = bands[0];
-    }
-    accents.push(...placeAccents(L.count, L.stoneR,
-      (i) => ({ angle: L.angleAt(i), radius: L.seatCentre })));
-    // placeAccents stands each stone on its radius looking outward, culet
-    // pavH inside the seat centre.
-    const pavH = gemDims(L.stoneR).pavH;
-    for (let i = 0; i < L.count; i++) {
-      const a = L.angleAt(i);
-      accentRoles.push({
-        role: "accent",
-        culet: [Math.cos(a) * (L.seatCentre - pavH), Math.sin(a) * (L.seatCentre - pavH), 0],
-        axis: [Math.cos(a), Math.sin(a), 0],
-      });
-    }
-  }
-
   // Bench values: resolved once per head, here and nowhere else, so a user's
   // override is the number every part of the head is built from. Once per
   // head rather than once per ring because automatic values follow the stone:
@@ -1899,6 +1976,46 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
       centreLayout = layoutHead(cut, girdleR, prongCount, centreBench.values, centreProbe, { ...sized, avoid: centreAvoid });
       if (same(centreLayout) || sidePlan.splay >= 1.0) break;
       sidePlan = planSideStones(girdleR, outerR, sideCtx, sidePlan.splay + 0.03);
+    }
+  }
+
+  // Every other prong head's layout made here too (buildHead would make
+  // the same one), so the shank's stones can keep off its saddle.
+  if (!centreLayout && style !== "bezel") {
+    const lim = MANUFACTURING_LIMITS[alloy] ?? MANUFACTURING_LIMITS.platinum;
+    centreLayout = layoutHead(cut, girdleR, prongCount, centreBench.values, centreProbe,
+      { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall, base: true });
+  }
+
+  if (shankStones !== "none") {
+    const L = shankStoneLayout(shankStones, outerR, bandWidth);
+    // Not under the head's saddle (S3): a stone there sat in metal, and the
+    // saddle's flare sealed its seat into a cavity (pavé runs 1.85 rad of the
+    // shank centred on the head; an eternity all of it). Kept clear of the
+    // plate's reach along the band and the stone's own radius, 0.2 mm more.
+    const plate = centreLayout?.base?.plate;
+    const reachX = plate ? Math.max(...roundedPoints(plate, 0.1).map(([x]) => Math.abs(x))) : 0;
+    const clearHalf = plate ? Math.asin(Math.min(1, (reachX + L.stoneR + 0.2) / L.seatCentre)) : 0;
+    const under = (a: number) => plate != null && Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2))) < clearHalf;
+    const idx = Array.from({ length: L.count }, (_, k) => k).filter((k) => !under(L.angleAt(k)));
+    if (opts.seats) {
+      // Seats go into every rail: on a split shank the stones run down both.
+      bands = bands.map((bd) => cutAll(bd, idx.length,
+        (k) => paveSeat(L.angleAt(idx[k]), outerR, L.seatCentre, L.stoneR)));
+      band = bands[0];
+    }
+    accents.push(...placeAccents(idx.length, L.stoneR,
+      (k) => ({ angle: L.angleAt(idx[k]), radius: L.seatCentre })));
+    // placeAccents stands each stone on its radius looking outward, culet
+    // pavH inside the seat centre.
+    const pavH = gemDims(L.stoneR).pavH;
+    for (const k of idx) {
+      const a = L.angleAt(k);
+      accentRoles.push({
+        role: "accent",
+        culet: [Math.cos(a) * (L.seatCentre - pavH), Math.sin(a) * (L.seatCentre - pavH), 0],
+        axis: [Math.cos(a), Math.sin(a), 0],
+      });
     }
   }
 
@@ -2211,6 +2328,273 @@ function sealVoids(shape: Shape3D): { shape: Shape3D; filled: number } {
   return { shape: out.length === 1 ? out[0] : (makeCompound(out) as Shape3D), filled };
 }
 
+// ---------------------------------------------------------------- blends --
+
+/**
+ * The three joints a head's blends round (S3): where every prong's foot
+ * meets the base, where the base meets the saddle, and where the saddle meets
+ * the band.
+ */
+export type BlendJoint = "feet" | "base" | "shank";
+export const BLEND_JOINTS: BlendJoint[] = ["feet", "base", "shank"];
+/** How a joint was blended: filleted on the merged solid, or by flared geometry built into the parts. */
+export type BlendPath = "fillet" | "flare";
+
+export type BlendResult = {
+  metal: Shape3D;
+  /** The path each joint took. */
+  paths: Partial<Record<BlendJoint, BlendPath>>;
+  /** The fillet faces each filleted joint was given. */
+  faces: Partial<Record<BlendJoint, Face[]>>;
+  /** The flare solids each flared joint was given (fused into the metal), for the audit to measure. */
+  flares: Partial<Record<BlendJoint, Shape3D[]>>;
+  /** Joints whose fillet failed its check (or had no room), and why, before they were flared. */
+  failed: { joint: BlendJoint; why: string }[];
+};
+
+/** A point of the ring in the centre head's frame (culet at the origin, +Z up the stone). */
+function headPoint(h: HeadFrame, p: { x: number; y: number; z: number }): V3 {
+  const q: V3 = [p.x - h.culet[0], p.y - h.culet[1], p.z - h.culet[2]];
+  return [dot3(q, h.xDir), dot3(q, cross3(h.axis, h.xDir)), dot3(q, h.axis)];
+}
+
+/**
+ * The merged solid's edges at one joint, picked by where they lie, in the
+ * head's frame. Every test is that the whole edge (five points along it) lies
+ * on both of the surfaces the joint is between, so an edge of either part's
+ * own outline, which lies on only one, is never taken:
+ *   feet   on a prong's round surface (half its diameter from the axis of the
+ *          run that ends in the base) and on the base's top or a wall;
+ *   base   on the saddle's plateau and on the base's inner or outer wall;
+ *   shank  on the saddle's wall below its plateau (not one of its upright
+ *          seams): where the band rises into it.
+ */
+export function jointEdges(metal: Shape3D, h: HeadFrame, joint: BlendJoint, prong?: number) {
+  const b = h.layout.base!;
+  const T = 2e-3;
+  const wallIn = roundedPoints({ core: b.core, r: b.rIn }, 0.02);
+  const wallOut = roundedPoints({ core: b.core, r: b.rOut }, 0.02);
+  const plate = roundedPoints(b.plate, 0.02);
+  const onWall = (poly: V2[], p: V3) => Math.abs(polygonDistance(poly, [p[0], p[1]])) < 1.5 * T;
+  const runs = h.layout.prongs.filter((pr) => prong == null || pr.index === prong)
+    .map((pr) => ({ a: pr.spine!.points[0], c: pr.spine!.points[1], half: pr.d / 2 }));
+  const offAxis = (p: V3, a: V3, c: V3) => {
+    const e = sub3(c, a), w = sub3(p, a);
+    const t = Math.max(0, Math.min(1, dot3(w, e) / dot3(e, e)));
+    return Math.hypot(w[0] - e[0] * t, w[1] - e[1] * t, w[2] - e[2] * t);
+  };
+  return metal.edges.filter((e) => {
+    const pts = [0.1, 0.3, 0.5, 0.7, 0.9].map((t) => headPoint(h, e.pointAt(t)));
+    if (joint === "feet") {
+      // On the base's top or one of its walls too: a prong's seam line,
+      // which lies on the prong alone, broke the whole fillet (S3).
+      return pts.every((p) => (Math.abs(p[2] - b.zTop) < T || (p[2] > b.zBottom - T && p[2] < b.zTop + T &&
+        (onWall(wallIn, p) || onWall(wallOut, p)))) &&
+        runs.some((r) => Math.abs(offAxis(p, r.a, r.c) - r.half) < 1.5 * T));
+    }
+    if (joint === "base") {
+      return pts.every((p) => Math.abs(p[2] - b.plateau) < T) &&
+        (pts.every((p) => onWall(wallIn, p)) || pts.every((p) => onWall(wallOut, p)));
+    }
+    // Not where its underside, overhanging a band narrower than the head,
+    // meets the band's flank: there the band turns under into its bore
+    // within a fillet's reach, and OCCT either failed (one side of a 1.2 mm
+    // band) or took two minutes to try (S3). That corner stays as cast.
+    const upright = Math.hypot(pts[0][0] - pts[4][0], pts[0][1] - pts[4][1]) < 1e-3;
+    return !upright && pts.every((p) => onWall(plate, p) && p[2] < b.plateau - T && p[2] > b.saddleBottom + T);
+  });
+}
+const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+
+/**
+ * Fillets these edges at radius r, checked as a fillet on concave edges must
+ * be: OCCT finished it, the solid is valid and still one, it gained metal
+ * (a fillet in an inside corner fills it) but no more than such a fillet can
+ * (r²(1 − π/4) along each edge, twice over for slack), and it has more faces.
+ * Returns the fillet's own faces, or why it was refused.
+ */
+function filletChecked(metal: Shape3D, edges: ReturnType<typeof jointEdges>, r: number):
+  { shape: Shape3D; faces: Face[] } | { why: string } {
+  if (!edges.length) return { why: "no edges found at the joint" };
+  const oc = getOC();
+  const mk = new oc.BRepFilletAPI_MakeFillet(metal.wrapped, oc.ChFi3d_FilletShape.ChFi3d_Rational);
+  const progress = new oc.Message_ProgressRange();
+  try {
+    for (const e of edges) mk.Add(r, e.wrapped);
+    try { mk.Build(progress); } catch { return { why: "OCCT threw building the fillet" }; }
+    if (!mk.IsDone()) return { why: "OCCT did not complete the fillet" };
+    const out = cast(mk.Shape()) as Shape3D;
+    const check = new oc.BRepCheck_Analyzer(out.wrapped, true, false);
+    const valid = check.IsValid();
+    check.delete();
+    if (!valid) return { why: "the filleted solid is not valid" };
+    if (out.solids.length !== metal.solids.length) return { why: `${out.solids.length} solids after, ${metal.solids.length} before` };
+    const before = volumes.get(metal) ?? measureVolume(metal), after = measureVolume(out);
+    const most = 2 * r * r * (1 - Math.PI / 4) * edges.reduce((t, e) => t + e.length, 0) + 1e-4;
+    if (!(after > before + 1e-6) || after > before + most) {
+      return { why: `volume ${before.toFixed(4)} → ${after.toFixed(4)} mm³ (at most ${most.toFixed(4)} more)` };
+    }
+    if (!(out.faces.length > metal.faces.length)) return { why: "no faces added" };
+    volumes.set(out, after);
+    const faces: Face[] = [];
+    for (const e of edges) {
+      const list = mk.Generated(e.wrapped);
+      while (list.Size() > 0) { faces.push(cast(list.First()) as Face); list.RemoveFirst(); }
+      list.delete();
+    }
+    return { shape: out, faces };
+  } finally {
+    mk.delete();
+    progress.delete();
+  }
+}
+
+/**
+ * The blends at the centre head's three joints, on the merged metal: each
+ * joint filleted at its radius from the layout (BasePlan.blend), one joint
+ * at a time and each checked, the edges found afresh on each result (a
+ * fillet makes new edges, and all three at once failed where each alone did
+ * not: the default ring's shank fillet met its base fillet at the saddle's
+ * corners, S3). The feet go one prong at a time if all at once fails.
+ *
+ * A joint whose fillet fails its check, or that has no room for one, is
+ * flared instead (S3's fallback, designed in): its flare solids (flaredFoot,
+ * baseFlare, shankFlare) are fused into the metal, each fuse checked as
+ * fuseMetal's are, so a joint ends either filleted or flared and the merge
+ * is not run twice. A ring with no base (a bezel) has nothing to blend.
+ */
+export function blendHead(metal: Shape3D, parts: RingParts, flareOnly: BlendJoint[] = []): BlendResult {
+  const h = parts.heads[0];
+  const res: BlendResult = { metal, paths: {}, faces: {}, flares: {}, failed: [] };
+  const b = h.layout.base;
+  if (!b) return res;
+  // The base and the shank first, the feet last: a foot's flare, fused
+  // in, came down over the base's foot and the base fillet after it was not
+  // valid (default ring, S3).
+  for (const joint of ["base", "shank", "feet"] as BlendJoint[]) {
+    const r = b.blend[joint];
+    // Feet with no room for a fillet were built flared (buildHead): the
+    // flares are rebuilt here only to be measured.
+    if (joint === "feet" && r === 0) {
+      res.failed.push({ joint, why: "no room on the base's top for a fillet at the legs' lean; built flared" });
+      res.paths.feet = "flare";
+      res.flares.feet = h.layout.prongs.map((pr) => placeShape(flaredFoot(pr.spine!.points, pr.d, b.flare.feet, b), headSteps(h)));
+      continue;
+    }
+    let got: ReturnType<typeof filletChecked> = { why: flareOnly.includes(joint) ? "its fillet left the mesh open at the export's tolerance" : "no room for a fillet" };
+    if (r > 0 && !flareOnly.includes(joint)) {
+      got = filletChecked(res.metal, jointEdges(res.metal, h, joint), r);
+      // The feet one prong at a time if all at once fails: six feet that
+      // each filleted alone failed together at 0.3 mm (default ring, S3).
+      if ("why" in got && joint === "feet") {
+        let m = res.metal;
+        const faces: Face[] = [];
+        for (const pr of h.layout.prongs) {
+          const one = filletChecked(m, jointEdges(m, h, joint, pr.index), r);
+          if ("why" in one) { got = { why: `prong ${pr.index + 1}: ${one.why}` }; break; }
+          m = one.shape;
+          faces.push(...one.faces);
+          got = { shape: m, faces };
+        }
+      }
+    }
+    if (!("why" in got)) {
+      res.metal = got.shape;
+      res.paths[joint] = "fillet";
+      res.faces[joint] = got.faces;
+      continue;
+    }
+    res.failed.push({ joint, why: got.why });
+    const fr = b.flare[joint];
+    const solids = joint === "feet"
+      ? h.layout.prongs.map((pr) => placeShape(flaredFoot(pr.spine!.points, pr.d, fr, b), headSteps(h)))
+      : [placeShape(joint === "base" ? baseFlare(b, fr) : shankFlare(b, fr), headSteps(h))];
+    res.flares[joint] = solids.map((x) => x.clone() as Shape3D);
+    const fused = fuseMetal([res.metal, ...solids]);
+    const check = new (getOC().BRepCheck_Analyzer)(fused.metal.wrapped, true, false);
+    const valid = check.IsValid();
+    check.delete();
+    if (fused.dropped || fused.metal.solids.length !== res.metal.solids.length || !valid) {
+      throw new Error(`the ${joint} flare did not fuse: ${fused.dropped} dropped, ${fused.metal.solids.length} solid(s)${valid ? "" : ", not valid"}`);
+    }
+    res.metal = fused.metal;
+    res.paths[joint] = "flare";
+  }
+  return res;
+}
+
+/** The moves that stood the centre head up on the band, as a head frame records them (see buildRingParts). */
+function headSteps(h: HeadFrame): Step[] {
+  // The head's frame: x along xDir, y along axis × xDir, z along the axis,
+  // the culet at the origin. Its +Z was turned onto the axis and moved to
+  // the culet; for the centre head that is a −90° turn about X, then up.
+  return [{ rot: -90, about: [1, 0, 0] }, { move: h.culet }];
+}
+
+/**
+ * The whole merge, as the app, the exports and the audit want it: every part
+ * built with its seats, fused, and the head's joints blended (S3).
+ */
+export function resolveRing(p: Parameters<typeof buildRingParts>[0]): FuseResult & { parts: RingParts; blend: BlendResult } {
+  const parts = buildRingParts(p, { seats: true });
+  // The centre head merged on its own first (saddle, base, prongs, gallery:
+  // each joins what is already there), then the band and the rest: the
+  // gallery's fuse costs less against the head alone than against the head
+  // on its band (default ring 1448 ms against 1638, S3).
+  const own = (r: PartRole) => r.head === "centre" && ["bridge", "base", "prong", "gallery"].includes(r.role);
+  const headIdx = parts.metalRoles.map((r, i) => (own(r) ? i : -1)).filter((i) => i >= 0);
+  let fused: FuseResult;
+  if (headIdx.length > 1 && parts.metalRoles[0].role === "band") {
+    const head = fuseMetal(headIdx.map((i) => parts.metalParts[i]));
+    const rest = parts.metalParts.filter((_, i) => i > 0 && !headIdx.includes(i));
+    const all = fuseMetal([parts.metalParts[0], head.metal, ...rest]);
+    fused = { ...all, dropped: head.dropped + all.dropped, voidsFilled: head.voidsFilled + all.voidsFilled, shiftedRetries: head.shiftedRetries + all.shiftedRetries };
+  } else fused = fuseMetal(parts.metalParts);
+  let blend = blendHead(fused.metal, parts);
+  // Meshed as the STL export meshes it, the blended metal must close: every
+  // edge used by two triangles, none of no area. A fillet OCCT calls valid
+  // can still mesh with seams that do not meet (a 4-prong marquise's tip
+  // feet: 14 open edges at 0.01 mm, none at 0.005, S3). Each filleted joint
+  // is flared in its place in turn, the feet first, until it does.
+  const flareOnly: BlendJoint[] = [];
+  for (const joint of ["feet", "shank", "base"] as BlendJoint[]) {
+    if (meshClosed(blend.metal)) break;
+    if (blend.paths[joint] !== "fillet") continue;
+    flareOnly.push(joint);
+    blend = blendHead(fused.metal, parts, flareOnly);
+  }
+  return { ...fused, metal: blend.metal, parts, blend };
+}
+
+/**
+ * Whether a solid meshes closed at the export's tolerance (toSTL: 0.01 mm):
+ * the faces' triangles, their corners merged by position, use every edge
+ * twice, and none has no area. The same test the structure audit's STL
+ * check makes (stl-check.ts), on the mesh rather than a written file.
+ */
+export function meshClosed(shape: Shape3D, tolerance = 0.01): boolean {
+  const m = shape.mesh({ tolerance, angularTolerance: 8 });
+  const v = m.vertices, t = m.triangles;
+  const ids = new Map<string, number>();
+  const id = (i: number) => {
+    const k = `${v[i * 3].toFixed(5)},${v[i * 3 + 1].toFixed(5)},${v[i * 3 + 2].toFixed(5)}`;
+    let n = ids.get(k);
+    if (n === undefined) { n = ids.size; ids.set(k, n); }
+    return n;
+  };
+  const use = new Map<number, number>();
+  for (let k = 0; k < t.length; k += 3) {
+    const a = id(t[k]), b = id(t[k + 1]), c = id(t[k + 2]);
+    if (a === b || b === c || c === a) return false;
+    for (const [p, q] of [[a, b], [b, c], [c, a]]) {
+      const key = p < q ? p * 4294967296 + q : q * 4294967296 + p;
+      use.set(key, (use.get(key) ?? 0) + 1);
+    }
+  }
+  for (const n of use.values()) if (n !== 2) return false;
+  return true;
+}
+
 export function ringMetrics(
   metal: Shape3D, stones: Shape3D[], d: RingDims
 ): RingMetrics {
@@ -2242,9 +2626,8 @@ export function buildRing(
   report: (pct: number, stage: string) => void = () => {}
 ): { metal: Shape3D; stones: Shape3D[]; metrics: RingMetrics } {
   report(25, "Shaping band");
-  const { metalParts, stones, dims } = buildRingParts(p, { seats: true });
+  const { metal, parts: { stones, dims } } = resolveRing(p);
   report(72, "Merging solids");
-  const { metal } = fuseMetal(metalParts);
   return { metal, stones, metrics: ringMetrics(metal, stones, dims) };
 }
 
