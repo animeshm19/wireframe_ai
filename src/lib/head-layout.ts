@@ -890,13 +890,14 @@ export function layoutHead(
     ];
     const better = (a: number[], b: number[]) => a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2] + 1e-9;
     if (opts.base && gallery) {
-      // The landings first; then larger and smaller in turn, 0.06 of the
-      // girdle at a time, between nothing and the girdle's own size: on a
-      // 2 mm prong under a low gallery the legs run in steeply and land well
-      // inside where the estimate puts them (all-max marquise, S3).
-      const first = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0);
+      // The smallest base that keeps its own gaps first, then larger, 0.06
+      // of the girdle at a time, to the girdle's own size: the first whose
+      // legs all keep theirs is the most compact head (the saddle under it
+      // grows with it, and a base sized where straight legs would land put
+      // the default ring's plate past the girdle, S3).
+      const first = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, 0);
       const tries = [first.sigma];
-      for (let k = 1; k <= 16; k++) tries.push(first.sigma + 0.06 * k, first.sigma - 0.06 * k);
+      for (let k = 1; k <= 20; k++) tries.push(first.sigma + 0.06 * k);
       let best: { base: BasePlan; laid: typeof laid; score: number[] } | null = null;
       const seen = new Set<string>();
       for (const at of tries.filter((x) => x >= 0 && x <= 1.05)) {
@@ -910,6 +911,89 @@ export function layoutHead(
       }
       base = best!.base;
       laid = best!.laid;
+      // Then the ring made wider, out and in, wherever a foot comes up
+      // through its top too near an edge for its blend: a foot fillet's
+      // reach either side (see baseFootFillet) and 0.02 mm. The legs stand
+      // as laid (a wider ring only gives a foot more room); its inner edge
+      // keeps its least rounding. Requiring the room of the legs instead
+      // laid most of the matrix's heads with kicked legs (S3). An open
+      // question for Animesh (STRUCTURE-LOG q. 29): the full fillet or a
+      // head that stays under the stone.
+      {
+        const inner = roundedPoints({ core: base.core, r: base.rIn }, 0.05), outer = roundedPoints({ core: base.core, r: base.rOut }, 0.05);
+        let out = 0, inn = 0;
+        for (const lr of laid) {
+          const f = lr.spine.points[0], u = unitV(sub(lr.spine.points[1], f));
+          if (u[2] < 0.3) continue;
+          const g = footGeometry(base, inner, outer, f, u, d / 2);
+          const want = base.blend.feet;
+          out = Math.max(out, want * g.cotOut - g.roomOut + 0.02);
+          inn = Math.max(inn, want * g.cotIn - g.roomIn + 0.02);
+        }
+        // At most 0.3 mm each way: the full reach at a 45° lean took the
+        // default ring's ring to 3.6 mm and its saddle to 4.0 mm, past the
+        // girdle's 3.25 (S3). Past that the fillet is held (reported).
+        out = Math.min(0.3, out); inn = Math.min(0.3, inn);
+        if (out > 1e-3 || inn > 1e-3) base = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, base.sigma, { out: Math.max(0, out), in: Math.max(0, inn) });
+      }
+      // The foot fillet held to what the feet leave room for on the base's
+      // top (see baseFootFillet); under 0.05 mm, none: the feet are flared.
+      {
+        const inner = roundedPoints({ core: base.core, r: base.rIn }, 0.05), outer = roundedPoints({ core: base.core, r: base.rOut }, 0.05);
+        const room = Math.min(...laid.map((r) => baseFootFillet(base!, inner, outer, r.spine.points, d / 2)));
+        if (room < base.blend.feet) base = { ...base, blend: { ...base.blend, feet: room >= 0.05 ? Math.floor(room * 1000) / 1000 : 0 } };
+        // Each flare held to what keeps it pavilionClearance from the stone
+        // and culetClearance from the culet, as every other part is: the
+        // all-max marquise's 0.8 mm flares on 2 mm prongs reached into the
+        // stone (S3). Tested on its rims and the lines between, by the
+        // hull's planes (a lower bound on the gap).
+        const clear = (pts: V3[]) => pts.every((q) => clearanceBound(planes, q) >= values.pavilionClearance &&
+          Math.hypot(q[0], q[1], q[2]) >= values.culetClearance + 0.02);
+        const ring = (c: V3, rr: number) => Array.from({ length: 24 }, (_, k) => [c[0] + rr * Math.cos((k / 12) * Math.PI), c[1] + rr * Math.sin((k / 12) * Math.PI), c[2]] as V3);
+        let column = false;
+        const footFlare = (fr: number) => laid.every((lr) => {
+          const f = lr.spine.points[0], u = unitV(sub(lr.spine.points[1], f));
+          const rising = u[2] >= 0.3, uz = rising ? u[2] : 0.3;
+          const E: V3 = rising ? add(f, scale(u, (base!.zTop - f[2]) / uz)) : [f[0], f[1], base!.zTop];
+          const top: V3 = rising ? add(E, scale(u, (2 * fr) / uz)) : [E[0], E[1], base!.zTop + 2 * fr];
+          const lo = ring(E, d / 2 / uz + fr), hi = ring(top, 0.9 * d / 2);
+          // Its foot on the base's top, 0.02 mm inside both edges; or, as a
+          // column, standing on the plateau clear of the band (0.03 mm over
+          // it) wherever it overhangs the base.
+          const onTop = lo.every((q) => polygonDistance(inner, [q[0], q[1]]) >= 0.02 && polygonDistance(outer, [q[0], q[1]]) <= -0.02);
+          const foot = column ? lo.map((q) => [q[0], q[1], base!.plateau] as V3) : [];
+          const offBand = foot.every((q) => (band.at(q[0], q[1])?.top ?? -Infinity) <= base!.plateau - 0.04);
+          return (column ? offBand : onTop) && clear([...lo, ...hi, ...foot, ...lo.map((q, k) => lerp(q, hi[k], 0.5))]);
+        });
+        const outline = (rr: number, z: number) => roundedPoints({ core: base!.core, r: rr }, 0.2).map(([x, y]) => [x, y, z] as V3);
+        const baseFlareClear = (fr: number) => clear([...outline(base!.rOut + fr, base!.plateau), ...outline(Math.max(0.01, base!.rIn - fr), base!.plateau),
+          ...outline(base!.rIn, base!.plateau + Math.min(2 * fr, base!.zTop - base!.plateau - 0.05))]);
+        const most = (fits: (x: number) => boolean, want: number) => {
+          if (fits(want)) return want;
+          let lo = 0, hi = want;
+          for (let k = 0; k < 12; k++) { const md = (lo + hi) / 2; if (fits(md)) lo = md; else hi = md; }
+          return Math.floor(lo * 1000) / 1000;
+        };
+        let feetFlare = most(footFlare, base.flare.feet);
+        // No flare fits on the top: a foot comes up over its edge. Then the
+        // column, as wide as keeps it clear (and never neither a fillet nor
+        // a flare, the S3 prompt's rule).
+        if (base.blend.feet === 0 && feetFlare < 0.05) { column = true; feetFlare = most(footFlare, base.flare.feet); }
+        base = { ...base, flareColumn: column, flare: { feet: feetFlare, base: most(baseFlareClear, base.flare.base), shank: base.flare.shank } };
+      }
+      // A blend the parts it joins are too thin for is held to what they
+      // take, and said so with both numbers (Animesh, on S2's question 25:
+      // a clamp the stone forces is reported, the bounds stay).
+      // (A joint with no room for a fillet is flared: its flare's radius is the one that counts.)
+      const held = (Object.entries(base.blend) as [string, number][])
+        .map(([k, r]) => [k, r > 0 ? r : base!.flare[k as keyof BasePlan["flare"]]] as [string, number])
+        .filter(([, r]) => r < values.filletRadius - 1e-9);
+      if (held.length) {
+        const least = Math.min(...held.map(([, r]) => r));
+        const where = { feet: "a prong meets the base", base: "the base meets its saddle", shank: "the saddle meets the band" } as Record<string, string>;
+        warnings.push({ key: "filletRadius", kind: "engine-clamped", asked: values.filletRadius, delivered: least,
+          message: `Rounding of ${fmt(values.filletRadius)} mm is more than this ring has room for where ${held.map(([k]) => where[k]).join(" and where ")}: ${held.map(([k, r]) => `${fmt(r)} mm where ${where[k]}`).join(", ")} is used (at most ${Math.round(BLEND_SHARE * 100)}% of the thinner part, and on a foot what the base's top leaves round it).` });
+      }
     } else laid = legs(gallery);
     // A three-stone's side head on a small ring (0.25 ct: the side stone is
     // 0.06 ct) has no room for a 0.8 mm prong to bend through a 0.7 mm wire
@@ -1564,9 +1648,14 @@ export function roundedSegments(o: Rounded): RoundedSegment[] {
   for (let k = 0; k < n; k++) {
     const before = edgeNormal(K, (k - 1 + n) % n), after = edgeNormal(K, k);
     if (o.r > 1e-9) {
-      const bis = [before[0] + after[0], before[1] + after[1]];
-      const L = Math.hypot(bis[0], bis[1]);
-      out.push({ kind: "arc", a: at(k, before), m: at(k, [bis[0] / L, bis[1] / L]), b: at(k, after), c: K[k] });
+      // Half way round from the side before to the side after, counter-
+      // clockwise: by angle, since at a two-cornered core's ends the arc
+      // turns a half turn and the normals' sum is nothing.
+      const a0 = Math.atan2(before[1], before[0]);
+      let sweep = Math.atan2(after[1], after[0]) - a0;
+      while (sweep <= 0) sweep += 2 * Math.PI;
+      const mid: V2 = [Math.cos(a0 + sweep / 2), Math.sin(a0 + sweep / 2)];
+      out.push({ kind: "arc", a: at(k, before), m: at(k, mid), b: at(k, after), c: K[k] });
     }
     out.push({ kind: "line", a: at(k, after), b: at((k + 1) % n, after) });
   }
@@ -1618,6 +1707,22 @@ export function roundedSamples(o: Rounded, n: number): V2[] {
   return out;
 }
 
+/** The convex hull of points, counter-clockwise (monotone chain), without collinear points. */
+function convexHull(pts: V2[]): V2[] {
+  const P = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const turn = (o: V2, a: V2, b: V2) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list: V2[]) => {
+    const h: V2[] = [];
+    for (const p of list) {
+      while (h.length >= 2 && turn(h[h.length - 2], h[h.length - 1], p) <= 1e-12) h.pop();
+      h.push(p);
+    }
+    return h;
+  };
+  const lower = half(P), upper = half([...P].reverse());
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
 /**
  * A convex polygon cut down to at most `most` corners, dropping each time
  * the corner whose loss takes least area (a convex polygon less a corner is
@@ -1666,8 +1771,9 @@ function turningCorners(P: V2[]): V2[] {
  *
  * The base is a flat ring under the stone, following its outline: every
  * prong's foot ends in it, and nothing of a prong reaches the band. It is
- * max(prongDiameter, minWall) tall and that plus 0.3 mm wide, the extra
- * giving a foot room to land square on it, and it sits low, just above the
+ * max(prongDiameter, minWall) tall and wider by two foot fillets and
+ * 0.45 mm (at least 0.3 mm), so a foot leaning in at 45° comes up through
+ * its top with room all round for its fillet, and it sits low, just above the
  * band, because a head set this close to the finger has no room for a base
  * any higher: the culet is culetClearance off the band, and on a 0.25 ct
  * stone the gallery already sits a few tenths of a millimetre above the
@@ -1695,8 +1801,17 @@ function turningCorners(P: V2[]): V2[] {
 export type BasePlan = {
   /** The convex core every outline of the base and saddle is grown from (see Rounded). */
   core: V2[];
-  /** The base's inner and outer edges and the saddle's plateau, as radii about the core. */
-  rIn: number; rOut: number; plateauR: number;
+  /** The base's inner and outer edges, as radii about the core. */
+  rIn: number; rOut: number;
+  /**
+   * The saddle's plate: the base's outline grown by the plateau's margin and
+   * drawn out along the band until, at its ends, the band has fallen the
+   * shank blend's radius and 0.1 mm below the plateau. Short of that, the
+   * plate's wall there stood less than a fillet's height above the band and
+   * the fillet rolled over its top edge (the default ring: 0.295 mm of wall
+   * for a 0.3 mm fillet, S3).
+   */
+  plate: Rounded;
   /** The base's bottom and top, above the culet. */
   zBottom: number; zTop: number;
   /** Section thickness: the base's height and its narrowest width across. */
@@ -1707,12 +1822,29 @@ export type BasePlan = {
   bandTop: number;
   /** The saddle's flat bottom, inside the band. */
   saddleBottom: number;
+  /** The band's lowest top under the plate's edge: where its wall stands deepest in the band. */
+  bandUnderEdge: number;
   /** The least gap from the base and saddle to the stone, and to the culet (exact distances to its faces). */
   clearance: number; culetClearance: number;
   /** Whether the base's top reaches the gallery: on a small stone the two meet. */
   touchesGallery: boolean;
   /** The core's scale of the girdle. */
   sigma: number;
+  /**
+   * The blends' radii at its three joints (S3): where the prongs' feet meet
+   * the base, the base the saddle, and the saddle the band. filletRadius,
+   * held to 45% of the thinner of the two parts each joins (a fillet larger
+   * than the part it runs onto fails in OCCT), and on the feet to the room
+   * the base's top leaves round them; 0 where there is too little room for
+   * one, and the joint is flared. See layoutHead's warning.
+   */
+  blend: { feet: number; base: number; shank: number };
+  /** The radius each joint's flare is built at, if its fillet fails or there is no room for one (filletRadius held to 45% of the thinner part). */
+  flare: { feet: number; base: number; shank: number };
+  /** Whether the feet's flares stand down to the plateau (a foot comes up over the top's edge; see flaredFoot). */
+  flareColumn: boolean;
+  /** The saddle's plate under the band's crest, top to bottom: the part the base and shank blends run onto. */
+  plateThickness: number;
 };
 
 /** Highest band top among these points (stone frame), and whether any lay off the band. */
@@ -1727,7 +1859,9 @@ function bandTopAmong(band: BandProbe, pts: V2[]): number {
 
 const BASE_SINK = 0.1;          // how far the base sits into the saddle's plateau
 const PLATEAU_DROP = 0.03;      // the plateau under the band's crest, which rises through it
-const SADDLE_MARGIN = 0.3;      // the plateau beyond the base's outer edge
+const SADDLE_MARGIN = 0.3;      // the plateau beyond the base's outer edge, at least
+/** The share of the thinner part a blend may take (the S3 prompt: "for example, at most 45%"). */
+export const BLEND_SHARE = 0.45;
 
 /**
  * Where the base goes. See BasePlan.
@@ -1748,14 +1882,42 @@ function planBase(
   prongs: ProngPlan[], minWall: number,
   /** The core's scale of the girdle to try, before the gaps grow it; by default, where the legs would land (see layoutHead). */
   tryScale?: number,
+  /** The ring widened by this much outward and inward (see layoutHead: room for the feet's blends). */
+  widen = { out: 0, in: 0 },
 ): BasePlan {
   const height = Math.max(d, minWall);
-  const width = height + 0.3;
+  // The blends' radii come first: the base must be wide enough for a foot
+  // to come in through its top with a fillet's width of top all round it
+  // (where a foot came in by its edge, or a fillet ran over the top's edge,
+  // OCCT failed: a marquise's every foot, S3).
+  const feetBlend = Math.min(v.filletRadius, BLEND_SHARE * Math.min(d, height));
+  const width = Math.max(height + 0.3, height + 2 * feetBlend + 0.45);
   // The core is the girdle scaled, its inner edge rounded by only 0.25 mm:
   // grown from a small core by a large radius, a princess's base came out
   // nearly round, and its corner prongs, standing a seventh further out than
   // the side ones, had nowhere near them to land.
-  const rIn = 0.25, rOut = rIn + width;
+  // The band's thickness under the head, for the saddle's depth and the
+  // shank blend's limit.
+  const onAxis = band.at(0, 0) ?? band.at(band.axial[0] * (band.axialMin + 0.2), band.axial[1] * (band.axialMin + 0.2));
+  const thick = onAxis ? onAxis.top - onAxis.bottom : 1;
+  // The blends, each at most BLEND_SHARE of the thinner part it joins: a
+  // prong and the base; the base and the saddle's plate; the plate and the
+  // band. The plate is half the band deep less the crest's 0.03 mm.
+  const plate0 = 0.5 * thick - PLATEAU_DROP;
+  const fr = v.filletRadius;
+  const blend = {
+    feet: feetBlend,
+    base: Math.min(fr, BLEND_SHARE * Math.min(height, width, plate0)),
+    shank: Math.min(fr, BLEND_SHARE * Math.min(plate0, thick)),
+  };
+  // The opening's corners rounded more than the base blend: a 0.3 mm fillet
+  // round a 0.25 mm corner folded over itself (an oval's base left 16 STL
+  // edges not used twice, S3).
+  const rIn = Math.max(0.25, blend.base + 0.1, Math.max(0.25, blend.base + 0.1) - widen.in), rOut = Math.max(0.25, blend.base + 0.1) + width + widen.out;
+  // The plateau reaches past the base by the base blend and 0.1 mm more, so
+  // the blend lands on the plateau and not over its edge (at 0.3 mm a 0.3 mm
+  // fillet failed, S3).
+  const margin = Math.max(SADDLE_MARGIN, blend.base + 0.1);
   const faces = prepareFaces(stackFaces(stone.girdle, stone.stations ?? stone.hull));
   const G = fewerCorners(turningCorners(stone.girdle), 8);
 
@@ -1772,7 +1934,7 @@ function planBase(
   // the head's axis (or beside a split shank's slot) whatever the base's
   // size, and probing it for every size tried was most of the layout's time
   // (42 ms of 70 on the default ring, S3).
-  const reach = roundedPoints(outline(1, rOut + SADDLE_MARGIN), 0.25);
+  const reach = roundedPoints(outline(1, rOut + margin), 0.25);
   const bandTop = (() => {
     // Across the finger, where the crest is, every 0.05 mm (a split shank's
     // slot edge is in there), and along it and round the outline more
@@ -1816,6 +1978,28 @@ function planBase(
     ? outline(sigma, rIn + width / 2).r
     : radialHit(roundedPoints(outline(sigma, rIn + width / 2), 0.2), psi).r);
 
+  // Where the band's crest rises through the plateau, round the axis: how
+  // far it reaches along the band and across it. The base's opening must
+  // hold it with room for the base blend inside the wall: on a marquise the
+  // crest reached the inner wall, and the base fillet failed there (S3).
+  const crest = (() => {
+    const along: V2 = [-band.axial[1], band.axial[0]], a = band.axial;
+    const reach = (u: V2) => {
+      let t = 0;
+      while (t < 3) { const b0 = band.at(u[0] * (t + 0.01), u[1] * (t + 0.01)); if (!b0 || b0.top <= heights.plateau) break; t += 0.01; }
+      return t;
+    };
+    return { along, a, x: Math.max(reach(along), reach([-along[0], -along[1]])), y: Math.max(reach(a), reach([-a[0], -a[1]])) };
+  })();
+  const crestRing = Array.from({ length: 24 }, (_, k) => {
+    const t = (k / 24) * 2 * Math.PI, cx = crest.x * Math.cos(t), cy = crest.y * Math.sin(t);
+    return [crest.along[0] * cx + crest.a[0] * cy, crest.along[1] * cx + crest.a[1] * cy] as V2;
+  });
+  const crestHeld = (sigma: number) => {
+    const inner = roundedPoints(outline(sigma, rIn), 0.05);
+    return crestRing.every((q) => polygonDistance(inner, q) <= -(blend.base + 0.05));
+  };
+
   // The gaps to the stone and the culet: the base's top edges, its inner
   // wall above the plateau and the saddle's hole round its rim.
   const gaps = (sigma: number, h: typeof heights) => {
@@ -1843,27 +2027,96 @@ function planBase(
     const off = L.reduce((t, { psi, r }) => t + middle(md, psi) - r, 0) / L.length;
     if (off > 0) hi = md; else lo = md;
   }
-  let sigma = Math.max(0, tryScale ?? (lo + hi) / 2);
+  // Never a point: a core of coincident corners has no sides to grow.
+  let sigma = Math.max(0.05, tryScale ?? (lo + hi) / 2);
   let h = heights, g = gaps(sigma, h);
-  while ((g.gap < v.pavilionClearance || g.culet < v.culetClearance + 0.02) && sigma < 1.2) {
+  while ((g.gap < v.pavilionClearance || g.culet < v.culetClearance + 0.02 || !crestHeld(sigma)) && sigma < 1.2) {
     sigma += 0.02;
     h = heights; g = gaps(sigma, h);
   }
 
+  // The plate, drawn out along the band (across the finger) as far as the
+  // band needs to fall away under its ends; see BasePlan.plate.
+  const along: V2 = [-band.axial[1], band.axial[0]];
+  const plateR = outline(sigma, rOut + margin).r, baseCore = outline(sigma, 0).core;
+  const drawnOut = (e: number): Rounded => ({
+    core: e > 0
+      ? convexHull(baseCore.flatMap(([x, y]) => [[x + along[0] * e, y + along[1] * e], [x - along[0] * e, y - along[1] * e]] as V2[]))
+      : baseCore,
+    r: plateR,
+  });
+  let plate = drawnOut(0);
+  for (let e = 0; e <= 4 + 1e-9; e += 0.1) {
+    plate = drawnOut(e);
+    const tooHigh = roundedPoints(plate, 0.1).some(([x, y]) => {
+      const bt = band.at(x, y);
+      return !!bt && bt.top > h.plateau - blend.shank - 0.1;
+    });
+    if (!tooHigh) break;
+  }
+
   // The saddle's bottom: halfway down through the band on the axis, never
   // nearer the bore than 0.15 mm (a split shank's slot: its rails').
-  const axial = band.axial;
-  const onAxis = band.at(0, 0) ?? band.at(axial[0] * (band.axialMin + 0.2), axial[1] * (band.axialMin + 0.2));
-  const thick = onAxis ? onAxis.top - onAxis.bottom : 1;
-  const zBot = Math.max(h.bandTop - 0.5 * thick, (onAxis ? onAxis.bottom : -Infinity) + 0.15);
+  // And at least 0.15 mm under the band all round the plate's edge where the
+  // band runs under it, so its wall always stands in the band: where the
+  // band had fallen under the plate's bottom by its ends, the wall never met
+  // it (a 1.2 mm band, S3).
+  const underEdge = Math.min(...roundedPoints(plate, 0.1).map(([x, y]) => band.at(x, y)?.top ?? Infinity));
+  const zBot = Math.max(Math.min(h.bandTop - 0.5 * thick, underEdge - 0.15), (onAxis ? onAxis.bottom : -Infinity) + 0.15);
 
   const outerTop = roundedPoints(outline(sigma, rOut), 0.2).map(([x, y]) => [x, y, h.zTop] as V3);
   return {
-    core: outline(sigma, 0).core, rIn: outline(sigma, rIn).r, rOut: outline(sigma, rOut).r, plateauR: outline(sigma, rOut + SADDLE_MARGIN).r,
+    core: outline(sigma, 0).core, rIn: outline(sigma, rIn).r, rOut: outline(sigma, rOut).r, plate,
     zBottom: h.zBottom, zTop: h.zTop, height, width,
-    plateau: h.plateau, bandTop: h.bandTop, saddleBottom: zBot,
-    clearance: g.gap, culetClearance: g.culet, sigma,
+    plateau: h.plateau, bandTop: h.bandTop, saddleBottom: zBot, bandUnderEdge: Number.isFinite(underEdge) ? underEdge : zBot,
+    clearance: g.gap, culetClearance: g.culet, sigma, blend, flare: { ...blend }, flareColumn: false, plateThickness: h.plateau - zBot,
     touchesGallery: outerTop.some((q) => Math.hypot(polygonDistance(gallery.path, [q[0], q[1]]), q[2] - gallery.z) < gr + 0.01),
+  };
+}
+
+/**
+ * The largest fillet a prong's foot has room for on the base's top. Where
+ * the run that ends in the base comes up through the top, its footprint
+ * there is an ellipse (the prong's radius over the leg's lean from upright,
+ * along the radius). A fillet of radius r round it reaches r·cot(α/2) out
+ * across the top, α the angle between the leg and the top on that side:
+ * 90° less the lean on the side the leg leans over, 90° more on the other
+ * (at a 45° lean, 2.4 r and 0.4 r). Both reaches must stop 0.02 mm short of
+ * the top's edges. Negative where the foot comes in over an edge.
+ */
+function baseFootFillet(base: BasePlan, inner: V2[], outer: V2[], points: V3[], half: number): number {
+  const f = points[0], u = unitV(sub(points[1], f));
+  if (u[2] < 0.3) return -1;
+  const g = footGeometry(base, inner, outer, f, u, half);
+  return Math.min(g.roomOut / g.cotOut, g.roomIn / g.cotIn);
+}
+
+/** Where a foot's run comes up through the base's top, the room either side of its footprint, and its fillet's reach per unit radius either side. */
+function footGeometry(base: BasePlan, inner: V2[], outer: V2[], f: V3, u: V3, half: number) {
+  const E = add(f, scale(u, (base.zTop - f[2]) / u[2]));
+  const rE = Math.hypot(E[0], E[1]), a = Math.atan2(E[1], E[0]);
+  const reach = half / u[2] + 0.02;
+  const inE = radialHit(inner, a).r, outE = radialHit(outer, a).r;
+  // The lean along the radius: outward (the leg leans over the outer side
+  // of the top) when the run rises away from the axis.
+  const out = rE > 1e-9 ? (u[0] * E[0] + u[1] * E[1]) / rE : 0;
+  const lean = Math.asin(Math.min(1, Math.abs(out)));
+  const acute = 1 / Math.tan((Math.PI / 2 - lean) / 2), obtuse = 1 / Math.tan((Math.PI / 2 + lean) / 2);
+  // The room each side is the true distance from the footprint to that
+  // edge, not along the radius: at a marquise's point the edge runs slantwise
+  // and a radial room read 0.15 mm more than there was (4 prongs: 14 STL
+  // edges not used twice where its tip feet's fillets ran off the top, S3).
+  const er: V2 = rE > 1e-9 ? [E[0] / rE, E[1] / rE] : [1, 0], et: V2 = [-er[1], er[0]];
+  let roomIn = Infinity, roomOut = Infinity;
+  for (let k = 0; k < 24; k++) {
+    const c = Math.cos((k / 12) * Math.PI), sn = Math.sin((k / 12) * Math.PI);
+    const q: V2 = [E[0] + er[0] * reach * c + et[0] * (half + 0.02) * sn, E[1] + er[1] * reach * c + et[1] * (half + 0.02) * sn];
+    roomIn = Math.min(roomIn, polygonDistance(inner, q));
+    roomOut = Math.min(roomOut, -polygonDistance(outer, q));
+  }
+  return {
+    rE, inE, outE, reach, roomIn, roomOut,
+    cotOut: out >= 0 ? acute : obtuse, cotIn: out >= 0 ? obtuse : acute,
   };
 }
 
@@ -1951,8 +2204,21 @@ function layoutLeg(
   // On a base, the foot goes straight out from the axis towards the post,
   // as far out as the base allows: its inner and outer edges along that
   // direction, less the foot's own radius.
-  const baseIn = base ? radialHit(roundedPoints({ core: base.core, r: base.rIn }, 0.05), psi).r : 0;
-  const baseOut = base ? radialHit(roundedPoints({ core: base.core, r: base.rOut }, 0.05), psi).r : 0;
+  const baseInner = base ? roundedPoints({ core: base.core, r: base.rIn }, 0.05) : [];
+  const baseOuter = base ? roundedPoints({ core: base.core, r: base.rOut }, 0.05) : [];
+
+  const baseIn = base ? radialHit(baseInner, psi).r : 0;
+  // How far a leg comes up through the base's top from where its fillet has
+  // most room: where the reach either side (see baseFootFillet) uses the
+  // same share of the room that side.
+  const entryOffset = (points: V3[]) => {
+    const f = points[0], u = unitV(sub(points[1], f));
+    if (u[2] < 0.3) return 0;
+    const g = footGeometry(base!, baseInner, baseOuter, f, u, half);
+    const best = (g.cotOut * (g.inE + g.reach) + g.cotIn * (g.outE - g.reach)) / (g.cotOut + g.cotIn);
+    return g.rE - best;
+  };
+  const baseOut = base ? radialHit(baseOuter, psi).r : 0;
   const footXY = (r: number): V2 => {
     if (base) return [r * Math.cos(psi), r * Math.sin(psi)];
     const e: V2 = [Math.cos(psi), Math.sin(psi)];
@@ -2139,6 +2405,8 @@ function layoutLeg(
     const ur = r > 1e-9 ? (u[0] * f[0] + u[1] * f[1]) / r : 0;
     const out = half * Math.sqrt(Math.max(0, 1 - ur * ur));
     if (f[2] - across < base.plateau + 0.01 || r - out < baseIn + 0.02 || r + out > baseOut - 0.02) return false;
+
+    if (u[2] < 0.3) return false;
     return spineSamples(s.points, s.bends, half).every(({ c: q, t, slack }) =>
       q[2] - half * Math.sqrt(Math.max(0, 1 - t[2] * t[2])) - slack >= base.plateau + 0.01);
   };
@@ -2196,7 +2464,12 @@ function layoutLeg(
       // Straight on into the base first: one bend fewer.
       const st = build(baseRs[0], bend, mode, drop, delta, wrap, kick, fall, true);
       if (ok(st, mode)) return { ...st, r: baseRs[0], drop, delta };
-      for (const r of baseRs) if (ok(build(r, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(r);
+      // Then with the foot placed so the leg comes up through the base's top
+      // where its fillet has most room (see entryOffset); then across the
+      // base's width, middle first.
+      const first = build(baseRs[0], bend, mode, drop, delta, wrap, kick, fall);
+      const centred = baseRs[0] - entryOffset(first.points);
+      for (const r of [centred, ...baseRs]) if (ok(build(r, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(r);
       return null;
     }
     if (ok(build(rMin, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(rMin);
@@ -2283,10 +2556,18 @@ function layoutLeg(
   };
   const tiers: ([boolean, boolean, number] | "kicked-joint" | "kicked")[] =
     [[true, true, 1], [true, false, 1], [true, false, 0], "kicked-joint", [false, false, 1], [false, false, 0], "kicked"];
-  for (const deep of base ? [false, true] : [false]) {
+  // Every straight leg, a foot just under the base's top and then deep,
+  // before any kicked one: a kicked leg is for the pavilion gap alone
+  // (Animesh, on S2's question 26).
+  const depths = base ? [false, true] : [false];
+  const phases = [
+    ...depths.map((deep) => ({ deep, tiers: tiers.filter((t) => typeof t !== "string") })),
+    ...depths.map((deep) => ({ deep, tiers: tiers.filter((t) => typeof t === "string") })),
+  ];
+  for (const phase of phases) {
   if (chosen) break;
-  deepFoot = deep;
-  for (const tier of tiers) {
+  deepFoot = phase.deep;
+  for (const tier of phase.tiers) {
     if (chosen) break;
     if (tier === "kicked-joint" || tier === "kicked") { chosen = kicked(tier === "kicked-joint"); continue; }
     const [joint, ball, wrap] = tier;
