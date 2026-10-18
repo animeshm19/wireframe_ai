@@ -20,15 +20,15 @@
 import {
   draw, makeCircle, makeCompound, makeFace, makeLine, makePolygon, makeSphere, makeVertex,
   assembleWire, measureArea, measureDistanceBetween, measureShapeVolumeProperties,
-  measureVolume, Plane,
-  type Shape3D, type AnyShape,
+  measureVolume, Plane, getOC,
+  type Shape3D, type AnyShape, type Face,
 } from "replicad";
 import {
   buildRingParts, resolveRing, toSTEP, toSTL, BLEND_JOINTS,
   type PartRole, type StoneRole, type HeadFrame, type HeadName, type BlendJoint, type BlendPath,
 } from "./cad-engine-brep.js";
 import { gemDims } from "./cad-engine.js";
-import { polygonDistance, radialHit, roundedPoints } from "./head-layout.js";
+import { centrelineOffset, padProfile, polygonDistance, radialHit, roundedPoints, spineSamples } from "./head-layout.js";
 import { benchBounds, resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
@@ -147,11 +147,11 @@ export type BaseAudit = {
   thickness: number;
   /** What it must be at least: max(prongDiameter built, the alloy's minimum wall). */
   need: number;
-  /** Least distance from the base, and from the saddle, to the stone it holds. */
+  /** Least distance from the lower gallery, and from its pad, to the stone it holds. */
   clearanceToStone: number;
-  saddleClearanceToStone: number;
-  /** Where the layout put it, above the culet: its bottom and top, and the saddle's plateau. */
-  zBottom: number; zTop: number; plateau: number;
+  padClearanceToStone: number;
+  /** Where the layout put it, above the culet: the wire's bottom and top, and the pad's top. */
+  zBottom: number; zTop: number; padTop: number;
   /** Whether its top meets the gallery's underside (small stones). */
   touchesGallery: boolean;
 };
@@ -174,7 +174,7 @@ export type BlendAudit = {
   measured: Partial<Record<BlendJoint, { min: number; max: number; faces: number }>>;
   /** resolveRing found the blended metal still meshing open with every filleted joint flared. */
   meshOpen: boolean;
-  /** The feet's flare was built as a column down to the plateau (no flare fitted on the base's top). */
+  /** S3's foot flares that stood as columns beside a flat base (q. 34); always false since S3b. */
   flareColumn: boolean;
 };
 
@@ -189,11 +189,13 @@ export type StructureAudit = {
    * for this design's alloy, from setting-standards and not from the engine:
    * the invariants accept a reported hold only inside them (review).
    */
-  bounds: Record<"culetClearance" | "galleryClearance", { min: number; max: number }>;
+  bounds: Record<"culetClearance" | "galleryClearance" | "basketTaper", { min: number; max: number }>;
   /** Microscopic sealed cavities the merge filled (fuseMetal → sealVoids). */
   voidsFilled: number;
   /** Fuses OCCT got wrong that a retry 0.001 mm over got right (see fuseMetal). */
   shiftedRetries: number;
+  /** Overlaps the audit read as none that a retry 0.001 mm over found (see common). */
+  commonRetries: number;
   blend: BlendAudit;
   solidCount: number;
   dropped: number;
@@ -224,6 +226,12 @@ export type StructureAudit = {
     baseSeat: number;
     /** The band's surface inside the saddle, mm²: where the band holds the saddle. NaN with no base. */
     saddleSeat: number;
+  } | null;
+  /** The head below the stone (S3b): see measureBasket. Null without a lower gallery. */
+  basket: {
+    overhang: number; overhangAt: string; outside: number; outsideAt: string; legsOut: number; legsOutAt: string;
+    opening: number; padOpening: number;
+    headMetal: number; tapers: number[]; taper: number; crestInside: boolean;
   } | null;
   /** Pairwise stone ∩ stone, every pair whose boxes meet. */
   stonePairs: { a: number; b: number; volume: number }[];
@@ -327,8 +335,24 @@ export async function auditStructure(
   const vols = new Map<AnyShape, number>();
   const volOf = (s: Shape3D) => { let v = vols.get(s); if (v === undefined) { v = vol(s); vols.set(s, v); } return v; };
 
+  // OCCT's intersector can miss an overlap at one exact placement and find
+  // it 0.001 mm either way (fuseMetal's retry, S2): a common of two parts
+  // that touch is read again with the second moved 0.001 mm along each axis
+  // in turn, the largest taken, and the retry counted (S3b: two of a
+  // marquise's six feet read 0 in a wire the merge had joined them to).
+  let commonRetries = 0;
   const common = (a: Shape3D, b: Shape3D, what: string): number => {
-    try { return overlapVolume(a, b, volOf); } catch (e) {
+    try {
+      const v = overlapVolume(a, b, volOf);
+      if (v > 1e-9 || a.boundingBox.isOut(b.boundingBox) || !(measureDistanceBetween(a, b) < 1e-6)) return v;
+      let most = v;
+      for (const dlt of [[1e-3, 0, 0], [-1e-3, 0, 0], [0, 1e-3, 0], [0, -1e-3, 0], [0, 0, 1e-3], [0, 0, -1e-3]] as V3[]) {
+        const moved = b.clone().translate(dlt) as Shape3D;
+        most = Math.max(most, measureVolume(a.clone().intersect(moved) as Shape3D));
+      }
+      if (most > v) commonRetries++;
+      return most;
+    } catch (e) {
       errors.push(`${what}: ${(e as Error)?.message ?? e}`);
       return NaN;
     }
@@ -570,8 +594,8 @@ export async function auditStructure(
       thickness: baseSections[k],
       need: Math.max(frame.bench.values.prongDiameter, lim),
       clearanceToStone: distance(metalParts[b], held, `${r.head} base to stone`),
-      saddleClearanceToStone: saddle == null ? NaN : distance(metalParts[saddle], held, `${r.head} saddle to stone`),
-      zBottom: plan ? plan.zBottom : NaN, zTop: plan ? plan.zTop : NaN, plateau: plan ? plan.plateau : NaN,
+      padClearanceToStone: saddle == null ? NaN : distance(metalParts[saddle], held, `${r.head} pad to stone`),
+      zBottom: plan ? plan.zBottom : NaN, zTop: plan ? plan.zTop : NaN, padTop: plan ? plan.pad.top : NaN,
       touchesGallery: !!plan?.touchesGallery,
     };
   });
@@ -593,7 +617,7 @@ export async function auditStructure(
       // (0.25 ct, all-max: 13.6 mm² of a joint that carries the base whole).
       const plan = centreFrame.layout.base;
       const disc = plan
-        ? makePolygon(roundedPoints(plan.plate, 0.05).map(([x, y]) => toRing(centreFrame, [x, y, s]) as V3))
+        ? makePolygon(plan.pad.plan.map(([x, y]) => toRing(centreFrame, [x, y, s]) as V3))
         : makeFace(assembleWire([makeCircle(dims.girdleR * 1.2, at, centreFrame.axis)]));
       const area = measureArea(metal.intersect(disc as unknown as Shape3D) as Shape3D);
       const pd = bench.values.prongDiameter;
@@ -629,7 +653,7 @@ export async function auditStructure(
   const measured: BlendAudit["measured"] = {};
   for (const j of BLEND_JOINTS) {
     if (resolved.blend.paths[j] === "fillet") {
-      const radii = filletSections(j, metal, centreFrame, errors, dims.bandWidth / 2).filter((x) => Number.isFinite(x));
+      const radii = filletRadii(j, resolved.blend.faces[j] ?? [], errors).filter((x) => Number.isFinite(x));
       measured[j] = { min: Math.min(...radii), max: Math.max(...radii), faces: radii.length };
     } else if (resolved.blend.paths[j] === "flare" && plan) {
       const r = flareRadius(j, resolved.blend.flares[j] ?? [], centreFrame, errors);
@@ -642,12 +666,30 @@ export async function auditStructure(
     planned: plan ? plan.blend : null, flarePlanned: plan ? plan.flare : null, measured,
   };
 
+
+  // ------------------------------------------------------- basket (S3b) --
+  // I15, I16, I17 and basketTaper's I13: what the head below the stone is,
+  // measured on the parts and the merged metal (see BasketAudit).
+  let basket: StructureAudit["basket"] = null;
+  const cb = centreFrame.layout.base;
+  const bi = baseIdx.find((i) => metalRoles[i].head === "centre"), pi = bridgeIdx.find((i) => metalRoles[i].head === "centre");
+  if (cb && bi != null && pi != null && centreFrame.band) {
+    try {
+      basket = measureBasket(centreFrame, metal, metalParts[bi], metalParts[pi],
+        idx((r) => r.role === "prong" && r.head === "centre").map((i) => metalParts[i]),
+        bandIdx.map((i) => metalParts[i]), errors);
+    } catch (e) {
+      errors.push(`basket measure threw ${(e as Error)?.message ?? e}`);
+    }
+  }
+
   const t3 = performance.now();
   return {
-    spec, bench, requested, voidsFilled, shiftedRetries, blend,
+    spec, bench, requested, voidsFilled, shiftedRetries, commonRetries, blend, basket,
     bounds: {
       culetClearance: benchBounds("culetClearance", (spec.metalType as MetalType) ?? "platinum"),
       galleryClearance: benchBounds("galleryClearance", (spec.metalType as MetalType) ?? "platinum"),
+      basketTaper: benchBounds("basketTaper", (spec.metalType as MetalType) ?? "platinum"),
     },
     solidCount: metal.solids.length,
     dropped,
@@ -826,213 +868,237 @@ function measureBearing(
 // --------------------------------------------------------------- blends --
 
 /**
- * A filleted joint's radius, as a section through it shows it: the merged
- * metal cut by planes square to the joint, and in each section the curve
- * that runs from one part's surface to the other's, the circle through its
- * two ends and middle. On a fillet that is the rolling ball's own circle.
- * (Read off the faces instead, OCCT's B-spline fillet patches where a
- * fillet runs past another feature read anywhere from 0.001 to 400 mm.)
- *   feet   per prong, the plane holding its run into the base and the head's
- *          axis: from the base's top (or a wall) to the prong's surface;
- *   base   the plane through the axis between prong 0 and prong 1: from the
- *          plateau to the base's inner and outer walls;
- *   shank  the planes through the axis across and along the finger: from
- *          the saddle's wall or underside to the band.
+ * A filleted joint's radius, read off the fillet faces resolveRing made at
+ * that joint (S3b). OCCT's fillet surface runs its U parameter across the
+ * fillet, round the rolling ball's own circle (seen on the default ring: the
+ * U lines of every fillet face read 0.3000 for a 0.3 fillet, the V lines the
+ * joint's own curve), so the circle through a U line's ends and middle is
+ * the radius. Taken only where the line is that circle: the same circle
+ * through its first half, to 0.001 mm. A patch where a fillet runs past
+ * another feature, whose U line is not one arc (S3 read anywhere from 0.001
+ * to 400 mm off such patches), is left out; if none is left, NaN.
  */
-function filletSections(joint: BlendJoint, metal: Shape3D, frame: HeadFrame, errors: string[], bandHalfWidth?: number): number[] {
-  const b = frame.layout.base!;
-  const T = 3e-3;
-  const plateOut = densePoly(b.plate.core, b.plate.r), wallIn = densePoly(b.core, b.rIn), wallOut = densePoly(b.core, b.rOut);
-  const onPoly = (poly: [number, number][], p: V3) => Math.abs(polyDistance(poly, [p[0], p[1]])) < T;
-  const radiusOf = (a: V3, m: V3, c: V3) => {
-    const ab = Math.hypot(...add(m, a, -1)), bc = Math.hypot(...add(c, m, -1)), ca = Math.hypot(...add(a, c, -1));
-    const area = Math.hypot(...cross(add(m, a, -1), add(c, a, -1))) / 2;
-    return area > 1e-12 ? (ab * bc * ca) / (4 * area) : Infinity;
-  };
-  // The section of the metal by the plane through `at` (head frame) square
-  // to `normal`, its curves as [start, middle, end] in the head's frame.
-  const section = (at: V3, normal: V3) => {
-    const R = frame.girdleR * 3;
-    const disc = makeFace(assembleWire([makeCircle(R, toRing(frame, at), dirToRing(frame, normal))]));
-    const cut = metal.intersect(disc as unknown as Shape3D);
-    return cut.edges.map((e) => {
-      const at = (t: number) => { const v = e.pointAt(t); return toHead(frame, [v.x, v.y, v.z]); };
-      return Object.assign([at(0), at(0.5), at(1)] as [V3, V3, V3], { at, len: e.length });
-    });
-  };
+function filletRadii(joint: BlendJoint, faces: Face[], errors: string[]): number[] {
+  const oc = getOC();
   const out: number[] = [];
-  try {
-    if (joint === "feet") {
-      for (const p of frame.layout.prongs) {
-        const F = p.spine!.points[0], u = unit(add(p.spine!.points[1], F, -1));
-        const E = add(F, u, (b.zTop - F[2]) / u[2]);
-        let n = cross(u, [0, 0, 1]);
-        if (Math.hypot(...n) < 1e-6) n = [-E[1], E[0], 0];
-        const half = p.d / 2;
-        const onProng = (q: V3) => {
-          const w = add(q, F, -1), t = dot(w, u);
-          return Math.abs(Math.hypot(...add(w, u, -t)) - half) < T;
-        };
-        const onBase = (q: V3) => Math.abs(q[2] - b.zTop) < T || onPoly(wallIn, q) || onPoly(wallOut, q);
-        for (const [a, m, c] of section(E, unit(n))) {
-          if (Math.hypot(...add(m, E, -1)) > 3 * b.blend.feet + p.d) continue;
-          if ((onBase(a) && onProng(c)) || (onBase(c) && onProng(a))) out.push(radiusOf(a, m, c));
-        }
+  for (const f of faces) {
+    const ad = new oc.BRepAdaptor_Surface(f.wrapped, true);
+    try {
+      const u0 = ad.FirstUParameter(), u1 = ad.LastUParameter(), v0 = ad.FirstVParameter(), v1 = ad.LastVParameter();
+      const P = (u: number, v: number): V3 => { const p = ad.Value(u, v); const q: V3 = [p.X(), p.Y(), p.Z()]; p.delete(); return q; };
+      for (const v of [v0 + (v1 - v0) * 0.25, (v0 + v1) / 2, v0 + (v1 - v0) * 0.75]) {
+        const um = (u0 + u1) / 2;
+        const full = circumradius(P(u0, v), P(um, v), P(u1, v)), half = circumradius(P(u0, v), P((u0 + um) / 2, v), P(um, v));
+        if (Number.isFinite(full) && Math.abs(full - half) < 1e-3) out.push(full);
       }
-    } else if (joint === "base") {
-      // Square to each wall, where the ray between prong 0 and prong 1
-      // meets it: on a straight side, a plane through the axis at a slant
-      // to the wall cuts the fillet in an ellipse and reads it large.
-      const n = frame.prongAngles.length;
-      const ang = n >= 2 ? (frame.prongAngles[0] + frame.prongAngles[1]) / 2 : 0;
-      const onPlate = (q: V3) => Math.abs(q[2] - b.plateau) < T;
-      for (const wall of [wallIn, wallOut]) {
-        const hit = rayOnPoly(wall, ang);
-        const at: V3 = [hit.p[0], hit.p[1], b.plateau];
-        for (const [a, m, c] of section(at, [hit.t[0], hit.t[1], 0])) {
-          if (Math.hypot(a[0] - at[0], a[1] - at[1]) > 3 * b.blend.base && Math.hypot(c[0] - at[0], c[1] - at[1]) > 3 * b.blend.base) continue;
-          if ((onPlate(a) && onPoly(wall, c)) || (onPlate(c) && onPoly(wall, a))) out.push(radiusOf(a, m, c));
-        }
-      }
-    } else {
-      // On the saddle's wall only: its underside meeting the band is not
-      // filleted (see jointEdges), and a curve off it is the band's flank.
-      const onSaddle = (q: V3) => onPoly(plateOut, q) && q[2] <= b.plateau + T && q[2] > b.saddleBottom + T;
-      // Where the wall is met along the band and across it on the axis, and
-      // along each side of the band (a split shank's band is two rails either
-      // side of a slot, where the middle finds no band); each square to the
-      // wall (on a round plate a plane along the band at the side cuts the
-      // wall at a slant, and the fillet read large).
-      // Off the axis the band's top slopes across the wall, so the fillet's
-      // line on the wall climbs: the plane is turned square to that line,
-      // found from where the fillet leaves the wall in two sections 0.05 mm
-      // apart along it.
-      const side = 0.6 * (bandHalfWidth ?? 0);
-      const reachX = Math.max(...plateOut.map(([x]) => Math.abs(x)));
-      const cuts: [V3, V3][] = [];
-      // Off the saddle, below its plateau, and not the foot of its wall
-      // (where a split shank's slot leaves the wall standing to its bottom).
-      const off = (q: V3) => !onSaddle(q) && q[2] < b.plateau - T && !(onPoly(plateOut, q) && Math.abs(q[2] - b.saddleBottom) < T);
-      const near = (q: V3, at: V3) => Math.hypot(q[0] - at[0], q[1] - at[1]) < 0.5;
-      const leaves = (at: V3, n: V3) => {
-        for (const [a, , c] of section(at, n)) {
-          if (onSaddle(a) && off(c) && near(a, at)) return a;
-          if (onSaddle(c) && off(a) && near(c, at)) return c;
-        }
-        return null;
-      };
-      const angles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
-      for (const sgnX of [1, -1]) for (const sgnY of [1, -1]) angles.push(Math.atan2(sgnY * side, sgnX * reachX));
-      for (const ang of angles) {
-        const hit = rayOnPoly(plateOut, ang);
-        const t: V3 = [hit.t[0], hit.t[1], 0], at: V3 = [hit.p[0], hit.p[1], 0];
-        const z0 = leaves(at, t), z1 = leaves(add(at, t, 0.05), t);
-        // Through where the fillet leaves the wall: tilted, a plane through
-        // the plate's middle height would meet the wall elsewhere.
-        cuts.push(z0 && z1 ? [z0, unit(add(z1, z0, -1))] : [at, t]);
-      }
-      for (const [p0, n] of cuts) {
-        for (const curve of section(p0, n)) {
-          // One end on the saddle's wall or underside, the other off the
-          // saddle and below its plateau: on the band. The curve can carry
-          // on past the fillet down the band's flank as one edge, so the
-          // radius is the curve's own where it leaves the saddle: the circle
-          // through the end and the points 0.05 and 0.1 radii along it (taken
-          // from the edge's length). Not a share of a quarter turn: where the
-          // band's edge falls away steeply (an 8 mm band, whose plate ends
-          // inside its width) the fillet turns far less than 90°, and the
-          // third point then lay on the band's flank and read 0.40 for 0.30.
-          const [a, , c] = curve;
-          const fromA = onSaddle(a) && off(c) && near(a, p0), fromC = onSaddle(c) && off(a) && near(c, p0);
-          if (!fromA && !fromC) continue;
-          const step = Math.min(0.2, (0.05 * b.blend.shank) / Math.max(1e-9, curve.len));
-          const t0 = fromA ? 0 : 1, sgn = fromA ? 1 : -1;
-          const rr = radiusOf(curve.at(t0), curve.at(t0 + sgn * step), curve.at(t0 + 2 * sgn * step));
-          // A straight curve is no fillet: on a split shank a tilted cut also
-          // meets the slot's side running off the wall's foot.
-          if (Number.isFinite(rr)) out.push(rr);
-        }
-      }
+    } catch (e) {
+      errors.push(`${joint} fillet face threw ${(e as Error)?.message ?? e}`);
+    } finally {
+      ad.delete();
     }
-  } catch (e) {
-    errors.push(`${joint} fillet section threw ${(e as Error)?.message ?? e}`);
   }
-  return out;
+  return out.length ? out : [NaN];
 }
 
-/** A rounded outline's length round. */
-function platePerimeter(o: { core: [number, number][]; r: number }): number {
-  const K = o.core;
-  let per = 2 * Math.PI * o.r;
-  if (K.length > 1) for (let i = 0; i < K.length; i++) per += Math.hypot(K[(i + 1) % K.length][0] - K[i][0], K[(i + 1) % K.length][1] - K[i][1]);
-  return per;
-}
-
-/** Where a ray from the axis at angle a crosses a closed polygon, and the polygon's unit direction there. */
-function rayOnPoly(poly: [number, number][], a: number): { p: [number, number]; t: [number, number] } {
-  const h = radialHit(poly, a);
-  const p0 = poly[h.edge], p1 = poly[(h.edge + 1) % poly.length];
-  const L = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
-  return { p: [h.r * Math.cos(a), h.r * Math.sin(a)], t: [(p1[0] - p0[0]) / L, (p1[1] - p0[1]) / L] };
-}
-
-/** A rounded outline (head-layout's Rounded), sampled every 0.01 mm. */
-function densePoly(core: [number, number][], r: number): [number, number][] {
-  return roundedPoints({ core, r }, 0.01);
-}
-const polyDistance = (poly: [number, number][], q: [number, number]) => polygonDistance(poly, q);
-/** A head-frame direction in the ring's frame. */
-function dirToRing(frame: HeadFrame, d: V3): V3 {
-  const y = cross(frame.axis, frame.xDir);
-  return add(add(frame.xDir.map((x) => x * d[0]) as V3, y, d[1]), frame.axis, d[2]);
+function circumradius(a: V3, b: V3, c: V3): number {
+  const ab = add(b, a, -1), ac = add(c, a, -1);
+  const cr = cross(ab, ac), A = Math.hypot(...cr) / 2;
+  if (A < 1e-12) return Infinity;
+  return (Math.hypot(...ab) * Math.hypot(...ac) * Math.hypot(...add(c, b, -1))) / (4 * A);
 }
 
 /**
- * A flared joint's added radius, read off the flare solids the merge fused
- * in (S3's fallback):
- *   feet   each flared foot's section at its foot, its radius less the
- *          prong's footprint on the base's top;
- *   base   the base flare's section 0.002 mm over the plateau: its area less
- *          the base ring's, over the two walls' length;
- *   shank  the skirt's section at its foot, less the plate's own area, over
- *          the plate's outline.
+ * A flared joint's added radius, measured on the flare built (resolveRing
+ * hands them over before fusing them in):
+ *   feet   the flare's section square to its run, at the foot: its radius
+ *          less the prong's;
+ *   base   in the plane through the head's axis along the band, how far
+ *          down the pad's outer face the flare reaches from where that face
+ *          leaves the wire, which the flare runs 2r;
+ *   shank  in the same plane, how far the flare stands out beyond the pad's
+ *          outer face, which it does by r.
  */
 function flareRadius(joint: BlendJoint, flares: Shape3D[], frame: HeadFrame, errors: string[]): number[] {
   const b = frame.layout.base!;
-  const sectionArea = (part: Shape3D, at: V3, normal: V3, R: number) => {
-    const disc = makeFace(assembleWire([makeCircle(R, at, normal)]));
-    return measureArea(part.intersect(disc as unknown as Shape3D) as Shape3D);
-  };
-  const area = (core: [number, number][], r: number) => {
-    if (core.length === 1) return Math.PI * r * r;
-    let a = 0;
-    for (let i = 0; i < core.length; i++) a += core[i][0] * core[(i + 1) % core.length][1] - core[(i + 1) % core.length][0] * core[i][1];
-    return Math.abs(a) / 2 + platePerimeter({ core, r: 0 }) * r + Math.PI * r * r;
-  };
   try {
     if (joint === "feet") {
-      // The flare's section just over the base's top, its radius less the
-      // prong's footprint there (its radius over the leg's lean).
       return frame.layout.prongs.map((p, k) => {
         const F = p.spine!.points[0], u = unit(add(p.spine!.points[1], F, -1));
-        const uz = Math.max(0.3, u[2]);
-        const E = add(F, u, (b.zTop - F[2]) / uz);
-        // Just under the base's top (see flaredFoot), where it is its full
-        // width: higher, it has already narrowed by its taper.
-        const z = b.zTop - 0.019;
-        return Math.sqrt(sectionArea(flares[k], toRing(frame, [E[0], E[1], z]), frame.axis, 3) / Math.PI) - p.d / 2 / uz;
+        const ring = (q: V3) => toRing(frame, q);
+        const n = unit(add(ring(add(F, u)), ring(F), -1));
+        const disc = makeFace(assembleWire([makeCircle(3, ring(F), n)]));
+        const A = measureArea(flares[k].intersect(disc as unknown as Shape3D) as Shape3D);
+        return Math.sqrt(A / Math.PI) - p.d / 2;
       });
     }
-    if (joint === "base") {
-      const A = sectionArea(flares[0], toRing(frame, [0, 0, b.plateau + 0.002]), frame.axis, 20);
-      const ring = area(b.core, b.rOut) - area(b.core, b.rIn);
-      return [(A - ring) / (platePerimeter({ core: b.core, r: b.rOut }) + platePerimeter({ core: b.core, r: b.rIn }))];
+    // The flare's section in the plane through the axis along +x (the band).
+    const X = b.rOut + 4, lo = b.pad.bottom - 1, hi = b.zTop + 1;
+    const plane = makePolygon([[0, 0, lo], [X, 0, lo], [X, 0, hi], [0, 0, hi]].map((q) => toRing(frame, q as V3)));
+    const section = flares[0].intersect(plane as unknown as Shape3D);
+    const pts: [number, number][] = [];
+    for (const e of section.edges) {
+      for (let k = 0; k <= 20; k++) {
+        const v = e.pointAt(k / 20), q = toHead(frame, [v.x, v.y, v.z]);
+        pts.push([centrelineOffset(b, q), q[2]]);
+      }
     }
-    const zLow = Math.max(b.saddleBottom, b.bandUnderEdge - 0.05);
-    const A = sectionArea(flares[0], toRing(frame, [0, 0, zLow + 0.002]), frame.axis, 20);
-    return [(A - area(b.plate.core, b.plate.r)) / platePerimeter(b.plate)];
+    if (!pts.length) throw new Error("empty section");
+    const { A, B, V, C } = padProfile(b.pad);
+    if (joint === "shank") {
+      // The outer face, V down to C: its offset at height z.
+      const faceAt = (z: number) => V[0] + ((C[0] - V[0]) * (V[1] - z)) / Math.max(1e-9, V[1] - C[1]);
+      const far = pts.reduce((m, p) => (p[0] > m[0] ? p : m));
+      return [far[0] - faceAt(far[1])];
+    }
+    // Where the outer face, B down to V, leaves the wire, and the flare's
+    // lowest point on that side.
+    let t0 = 0, t1 = 1;
+    const inside = (t: number) => Math.hypot((B[0] + (V[0] - B[0]) * t) / b.wide, (B[1] + (V[1] - B[1]) * t - b.z) / b.tube) < 1;
+    for (let k = 0; k < 40; k++) { const m = (t0 + t1) / 2; if (inside(m)) t0 = m; else t1 = m; }
+    const K: [number, number] = [B[0] + (V[0] - B[0]) * t1, B[1] + (V[1] - B[1]) * t1];
+    const low = pts.filter((p) => p[0] > A[0] / 2 + B[0] / 2).reduce((m, p) => (p[1] < m[1] ? p : m));
+    return [Math.hypot(low[0] - K[0], low[1] - K[1]) / 2];
   } catch (e) {
     errors.push(`${joint} flare section threw ${(e as Error)?.message ?? e}`);
     return [NaN];
   }
+}
+
+// --------------------------------------------------------- basket (S3b) --
+
+/**
+ * The head below the stone, measured (S3b):
+ *   overhang  I15: on sections square to the band at the joint's front,
+ *             middle and back (x = −L, 0, L, L the wire's reach along the
+ *             band), how far any of the merged metal at or under the band's
+ *             line stands beyond the band's flank. The flank: the band's own
+ *             edge at that x, from the band as built; the line: the band's
+ *             top 0.1 mm inside it. The most over the three, both sides.
+ *   outside   I16: how far the wire or the pad, above the band's surface,
+ *             stands outside the feet's footprint grown by a prong diameter.
+ *             The footprint: the stone's outline scaled to the feet, which
+ *             is the wire's centreline (the S3b prompt: the base follows "the
+ *             outline scaled to the feet"; a hull of the feet alone left a
+ *             3-prong ring's wire and a marquise's points outside it). Read
+ *             on their own meshes (0.02 mm).
+ *   legsOut   I16, the legs: a leg crosses the upper gallery as far out as
+ *             the gallery is, so no footprint near the feet holds it there;
+ *             what makes the basket a basket is that below the gallery each
+ *             leg only comes in. Per centre prong, along the spine it was
+ *             swept on (every 0.05 mm, bends included), from the gallery's
+ *             bottom down to the foot: how far its centreline ever moves
+ *             further out from the axis. (Read off its mesh in slices, a
+ *             straight run's few vertices showed jumps of a millimetre that
+ *             were not there.)
+ *   opening   I16: the least distance from the culet to the wire, and to
+ *             the pad above the band: the centre is open as far as the
+ *             culet's clearance needs (read in plan from the axis, a 1.5 mm
+ *             culet gap failed against a wire 1.58 mm from the culet).
+ *   headMetal I17: the volume of the wire and the pad less the band, as
+ *             built: the metal the head adds below its prongs.
+ *   tapers    I13: each foot's distance out ÷ the girdle's in that direction.
+ *             The foot: the middle of the prong's end disc, read off its
+ *             part inside the wire as the mesh points furthest back along
+ *             its last run. (That part's centroid sits out from the foot by
+ *             the leg's lean: 0.49 for a 0.45 taper.)
+ */
+function measureBasket(
+  frame: HeadFrame, metal: Shape3D, wire: Shape3D, pad: Shape3D, prongs: Shape3D[], bands: Shape3D[], errors: string[],
+): NonNullable<StructureAudit["basket"]> {
+  const b = frame.layout.base!, band = frame.band!;
+  const flank = (x: number, sd: 1 | -1) => {
+    for (let y = band.axialMax + 0.6; y >= 0; y -= 0.005) {
+      if (!band.at(x, sd * y)) continue;
+      const t = band.at(x, sd * Math.max(0, y - 0.1));
+      return { edge: y, line: t ? t.top : -Infinity };
+    }
+    return null;
+  };
+  const line = roundedPoints({ core: b.core, r: b.rc }, 0.05);
+  const L = Math.max(...line.map(([x]) => Math.abs(x)));
+  let overhang = -Infinity, overhangAt = "";
+  for (const x0 of [-L, 0, L]) {
+    const R = frame.girdleR * 4;
+    const face = makePolygon(([[x0, -R, -R], [x0, R, -R], [x0, R, R], [x0, -R, R]] as V3[]).map((q) => toRing(frame, q)));
+    const section = metal.intersect(face as unknown as Shape3D);
+    for (const sd of [1, -1] as const) {
+      const f = flank(x0, sd);
+      if (!f) continue;
+      for (const e of section.edges) {
+        const n = Math.max(8, Math.ceil(e.length / 0.01));
+        for (let k = 0; k <= n; k++) {
+          const v = e.pointAt(k / n), q = toHead(frame, [v.x, v.y, v.z]);
+          if (sd * q[1] <= 0 || q[2] > f.line) continue;
+          const over = sd * q[1] - f.edge;
+          if (over > overhang) { overhang = over; overhangAt = `x ${x0.toFixed(2)}, ${sd > 0 ? "+" : "−"}y, z ${q[2].toFixed(3)}`; }
+        }
+      }
+    }
+  }
+
+  const d = frame.layout.prongs[0]?.d ?? frame.bench.values.prongDiameter;
+  const gBottom = frame.layout.gallery ? frame.layout.gallery.z - frame.layout.gallery.t / 2 : Infinity;
+  const vertsOf = (s: Shape3D) => {
+    const v = s.mesh({ tolerance: 0.02, angularTolerance: 10 }).vertices, out: V3[] = [];
+    for (let k = 0; k < v.length; k += 3) out.push(toHead(frame, [v[k], v[k + 1], v[k + 2]]));
+    return out;
+  };
+  const aboveBand = (q: V3) => { const t = band.at(q[0], q[1]); return !t || q[2] > t.top + 0.01; };
+  let outside = -Infinity, outsideAt = "";
+  for (const [name, s] of [["the wire", wire], ["the pad", pad]] as [string, Shape3D][]) {
+    for (const q of vertsOf(s)) {
+      if (q[2] >= gBottom || !aboveBand(q)) continue;
+      const o = centrelineOffset(b, q, line) - d;
+      if (o > outside) { outside = o; outsideAt = `${name} at (${q.map((x) => x.toFixed(2)).join(", ")})`; }
+    }
+  }
+  let legsOut = -Infinity, legsOutAt = "";
+  frame.layout.prongs.forEach((pl, k) => {
+    if (!pl.spine) return;
+    // Foot to top; walked from the top down, below the gallery's bottom.
+    const pts = spineSamples(pl.spine.points, pl.spine.bends, pl.d / 2).map((x) => x.c).reverse().filter((c) => c[2] < gBottom);
+    let prev = Infinity;
+    for (const c of pts) {
+      const r = Math.hypot(c[0], c[1]);
+      if (Number.isFinite(prev) && r - prev > legsOut) { legsOut = r - prev; legsOutAt = `prong ${k} at z ${c[2].toFixed(2)}`; }
+      prev = Math.min(prev, r);
+    }
+  });
+  void prongs;
+  const openingOf = (s: Shape3D, keep: (q: V3) => boolean) => Math.min(...vertsOf(s).filter(keep).map((q) => Math.hypot(...q)));
+  const opening = openingOf(wire, () => true);
+  const padOpening = openingOf(pad, aboveBand);
+
+  let head = wire.clone().fuse(pad.clone()) as Shape3D;
+  for (const bd of bands) head = head.cut(bd.clone()) as Shape3D;
+  const headMetal = measureVolume(head);
+
+  const tapers = prongs.map((p, k) => {
+    const inWire = p.clone().intersect(wire.clone()) as Shape3D;
+    const spine = frame.layout.prongs[k]?.spine;
+    if (!(measureVolume(inWire) > 1e-6) || !spine) { errors.push(`centre prong ${k}: nothing in the wire for its taper`); return NaN; }
+    const u = unit(add(spine.points[1], spine.points[0], -1));
+    const vs = vertsOf(inWire), along = vs.map((q) => dot(q, u)), least = Math.min(...along);
+    const disc = vs.filter((_, i) => along[i] <= least + 0.005);
+    const c: V3 = [0, 1, 2].map((j) => disc.reduce((t, q) => t + q[j], 0) / disc.length) as V3;
+    const a = Math.atan2(c[1], c[0]);
+    const g = frame.cut === "round" ? frame.girdleR : radialHit(frame.layout.stone.girdle, a).r;
+    return Math.hypot(c[0], c[1]) / g;
+  });
+  return {
+    overhang, overhangAt, outside, outsideAt, legsOut, legsOutAt, opening, padOpening, headMetal, tapers,
+    taper: tapers.reduce((t, x) => t + x, 0) / tapers.length,
+    crestInside: b.crestInside,
+  };
+}
+
+function convexHull2(pts: [number, number][]): [number, number][] {
+  const P = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const turn = (o: [number, number], a: [number, number], c: [number, number]) => (a[0] - o[0]) * (c[1] - o[1]) - (a[1] - o[1]) * (c[0] - o[0]);
+  const half = (list: [number, number][]) => {
+    const h: [number, number][] = [];
+    for (const p of list) { while (h.length >= 2 && turn(h[h.length - 2], h[h.length - 1], p) <= 1e-12) h.pop(); h.push(p); }
+    return h;
+  };
+  return [...half(P).slice(0, -1), ...half([...P].reverse()).slice(0, -1)];
 }

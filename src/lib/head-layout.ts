@@ -510,6 +510,8 @@ export type BandProbe = {
   axialMax: number;
   /** Stone-frame z of the band top on the head axis. */
   topOnAxis: number;
+  /** Stone-frame z of the finger's axis, which runs along `axial` under the head: the band's surfaces are round it. */
+  fingerZ: number;
 };
 
 export type ProngPlan = {
@@ -908,15 +910,6 @@ function layoutHeadOnce(
       });
     };
     let laid: ReturnType<typeof legs>;
-    // The base, under the gallery: it needs the gallery's height and the
-    // posts' places, and the legs then need it. Sized first where the legs
-    // would land straight on through the gallery's centreline, then grown
-    // until every leg keeps its gaps: on a small stone the posts stand just
-    // outside the girdle above a low gallery, and a leg that has to come in
-    // to a base well inside them bends round under the girdle too close to
-    // the pavilion (0.25 ct round: 0.236 mm, asked 0.25). Grown 0.06 of the
-    // girdle at a time, to the girdle's own size; if no size keeps every gap,
-    // the one that keeps the most.
     // Scored by the legs that fit and keep every gap, then the legs that fit
     // at all, then the least gap kept.
     const score = (l: typeof laid) => [
@@ -924,129 +917,103 @@ function layoutHeadOnce(
       l.filter((r) => r.fits).length,
       Math.min(...l.map((r) => (r.fits ? r.spine.pavilionClearance : -1e9))),
     ];
-    const better = (a: number[], b: number[]) => a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2] + 1e-9;
+    const better = (a: number[], b: number[]) => {
+      for (let k = 0; k < a.length; k++) if (Math.abs(a[k] - b[k]) > 1e-9) return a[k] > b[k];
+      return false;
+    };
     if (opts.base && gallery) {
-      // The smallest base that keeps its own gaps first, then larger, 0.06
-      // of the girdle at a time, to the girdle's own size: the first whose
-      // legs all keep theirs is the most compact head (the saddle under it
-      // grows with it, and a base sized where straight legs would land put
-      // the default ring's plate past the girdle, S3).
-      const first = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, 0);
-      const tries = [first.sigma];
-      for (let k = 1; k <= 20; k++) tries.push(first.sigma + 0.06 * k);
-      let best: { base: BasePlan; laid: typeof laid; score: number[] } | null = null;
-      const seen = new Set<string>();
-      for (const at of tries.filter((x, k) => k === 0 || (x >= 0 && x <= 1.05))) {
-        base = at === first.sigma ? first : planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at);
-        const key = base.sigma.toFixed(4);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const l = legs(gallery), sc = score(l);
-        if (!best || better(sc, best.score)) best = { base, laid: l, score: sc };
-        if (sc[0] === prongs.length) break;
-      }
-      // No size that holds the band's crest inside the opening keeps every
-      // leg's gaps: smaller bases with the crest run under the ring, from
-      // the least that keeps the base's own gaps (see BasePlan.crestInside).
-      if (best!.score[0] < prongs.length) {
-        const low = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, 0, undefined, false);
-        for (let at = low.sigma; at < first.sigma - 1e-9; at += 0.06) {
-          base = at === low.sigma ? low : planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at, undefined, false);
-          const l = legs(gallery), sc = score(l);
-          if (better(sc, best!.score)) best = { base, laid: l, score: sc };
-          if (sc[0] === prongs.length) break;
-        }
+      // The lower gallery (S3b, see BasePlan), at the taper asked first;
+      // where its wire cannot keep its gaps or the legs cannot reach it
+      // keeping theirs, wider, 0.05 at a time to the field's maximum (the
+      // feet further out, the wire further from the pavilion), then
+      // narrower to its minimum; else the one whose legs do best. A taper
+      // other than the one asked is reported with both numbers: a clamp the
+      // stone's size forces (Animesh, on S2's question 25).
+      const asked = values.basketTaper;
+      const { min: tMin, max: tMax } = benchBounds("basketTaper", "platinum");
+      const tries = [asked];
+      for (let t = asked + 0.05; t <= tMax + 1e-9; t += 0.05) tries.push(+t.toFixed(2));
+      for (let t = asked - 0.05; t >= tMin - 1e-9; t -= 0.05) tries.push(+t.toFixed(2));
+      let best: { base: BasePlan; laid: typeof laid; score: number[]; at: number } | null = null;
+      for (const at of tries) {
+        const b = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at);
+        base = b;
+        const l = legs(gallery), sc = [b.ok ? 1 : 0, ...score(l)];
+        if (!best || better(sc, best.score)) best = { base: b, laid: l, score: sc, at };
+        if (b.ok && sc[1] === prongs.length) break;
       }
       base = best!.base;
       laid = best!.laid;
-      // Then the ring made wider, out and in, wherever a foot comes up
-      // through its top too near an edge for its blend: a foot fillet's
-      // reach either side (see baseFootFillet) and 0.02 mm. The legs stand
-      // as laid (a wider ring only gives a foot more room); its inner edge
-      // keeps its least rounding. Requiring the room of the legs instead
-      // laid most of the matrix's heads with kicked legs (S3). An open
-      // question for Animesh (STRUCTURE-LOG q. 29): the full fillet or a
-      // head that stays under the stone.
-      {
-        const inner = roundedPoints({ core: base.core, r: base.rIn }, 0.05), outer = roundedPoints({ core: base.core, r: base.rOut }, 0.05);
-        let out = 0, inn = 0;
-        for (const lr of laid) {
-          const f = lr.spine.points[0], u = unitV(sub(lr.spine.points[1], f));
-          if (u[2] < 0.3) continue;
-          const g = footGeometry(base, inner, outer, f, u, d / 2);
-          const want = base.blend.feet;
-          out = Math.max(out, want * g.cotOut - g.roomOut + 0.02);
-          inn = Math.max(inn, want * g.cotIn - g.roomIn + 0.02);
-        }
-        // At most 0.3 mm each way: the full reach at a 45° lean took the
-        // default ring's ring to 3.6 mm and its saddle to 4.0 mm, past the
-        // girdle's 3.25 (S3). Past that the fillet is held (reported).
-        out = Math.min(0.3, out); inn = Math.min(0.3, inn);
-        if (out > 1e-3 || inn > 1e-3) base = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, base.sigma, { out: Math.max(0, out), in: Math.max(0, inn) }, base.crestInside);
+      if (Math.abs(best!.at - asked) > 1e-9) {
+        values.basketTaper = best!.at;
+        warnings.push({ key: "basketTaper", kind: "engine-clamped", asked, delivered: best!.at,
+          message: `Prongs ending at ${fmt(asked)} of the stone's radius cannot keep their gaps to this stone, so they end at ${fmt(best!.at)}.` });
       }
-      // The foot fillet held to what the feet leave room for on the base's
-      // top (see baseFootFillet); under 0.05 mm, none: the feet are flared.
+      // Each flare held to what keeps it pavilionClearance from the stone
+      // and culetClearance from the culet, as every other part is (the
+      // all-max marquise's 0.8 mm flares on 2 mm prongs reached into the
+      // stone, S3). Tested on its rims and the lines between, by the hull's
+      // planes (a lower bound on the gap), 0.03 mm over.
       {
-        const inner = roundedPoints({ core: base.core, r: base.rIn }, 0.05), outer = roundedPoints({ core: base.core, r: base.rOut }, 0.05);
-        const room = Math.min(...laid.map((r) => baseFootFillet(base!, inner, outer, r.spine.points, d / 2)));
-        if (room < base.blend.feet) base = { ...base, blend: { ...base.blend, feet: room >= 0.05 ? Math.floor(room * 1000) / 1000 : 0 } };
-        // Each flare held to what keeps it pavilionClearance from the stone
-        // and culetClearance from the culet, as every other part is: the
-        // all-max marquise's 0.8 mm flares on 2 mm prongs reached into the
-        // stone (S3). Tested on its rims and the lines between, by the
-        // hull's planes (a lower bound on the gap).
-        // 0.03 mm over the gap: the flare's surface between the points tested
-        // came 0.002 mm under it on a 0.25 ct marquise (S3).
+        const b = base!;
         const clear = (pts: V3[]) => pts.every((q) => clearanceBound(planes, q) >= values.pavilionClearance + 0.03 &&
           Math.hypot(q[0], q[1], q[2]) >= values.culetClearance + 0.02);
-        const ring = (c: V3, rr: number) => Array.from({ length: 24 }, (_, k) => [c[0] + rr * Math.cos((k / 12) * Math.PI), c[1] + rr * Math.sin((k / 12) * Math.PI), c[2]] as V3);
-        let column = false;
-        const innerC = roundedPoints({ core: base.core, r: base.rIn }, 0.15), outerC = roundedPoints({ core: base.core, r: base.rOut }, 0.15);
+        const circle = (c: V3, u: V3, rr: number) => {
+          const e1 = unitV(Math.abs(u[2]) < 0.9 ? [u[1], -u[0], 0] : [1, 0, 0]);
+          const e2: V3 = [u[1] * e1[2] - u[2] * e1[1], u[2] * e1[0] - u[0] * e1[2], u[0] * e1[1] - u[1] * e1[0]];
+          return Array.from({ length: 24 }, (_, k) => {
+            const a = (k / 12) * Math.PI;
+            return add(c, add(scale(e1, rr * Math.cos(a)), scale(e2, rr * Math.sin(a))));
+          });
+        };
+        // The cone up each leg from the wire's centre (see flaredFoot).
         const footFlare = (fr: number) => laid.every((lr) => {
           const f = lr.spine.points[0], u = unitV(sub(lr.spine.points[1], f));
-          const rising = u[2] >= 0.3, uz = rising ? u[2] : 0.3;
-          const E: V3 = rising ? add(f, scale(u, (base!.zTop - f[2]) / uz)) : [f[0], f[1], base!.zTop];
-          const top: V3 = rising ? add(E, scale(u, (2 * fr) / uz)) : [E[0], E[1], base!.zTop + 2 * fr];
-          const lo = ring(E, d / 2 / uz + fr), hi = ring(top, FLARE_NARROW * d / 2);
-          // Its foot on the base's top, 0.02 mm inside both edges; or, as a
-          // column, standing on the plateau clear of the band (0.03 mm over
-          // it) wherever it overhangs the base.
-          const onTop = lo.every((q) => (base!.core.length === 1
-            ? Math.hypot(q[0], q[1]) - base!.rIn >= 0.02 && base!.rOut - Math.hypot(q[0], q[1]) >= 0.02
-            : polygonDistance(innerC, [q[0], q[1]]) >= 0.02 && polygonDistance(outerC, [q[0], q[1]]) <= -0.02));
-          const foot = column ? lo.map((q) => [q[0], q[1], base!.plateau] as V3) : [];
-          const offBand = foot.every((q) => (band.at(q[0], q[1])?.top ?? -Infinity) <= base!.plateau - 0.04);
-          return (column ? offBand : onTop) && clear([...lo, ...hi, ...foot, ...lo.map((q, k) => lerp(q, hi[k], 0.5))]);
+          const E = add(f, scale(u, b.tube * 0.5)), top = add(E, scale(u, 2 * fr));
+          // From the foot itself: at full width from there to E (a 1.8 mm
+          // disc at the foot of a 2 mm prong came 1.39 mm from a culet held
+          // 1.5 off, S3b).
+          return clear([...circle(f, u, d / 2 + fr), ...circle(E, u, d / 2 + fr), ...circle(top, u, FLARE_NARROW * d / 2)]);
         });
-        const outline = (rr: number, z: number) => roundedPoints({ core: base!.core, r: rr }, 0.2).map(([x, y]) => [x, y, z] as V3);
-        const baseFlareClear = (fr: number) => clear([...outline(base!.rOut + fr, base!.plateau), ...outline(Math.max(0.01, base!.rIn - fr), base!.plateau),
-          ...outline(base!.rIn, base!.plateau + Math.min(2 * fr, base!.zTop - base!.plateau - 0.05))]);
+        // A flare's section, swept round the wire: its corners and the
+        // middles of its sides, every 0.2 mm round.
+        const around = roundedPoints({ core: b.core, r: b.rc }, 0.2).map((q, i, all) => {
+          const a = all[(i - 1 + all.length) % all.length], c = all[(i + 1) % all.length];
+          const t: V2 = [c[0] - a[0], c[1] - a[1]], L = Math.hypot(...t) || 1;
+          return { q, n: [t[1] / L, -t[0] / L] as V2 };
+        });
+        const swept = (poly: V2[]) => {
+          const pts: V2[] = poly.flatMap((p, k) => [p, [(p[0] + poly[(k + 1) % poly.length][0]) / 2, (p[1] + poly[(k + 1) % poly.length][1]) / 2] as V2]);
+          return around.flatMap(({ q, n }) => pts.map(([o, zz]) => [q[0] + n[0] * o, q[1] + n[1] * o, zz] as V3));
+        };
+        const baseFlareClear = (fr: number) => fr <= 0 || clear(swept(baseFlareProfile(b, fr)));
+        // The shank's flare reaches in over the band under the opening, and
+        // on a 1.5 mm culet gap came 1.39 mm from the culet (S3b).
+        const shankFlareClear = (fr: number) => fr <= 0 || clear(swept(shankFlareProfile(b, fr)));
         const most = (fits: (x: number) => boolean, want: number) => {
           if (fits(want)) return want;
           let lo = 0, hi = want;
           for (let k = 0; k < 12; k++) { const md = (lo + hi) / 2; if (fits(md)) lo = md; else hi = md; }
           return Math.floor(lo * 1000) / 1000;
         };
-        let feetFlare = most(footFlare, base.flare.feet);
-        // No flare fits on the top: a foot comes up over its edge. Then the
-        // column, as wide as keeps it clear (and never neither a fillet nor
-        // a flare, the S3 prompt's rule).
-        if (base.blend.feet === 0 && feetFlare < 0.05) { column = true; feetFlare = most(footFlare, base.flare.feet); }
-        base = { ...base, flareColumn: column, flare: { feet: feetFlare, base: most(baseFlareClear, base.flare.base), shank: base.flare.shank } };
+        base = { ...b, flare: { feet: most(footFlare, b.flare.feet), base: most(baseFlareClear, b.flare.base), shank: most(shankFlareClear, b.flare.shank) } };
       }
       // A blend the parts it joins are too thin for is held to what they
-      // take, and said so with both numbers (Animesh, on S2's question 25:
-      // a clamp the stone forces is reported, the bounds stay).
-      // (A joint with no room for a fillet is flared: its flare's radius is the one that counts.)
+      // take, and said so with both numbers (Animesh, on S2's question 25).
+      // A joint with no room for a fillet is flared: its flare's radius is
+      // the one that counts.
+      // Each joint at the less of its fillet and its flare: either may be the
+      // one built (a fillet that fails is flared), and the flare is held to
+      // the gaps on its own.
       const held = (Object.entries(base.blend) as [string, number][])
-        .map(([k, r]) => [k, r > 0 ? r : base!.flare[k as keyof BasePlan["flare"]]] as [string, number])
+        .map(([k, r]) => [k, Math.min(r > 0 ? r : Infinity, base!.flare[k as keyof BasePlan["flare"]])] as [string, number])
         .filter(([, r]) => r < values.filletRadius - 1e-9);
       if (held.length) {
         // Rounded down, so no joint is ever under the value reported.
         const least = Math.floor(Math.min(...held.map(([, r]) => r)) * 1000) / 1000;
-        const where = { feet: "a prong meets the base", base: "the base meets its saddle", shank: "the saddle meets the band" } as Record<string, string>;
+        const where = { feet: "a prong meets the lower gallery", base: "the lower gallery meets its pad", shank: "the pad meets the band" } as Record<string, string>;
         warnings.push({ key: "filletRadius", kind: "engine-clamped", asked: values.filletRadius, delivered: least,
-          message: `Rounding of ${fmt(values.filletRadius)} mm is more than this ring has room for where ${held.map(([k]) => where[k]).join(" and where ")}: ${held.map(([k, r]) => `${fmt(r)} mm where ${where[k]}`).join(", ")} is used (at most ${Math.round(BLEND_SHARE * 100)}% of the thinner part, and on a foot what the base's top leaves round it).` });
+          message: `Rounding of ${fmt(values.filletRadius)} mm is more than this ring has room for where ${held.map(([k]) => where[k]).join(" and where ")}: ${held.map(([k, r]) => `${fmt(r)} mm where ${where[k]}`).join(", ")} is used (at most ${Math.round(BLEND_SHARE * 100)}% of the thinner part).` });
       }
     } else laid = legs(gallery);
     // A three-stone's side head on a small ring (0.25 ct: the side stone is
@@ -1821,389 +1788,506 @@ function turningCorners(P: V2[]): V2[] {
 }
 
 /**
- * The head's base and the saddle it sits in (S3).
+ * The head below the stone (S3b): a basket, not a plate.
  *
- * The base is a flat ring under the stone, following its outline: every
- * prong's foot ends in it, and nothing of a prong reaches the band. It is
- * max(prongDiameter, minWall) tall and wider by two foot fillets and
- * 0.45 mm (at least 0.3 mm), so a foot leaning in at 45° comes up through
- * its top with room all round for its fillet, and it sits low, just above the
- * band, because a head set this close to the finger has no room for a base
- * any higher: the culet is culetClearance off the band, and on a 0.25 ct
- * stone the gallery already sits a few tenths of a millimetre above the
- * culet.
+ * The prongs lean in under the girdle to feet at basketTaper of the girdle's
+ * radius, each in its own direction, and end in a lower gallery: a round
+ * wire, max(prongDiameter, minWall) thick, following the stone's outline
+ * scaled to the feet (a circle on a round stone, else the girdle's corners
+ * scaled and rounded, so the wire can be swept without folding).
  *
- * The saddle is the joint (architecture C in the S3 prompt: a saddle of its
- * own, fused to the band, rather than the band's section). It is a solid
- * prism: the plate's outline (the base's grown by at least SADDLE_MARGIN and
- * drawn out along the band) extruded from inside the band up to a flat
- * plateau PLATEAU_DROP under the band's highest point under the head, so the
- * band's crest rises through it. The base is sunk BASE_SINK into the
- * plateau, so the two fuse with real overlap. On a 1.2 mm band the plate is
- * several times the band's width and overhangs it; on an 8 mm band it ends
- * inside the band's width. Nothing of it stands above the band's top but the
- * base, whose middle is open: under the culet the nearest metal is still the
- * band's own top, culetClearance away, as S1 set it, and light reaches the
- * pavilion through the basket between the base and the girdle.
+ * The joint is a pad that grows out of the band: from just under the band's
+ * surface, as wide as the band and no wider, up to the wire's underside,
+ * widening only above the band's line (its flank's top) to the wire's width
+ * where the wire is wider than the band. Its outer face is ruled, from where
+ * it leaves the band straight up to the wire, so the silhouette is one run
+ * from band to basket with no upright wall and no shelf. Its middle is open
+ * through to the band: under the culet the nearest metal is still the band's
+ * top, culetClearance away, as S1 set it, and between the wires there is
+ * open space under the stone.
  *
- * Why a separate saddle rather than the shank's own section widened under
- * the head (architecture A): the shank is a single exact revolve on most
- * rings, and a section that changes under the head would loft every band
- * (slower to build and to show, and 0.05% out against the revolve, S0), and
- * it cannot leave the middle open for the culet. Why not a hollow cone up to
- * the stone (B, the bezel's under-gallery): there is no height for one; the
- * stone sits culetClearance above the band.
+ * Where the wire is wider than the band (most rings: a 1 ct stone's feet sit
+ * 1.95 mm out, a 2.5 mm band's flank 1.25 mm), the open middle leaves the pad
+ * as shoulders where the wire crosses the band, ahead of and behind the
+ * stone, and a skirt under the wire between them. The wire stands far enough
+ * above the band's line there (SHOULDER) for the shoulders to widen up to it
+ * rather than run out flat.
+ *
+ * S3 had a flat ring as wide as the stone sunk in a solid prism (the
+ * "washer on a puck" Animesh rejected, q. 30); this keeps S3's three joints
+ * (feet to the wire, the wire to the pad, the pad to the band) and their
+ * blends, fillets with designed flares behind them.
  */
 export type BasePlan = {
-  /** The convex core every outline of the base and saddle is grown from (see Rounded). */
+  /** The convex core the wire's centreline is grown from (see Rounded): a point on a round stone. */
   core: V2[];
-  /** The base's inner and outer edges, as radii about the core. */
-  rIn: number; rOut: number;
+  /** The centreline: the core grown by rc. */
+  rc: number;
   /**
-   * The saddle's plate: the base's outline grown by the plateau's margin and
-   * drawn out along the band until, at its ends, the band has fallen the
-   * shank blend's radius and 0.1 mm below the plateau. Short of that, the
-   * plate's wall there stood less than a fillet's height above the band and
-   * the fillet rolled over its top edge (the default ring: 0.295 mm of wall
-   * for a 0.3 mm fillet, S3).
+   * The wire's radius: 1.1 × max(prongDiameter, minWall) / 2. Exactly as
+   * thick as the leg that ends in it, a leg's surface and the wire's meet in
+   * crossing curves no fillet can follow (a T of equal pipes: every foot
+   * fillet failed, S3b); a tenth thicker, they meet cleanly. Round, not
+   * oval: a torus is one exact surface OCCT fuses a prong into in 50 ms,
+   * an oval's revolve took 150 (S3b). `wide` equals it (kept for the
+   * section's width).
    */
-  plate: Rounded;
-  /** The base's bottom and top, above the culet. */
-  zBottom: number; zTop: number;
-  /** Section thickness: the base's height and its narrowest width across. */
+  tube: number; wide: number;
+  /** The centreline's height above the culet. */
+  z: number;
+  /** The wire's inner and outer edges about the core (rc ∓ wide), and its bottom and top (z ∓ tube). */
+  rIn: number; rOut: number; zBottom: number; zTop: number;
+  /** Its section's height and width. */
   height: number; width: number;
-  /** The saddle's flat top. */
-  plateau: number;
-  /** The band's highest point under the saddle, which rises 0.03 mm through the plateau. */
+  /** Each prong's foot: on the centreline in the post's direction, at z. */
+  feet: V3[];
+  /** Each foot's distance out ÷ the girdle's in the same direction, as laid out. */
+  tapers: number[];
+  /** basketTaper as laid out: the feet's mean (exact on a round stone). */
+  taper: number;
+  pad: PadPlan;
+  /** The band's highest point under the wire. */
   bandTop: number;
-  /** The saddle's flat bottom, inside the band. */
-  saddleBottom: number;
-  /** The band's lowest top under the plate's edge: where its wall stands deepest in the band. */
-  bandUnderEdge: number;
-  /** The least gap from the base and saddle to the stone, and to the culet (exact distances to its faces). */
+  /** The least gap from the wire and pad to the stone, and to the culet. */
   clearance: number; culetClearance: number;
-  /** Whether the base's top reaches the gallery: on a small stone the two meet. */
+  /** Whether the wire meets the upper gallery (a small stone, where the two have no height between them). */
   touchesGallery: boolean;
-  /** The core's scale of the girdle. */
-  sigma: number;
   /**
-   * Whether the band's crest, where it rises through the plateau, is held
-   * inside the base's opening clear of its inner wall. Normally; on a
-   * narrow stone set across the band (a 0.25 ct marquise) holding it took
-   * the opening to 0.85 of the girdle and the legs out past the pavilion,
-   * so it may run under the ring instead, and the base's inner joint is
-   * flared where its fillet fails (S3).
+   * Whether the band's crest under the head runs inside the wire's opening,
+   * rather than under the wire itself (STRUCTURE-LOG q. 32: counted).
    */
   crestInside: boolean;
   /**
-   * The blends' radii at its three joints (S3): where the prongs' feet meet
-   * the base, the base the saddle, and the saddle the band. filletRadius,
-   * held to 45% of the thinner of the two parts each joins (a fillet larger
-   * than the part it runs onto fails in OCCT), and on the feet to the room
-   * the base's top leaves round them; 0 where there is too little room for
-   * one, and the joint is flared. See layoutHead's warning.
+   * The blends' radii at its three joints: where the prongs' feet meet the
+   * wire, the wire the pad, and the pad the band. filletRadius held to 45%
+   * of the thinner of the two parts each joins (a fillet larger than the
+   * part it runs onto fails in OCCT); a foot's never delivered under 0.10 mm
+   * (Animesh, q. 29): there, 0 and the feet are flared. See layoutHead.
    */
   blend: { feet: number; base: number; shank: number };
-  /** The radius each joint's flare is built at, if its fillet fails or there is no room for one (filletRadius held to 45% of the thinner part). */
+  /** The radius each joint's flare is built at, if its fillet fails or there is no room for one. */
   flare: { feet: number; base: number; shank: number };
-  /** Whether the feet's flares stand down to the plateau (a foot comes up over the top's edge; see flaredFoot). */
+  /** Always false since S3b (S3's foot flares that stood beside a flat base). */
   flareColumn: boolean;
-  /** The saddle's plate under the band's crest, top to bottom: the part the base and shank blends run onto. */
-  plateThickness: number;
 };
 
-/** Highest band top among these points (stone frame), and whether any lay off the band. */
-function bandTopAmong(band: BandProbe, pts: V2[]): number {
-  let top = -Infinity;
-  for (const [x, y] of pts) {
-    const b = band.at(x, y);
-    if (b) top = Math.max(top, b.top);
-  }
-  return top;
+/**
+ * The pad between the band and the wire (see BasePlan): one profile in the
+ * plane of the wire's outward normal and the head axis, offsets from the
+ * centreline, swept round it (a revolve on a round stone), and cut down to
+ * the band where the band is narrower than it. The profile: its top flat
+ * inside the wire, from −reach to +reach at `top`; its opening's face
+ * straight down from −reach (under the culet the band's own top, as S1 set
+ * it); its outer face sloping out from +reach at the top to +reach + out at
+ * `bottom`, inside the band. Every face a plane, cylinder or cone: OCCT
+ * fillets and fuses those in milliseconds, where a lofted pad took seconds to
+ * fuse and minutes to fail a fillet (S3b).
+ *
+ * The clip keeps it to the band: across the finger, within the band's width
+ * up to the band's line (its top just inside the flank; I15), and above it
+ * within a cone widening up to the wire's outer underside: the shoulders,
+ * where the wire is wider than the band. Its bottom follows the band, DEPTH
+ * under its surface.
+ */
+export type PadPlan = {
+  top: number; reach: number;
+  /**
+   * Its two faces, as horizontal run per mm down: the outer face's below the
+   * wire (it drops straight to there, see padProfile), and the opening's from
+   * the top. Each carries on down to `bottom`, inside the band. `out` is how far the outer face stands out at the
+   * band's highest point under the wire, `ref`.
+   */
+  out: number; outSlope: number; inSlope: number; ref: number; bottom: number;
+  /** The least offset the opening's face may reach (see padProfile). */
+  innerMost: number;
+  /** Where the outer face stops dropping straight and starts to slope out: just under the wire. */
+  under: number;
+  /**
+   * The clip, a prism along the band: across, within `edge` of the band's
+   * middle up to height `line` (0.02 mm over the band's top just inside its
+   * flank, at its highest under the pad), then widening by `slope` across per
+   * mm up. Planes only: a clip revolved round the finger to follow the band
+   * met the band's revolved surfaces in circles OCCT took a second to fuse
+   * (S3b). Where the band falls away along its length, the clip's upright
+   * side stands a little over it, inside the band's width.
+   */
+  clip: { edge: number; line: number; slope: number };
+  /** The band's line under the pad (its top just inside the flank, at its highest): nothing beyond the flank goes under it (I15). */
+  bandLine: number;
+  /** Its footprint in plan, convex (I7's plane is read within it). */
+  plan: V2[];
+  /** How far its top stands over the band's highest point under the wire. */
+  height: number;
+};
+
+/** The pad's profile, offsets out from the wire's centreline and heights: A and B its top's edges, C and D its faces' feet at `bottom`. */
+export function padProfile(P: PadPlan): { A: V2; B: V2; V: V2; C: V2; D: V2; E: V2; poly: V2[] } {
+  // The outer face straight down from the top's edge to just under the wire
+  // (V), then sloping out: sloping all the way, it left the wire nearly along
+  // the wire's own surface, 11° apart, and no fillet could follow it (S3b).
+  const zv = Math.max(P.ref + 0.05, Math.min(P.top - 0.05, P.under));
+  const A: V2 = [-P.reach, P.top], B: V2 = [P.reach, P.top], V: V2 = [P.reach, zv];
+  const C: V2 = [P.reach + P.outSlope * (zv - P.bottom), P.bottom];
+  // The opening's face sloping in to the band's highest point under the
+  // wire (E), then straight down inside it; no further in than `innerMost`:
+  // past the head axis a revolve folds through itself, and past a corner's
+  // centre so does a sweep. (Sloping all the way down, it met that limit
+  // far below and was held to a slope a third of the one asked, S3b.)
+  // E 0.1 mm into the band, so the sloped face meets the band above the
+  // kink (at it, the shank's fillet failed on every ring).
+  const zE = P.ref - 0.1;
+  const E: V2 = [Math.max(-P.reach - P.inSlope * (P.top - zE), P.innerMost), zE];
+  const D: V2 = [E[0], P.bottom];
+  return { A, B, V, C, D, E, poly: [A, B, V, C, D, E] };
 }
 
-const BASE_SINK = 0.1;          // how far the base sits into the saddle's plateau
-const PLATEAU_DROP = 0.03;      // the plateau under the band's crest, which rises through it
-const SADDLE_MARGIN = 0.3;      // the plateau beyond the base's outer edge, at least
+/** Where a face of the pad's profile, from its top corner down, leaves the wire's section. */
+function leavesWire(b: BasePlan, top: V2, low: V2): V2 {
+  let lo = 0, hi = 1;
+  const inside = (t: number) => Math.hypot((top[0] + (low[0] - top[0]) * t) / b.wide, (top[1] + (low[1] - top[1]) * t - b.z) / b.tube) < 1;
+  for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (inside(m)) lo = m; else hi = m; }
+  return [top[0] + (low[0] - top[0]) * hi, top[1] + (low[1] - top[1]) * hi];
+}
+
+/**
+ * The flared joint between the wire and the pad, as a section swept round
+ * the wire (the fallback where its fillet fails): from 2r down the pad's
+ * outer face to the wire's surface turned 2r of arc up from where that face
+ * leaves it, across inside the wire to the same on the opening's side, and
+ * 2r down the opening's face. Never under the band's line (I15): it hangs
+ * under the wire, which stands over the line wherever it overhangs the band,
+ * so it is kept short there rather than cut.
+ */
+export function baseFlareProfile(b: BasePlan, r: number): V2[] {
+  const { A, B, V, E } = padProfile(b.pad);
+  const Ko = leavesWire(b, B, V), Ki = leavesWire(b, A, E);
+  const onWire = (K: V2, sgn: number): V2 => {
+    const ang = Math.atan2((K[1] - b.z) / b.tube, K[0] / b.wide) + sgn * (2 * r) / Math.min(b.tube, b.wide);
+    return [0.98 * b.wide * Math.cos(ang), b.z + 0.98 * b.tube * Math.sin(ang)];
+  };
+  const dn = (K: V2, to: V2): V2 => { const L = Math.hypot(to[0] - K[0], to[1] - K[1]) || 1, t = Math.min(2 * r, L - 0.01) / L; return [K[0] + (to[0] - K[0]) * t, K[1] + (to[1] - K[1]) * t]; };
+  const floor = b.pad.bandLine + 0.01;
+  const keep = (K: V2, p: V2): V2 => (p[1] >= floor ? p : [K[0] + ((p[0] - K[0]) * (K[1] - floor)) / Math.max(1e-9, K[1] - p[1]), floor]);
+  const inner = (p: V2): V2 => [Math.max(p[0], b.pad.innerMost), p[1]];
+  // Outward: the wire's angle grows going up its outer side, falls going up its inner side.
+  return [keep(Ko, dn(Ko, V)), onWire(Ko, 1), inner(onWire(Ki, -1)), inner(keep(Ki, dn(Ki, E)))];
+}
+
+/**
+ * The flared joint between the pad and the band, as a section swept round
+ * the wire and then clipped as the pad is (the fallback where its fillet
+ * fails): a skirt round the pad where its faces go into the band, from 2r
+ * up each face above the band's highest point under the wire, out r beyond
+ * each face there, and down inside the band.
+ */
+export function shankFlareProfile(b: BasePlan, r: number): V2[] {
+  const P = b.pad;
+  const { A, V, C, E } = padProfile(P);
+  const on = (top: V2, low: V2, z: number): V2 => {
+    const t = (top[1] - z) / Math.max(1e-9, top[1] - low[1]);
+    return [top[0] + (low[0] - top[0]) * t, z];
+  };
+  // The outer face drops straight from the top to V, then slopes out.
+  const outer = (z: number): V2 => (z >= V[1] ? [V[0], z] : on(V, C, z));
+  const hi = Math.min(P.top - 0.02, P.ref + 2 * r), lo = P.ref - 0.12;
+  const oHi = outer(hi), oLo = outer(lo), iHi = on(A, E, hi), iLo = on(A, E, lo);
+  // Never further in than the pad's own limit (see padProfile).
+  const inner = (o: number) => Math.max(o, P.innerMost);
+  return [
+    [oHi[0] - 0.02, hi], [oLo[0] + r, lo], [oLo[0] + r, P.ref - 0.6],
+    [inner(iLo[0] - r), P.ref - 0.6], [inner(iLo[0] - r), lo], [Math.max(iHi[0] + 0.02, inner(iLo[0] - r) + 0.01), hi],
+  ];
+}
+
+/** A point's signed offset from the wire's centreline in plan: + outward. */
+export function centrelineOffset(b: BasePlan, p: V3, line?: V2[]): number {
+  return b.core.length === 1
+    ? Math.hypot(p[0] - b.core[0][0], p[1] - b.core[0][1]) - b.rc
+    : polygonDistance(line ?? roundedPoints({ core: b.core, r: b.rc }, 0.02), [p[0], p[1]]);
+}
+
+/**
+ * How far a point is from the lower gallery's surface, near enough (the
+ * oval's radial distance scaled to its half-height): negative inside.
+ */
+export function wireDistance(b: BasePlan, p: V3, line?: V2[]): number {
+  const o = centrelineOffset(b, p, line), dz = p[2] - b.z;
+  return (Math.hypot(o / b.wide, dz / b.tube) - 1) * Math.min(b.tube, b.wide);
+}
+
+/** How far a point is from each of the pad's faces: its outer face, its opening's face, and the clip's sides. */
+export function padFaceDistance(b: BasePlan, p: V3, line?: V2[]): { outer: number; inner: number; clip: number } {
+  const P = b.pad, o = centrelineOffset(b, p, line);
+  const seg = (a: V2, c: V2) => {
+    const e: V2 = [c[0] - a[0], c[1] - a[1]];
+    const t = Math.max(0, Math.min(1, ((o - a[0]) * e[0] + (p[2] - a[1]) * e[1]) / (e[0] * e[0] + e[1] * e[1])));
+    return Math.hypot(o - a[0] - e[0] * t, p[2] - a[1] - e[1] * t);
+  };
+  const { A, B, V, C, D, E } = padProfile(P);
+  const outer = Math.min(seg(B, V), seg(V, C)), inner = Math.min(seg(A, E), seg(E, D));
+  const { edge, line: zl, slope } = P.clip, y = Math.abs(p[1]);
+  const clip = slope > 1e-6 && p[2] > zl ? Math.abs(y - edge - slope * (p[2] - zl)) / Math.hypot(1, slope) : Math.abs(y - edge);
+  return { outer, inner, clip };
+}
+
 /** A foot flare's top, as a share of the prong's radius (see flaredFoot in cad-engine-brep). */
 export const FLARE_NARROW = 0.7;
 /** The share of the thinner part a blend may take (the S3 prompt: "for example, at most 45%"). */
 export const BLEND_SHARE = 0.45;
+/** Q29 (Animesh): no foot fillet is delivered under this; the foot is flared instead. */
+export const FOOT_FILLET_FLOOR = 0.10;
+
+const PAD_SINK = 0.6;       // the pad's top above the wire's bottom, as a share of its radius
+const PAD_REACH = 0.85;     // the pad's top half-width, as a share of the wire's chord there
+const PAD_MIN = 0.2;        // the pad's least height over the band under the wire: room for its two blends
+const SHOULDER = 0.3;       // a wire wider than the band stands this far over the band's line
+const FLANK_IN = 0.1;       // where the pad leaves the band: this far inside its flank
+const PAD_DEPTH = 0.15;     // how far the pad's bottom sits under the band's lowest top beneath it
+const CLIP_OVER = -0.03;    // the clip's corner, this far over the band's line (under it: inside the band)
+const PAD_INWARD = 0.25;    // the opening's face, at least this much further in where it meets the band
+const CLIP_SLOPE = 3;       // the clip's widening, across per mm up, at most
 
 /**
- * Where the base goes. See BasePlan.
- *
- * Its size comes from the legs: each prong's run from the bottom of its post
- * through the gallery, carried on down at the same slope, lands at some
- * distance out from the axis at the base's height, and the base's middle is
- * put where those land on average, so a leg needs as little bend at its knee
- * as it can. Then it is grown until it keeps pavilionClearance from the
- * stone and culetClearance from the culet, measured exactly. Its top keeps
- * 0.25 mm below the gallery where the stone leaves the height for that; on a
- * small stone it is sunk further into the saddle, never so far that a
- * prong's foot would have less than 0.35 mm of base above the plateau to end
- * in.
+ * Where the band's flank is at `x` along it, on one side, and the band's top
+ * there: the band's line. Null off the band.
+ */
+function flankAt(band: BandProbe, x: number, side: 1 | -1): { edge: number; top: number } | null {
+  for (let y = band.axialMax + 0.6; y >= 0; y -= 0.01) {
+    if (!band.at(x, side * y)) continue;
+    // The line: the band's top FLANK_IN inside its flank (at the flank
+    // itself a comfort band's top has come round to the bore).
+    const b = band.at(x, side * Math.max(0, y - FLANK_IN));
+    return b ? { edge: y, top: b.top } : null;
+  }
+  return null;
+}
+
+/** The band's top under (x, y), or under the nearest rail across a split shank's slot. */
+function topNear(band: BandProbe, x: number, y: number): number | null {
+  const b = band.at(x, y);
+  if (b) return b.top;
+  for (let k = 1; k <= 120; k++) {
+    for (const s of [1, -1]) {
+      const c = band.at(x, y + s * k * 0.01);
+      if (c) return c.top;
+    }
+  }
+  return null;
+}
+
+/**
+ * The lower gallery and the pad under it, for one taper. See BasePlan.
+ * `ok` is false where the wire cannot keep pavilionClearance from the stone
+ * and culetClearance from the culet at this taper; layoutHead then tries
+ * another, and reports the one it builds.
  */
 function planBase(
   stone: StoneProfile, v: BenchValues, d: number, band: BandProbe, gallery: GalleryPlan,
-  prongs: ProngPlan[], minWall: number,
-  /** The core's scale of the girdle to try, before the gaps grow it; by default, where the legs would land (see layoutHead). */
-  tryScale?: number,
-  /** The ring widened by this much outward and inward (see layoutHead: room for the feet's blends). */
-  widen = { out: 0, in: 0 },
-  /** Hold the band's crest inside the opening (see BasePlan.crestInside). */
-  holdCrest = true,
-): BasePlan {
-  const height = Math.max(d, minWall);
-  // The blends' radii come first: the base must be wide enough for a foot
-  // to come in through its top with a fillet's width of top all round it
-  // (where a foot came in by its edge, or a fillet ran over the top's edge,
-  // OCCT failed: a marquise's every foot, S3).
-  const feetBlend = Math.min(v.filletRadius, BLEND_SHARE * Math.min(d, height));
-  const width = Math.max(height + 0.3, height + 2 * feetBlend + 0.45);
-  // The core is the girdle scaled, its inner edge rounded by only 0.25 mm:
-  // grown from a small core by a large radius, a princess's base came out
-  // nearly round, and its corner prongs, standing a seventh further out than
-  // the side ones, had nowhere near them to land.
-  // The band's thickness under the head, for the saddle's depth and the
-  // shank blend's limit.
-  const onAxis = band.at(0, 0) ?? band.at(band.axial[0] * (band.axialMin + 0.2), band.axial[1] * (band.axialMin + 0.2));
-  const thick = onAxis ? onAxis.top - onAxis.bottom : 1;
-  // The blends, each at most BLEND_SHARE of the thinner part it joins: a
-  // prong and the base; the base and the saddle's plate; the plate and the
-  // band. The plate is half the band deep less the crest's 0.03 mm.
-  const plate0 = 0.5 * thick - PLATEAU_DROP;
-  const fr = v.filletRadius;
-  const blend = {
-    feet: feetBlend,
-    base: Math.min(fr, BLEND_SHARE * Math.min(height, width, plate0)),
-    shank: Math.min(fr, BLEND_SHARE * Math.min(plate0, thick)),
-  };
-  // The opening's corners rounded more than the base blend: a 0.3 mm fillet
-  // round a 0.25 mm corner folded over itself (an oval's base left 16 STL
-  // edges not used twice, S3).
-  const rIn = Math.max(0.25, blend.base + 0.1, Math.max(0.25, blend.base + 0.1) - widen.in), rOut = Math.max(0.25, blend.base + 0.1) + width + widen.out;
-  // The plateau reaches past the base by the base blend and 0.1 mm more, so
-  // the blend lands on the plateau and not over its edge (at 0.3 mm a 0.3 mm
-  // fillet failed, S3).
-  const margin = Math.max(SADDLE_MARGIN, blend.base + 0.1);
-  const faces = prepareFaces(stackFaces(stone.girdle, stone.stations ?? stone.hull));
+  prongs: ProngPlan[], minWall: number, taper: number,
+): BasePlan & { ok: boolean } {
+  const T = Math.max(d, minWall), tube = 1.1 * T / 2, wide = tube;
+  const sink = PAD_SINK * tube;
+  // The oval's half-width at the pad's top, sink above its bottom.
+  const reach = PAD_REACH * wide * Math.sqrt(1 - ((tube - sink) / tube) ** 2);
+  const round = stone.cut === "round";
+  // A swept wire must turn no tighter than its own radius, and the pad's
+  // opening (rc − reach) must stay open: the corners rounded by more.
   const G = fewerCorners(turningCorners(stone.girdle), 8);
-
-  // A round stone's base is round: a circle, its radius the girdle's scaled
-  // (its girdle's sixteen sides are the stone's facets, not a shape to follow).
-  const outline = (sigma: number, r: number): Rounded => (stone.cut === "round"
-    ? { core: [[0, 0]], r: r + sigma * stone.girdleR }
-    : { core: G.map(([x, y]) => [x * sigma, y * sigma] as V2), r });
-  const gb = gallery.z - gallery.t / 2;
-
-  // The band's highest point under any base this head could have: the
-  // girdle's own footprint, its outline and a grid inside it, which holds
-  // every plateau the sizes below try. Read once: on a band the crest is on
-  // the head's axis (or beside a split shank's slot) whatever the base's
-  // size, and probing it for every size tried was most of the layout's time
-  // (42 ms of 70 on the default ring, S3).
-  const reach = roundedPoints(outline(1, rOut + margin), 0.25);
-  const bandTop = (() => {
-    // Across the finger, where the crest is, every 0.05 mm (a split shank's
-    // slot edge is in there), and along it and round the outline more
-    // coarsely: the band only falls away along the finger.
-    const a = band.axial, far = Math.max(...reach.map((p) => Math.hypot(p[0], p[1])));
-    const pts: V2[] = [...reach];
-    for (let t = -far; t <= far; t += 0.05) pts.push([a[0] * t, a[1] * t]);
-    for (let t = -far; t <= far; t += 0.25) pts.push([-a[1] * t, a[0] * t]);
-    const top = bandTopAmong(band, pts.filter((q) => polygonDistance(reach, q) <= 0));
-    return Number.isFinite(top) ? top : band.topOnAxis;
-  })();
-  // The heights, the same for every size.
-  const heights = (() => {
-    const plateau = bandTop - PLATEAU_DROP;
-    // Sunk BASE_SINK into the plateau. Where that leaves less than 0.25 mm
-    // of daylight under the gallery, sunk further, but never so far that a
-    // foot has less than 0.75 d of base above the plateau to end in (a leg
-    // coming in at 45° needs 0.71 d), and never with its top above the
-    // gallery's middle: there the section at the gallery's height would
-    // cut the base (S3, light). On a small stone the base then meets the
-    // gallery's underside.
-    let zTop = Math.min(plateau - BASE_SINK + height, Math.max(gb - 0.25, plateau + 0.75 * d + 0.05));
-    zTop = Math.min(zTop, gallery.z - 0.05);
-    const zBottom = zTop - height;
-    return { plateau, bandTop, zBottom, zTop };
-  })();
-
-  // The base's middle where the legs would land at its height, straight on
-  // from the post through the gallery.
-  const gr = gallery.t / 2;
-  const landing = (zAt: number) => prongs.map((p) => {
-    const c = p.postCentre;
-    const inward: V2 = [-p.normal[0], -p.normal[1]];
-    const hit = rayHit(gallery.path, c, inward) ?? c;
-    const cz = p.seatLow - 0.1 - (v.minBendRadius * d + d / 2) * 0.3;
-    const k = (gallery.z - zAt) / Math.max(0.2, cz - gallery.z);
-    const q: V2 = [hit[0] + (hit[0] - c[0]) * k, hit[1] + (hit[1] - c[1]) * k];
-    return { psi: Math.atan2(c[1], c[0]), r: Math.hypot(q[0], q[1]) };
-  });
-  const middle = (sigma: number, psi: number) => (stone.cut === "round"
-    ? outline(sigma, rIn + width / 2).r
-    : radialHit(roundedPoints(outline(sigma, rIn + width / 2), 0.2), psi).r);
-
-  // Where the band's crest rises through the plateau, round the axis: how
-  // far it reaches along the band and across it. The base's opening must
-  // hold it with room for the base blend inside the wall: on a marquise the
-  // crest reached the inner wall, and the base fillet failed there (S3).
-  const crest = (() => {
-    const along: V2 = [-band.axial[1], band.axial[0]], a = band.axial;
-    const reach = (u: V2) => {
-      let t = 0;
-      while (t < 3) { const b0 = band.at(u[0] * (t + 0.01), u[1] * (t + 0.01)); if (!b0 || b0.top <= heights.plateau) break; t += 0.01; }
-      return t;
+  const rcCorner = wide + 0.15;
+  const psis = prongs.map((p) => Math.atan2(p.postCentre[1], p.postCentre[0]));
+  const girdleR = psis.map((a) => radialHit(stone.girdle, a).r);
+  const centreline = (s: number): Rounded => (round
+    ? { core: [[0, 0]], r: s }
+    : { core: G.map(([x, y]) => [x * s, y * s] as V2), r: rcCorner });
+  let line: Rounded;
+  if (round) line = centreline(taper * stone.girdleR);
+  else {
+    // The core's scale whose feet sit, on average, at the taper asked.
+    const mean = (s: number) => {
+      const pts = roundedPoints(centreline(s), 0.05);
+      return psis.reduce((t, a, i) => t + radialHit(pts, a).r / girdleR[i], 0) / psis.length;
     };
-    return { along, a, x: Math.max(reach(along), reach([-along[0], -along[1]])), y: Math.max(reach(a), reach([-a[0], -a[1]])) };
-  })();
-  const crestRing = Array.from({ length: 24 }, (_, k) => {
-    const t = (k / 24) * 2 * Math.PI, cx = crest.x * Math.cos(t), cy = crest.y * Math.sin(t);
-    return [crest.along[0] * cx + crest.a[0] * cy, crest.along[1] * cx + crest.a[1] * cy] as V2;
+    let lo = 0.01, hi = 1.2;
+    for (let k = 0; k < 30; k++) { const md = (lo + hi) / 2; if (mean(md) < taper) lo = md; else hi = md; }
+    line = centreline((lo + hi) / 2);
+  }
+  const linePts = roundedPoints(line, 0.05);
+  const footR = psis.map((a) => (round ? line.r : radialHit(linePts, a).r));
+  // On a round stone against its own radius (its girdle polygon is the
+  // facets' and reads 1% short between them).
+  const tapers = footR.map((r, i) => r / (round ? stone.girdleR : girdleR[i]));
+
+  // Every 0.1 mm round the centreline, with its outward normal.
+  const ring = roundedPoints(line, 0.1).map((q, i, all) => {
+    const a = all[(i - 1 + all.length) % all.length], b = all[(i + 1) % all.length];
+    const t: V2 = [b[0] - a[0], b[1] - a[1]], L = Math.hypot(...t) || 1;
+    return { q, n: [t[1] / L, -t[0] / L] as V2 };
   });
-  const crestHeld = (sigma: number) => {
-    const o = outline(sigma, rIn);
-    if (o.core.length === 1) return crestRing.every((q) => Math.hypot(q[0], q[1]) - o.r <= -(blend.base + 0.05));
-    const inner = roundedPoints(o, 0.15);
-    return crestRing.every((q) => polygonDistance(inner, q) <= -(blend.base + 0.05));
+
+  // How low the wire may sit: PAD_MIN over the band wherever the band runs
+  // under it, and SHOULDER over the band's line wherever any of it stands
+  // beyond the band's flank.
+  const flanks = new Map<string, ReturnType<typeof flankAt>>();
+  const flank = (x: number, side: 1 | -1) => {
+    const k = `${x.toFixed(2)}:${side}`;
+    if (!flanks.has(k)) flanks.set(k, flankAt(band, x, side));
+    return flanks.get(k)!;
   };
-
-  // The gaps to the stone and the culet: the base's top edges, its inner
-  // wall above the plateau and the saddle's hole round its rim.
-  const gaps = (sigma: number, h: typeof heights) => {
-    let gap = Infinity, culet = Infinity;
-    const test = (q: V3) => {
-      gap = Math.min(gap, facesDistance(q, faces));
-      culet = Math.min(culet, Math.hypot(q[0], q[1], q[2]));
-    };
-    // Every 0.25 mm round, at four heights up the inner wall: the stone's
-    // faces are planes, so the gap between samples cannot dip far.
-    for (const [x, y] of roundedPoints(outline(sigma, rIn), 0.25)) {
-      for (let z = h.plateau; z <= h.zTop + 1e-9; z += Math.max(0.05, (h.zTop - h.plateau) / 3)) test([x, y, z]);
-      test([x, y, h.zTop]);
+  let low = -Infinity, bandTop = -Infinity;
+  for (const { q, n } of ring) {
+    for (const k of [-1, 0, 1]) {
+      const s: V2 = [q[0] + n[0] * wide * k, q[1] + n[1] * wide * k];
+      const b = band.at(s[0], s[1]);
+      if (b) { low = Math.max(low, b.top + PAD_MIN); bandTop = Math.max(bandTop, b.top); }
+      const f = flank(s[0], s[1] >= 0 ? 1 : -1);
+      if (f && Math.abs(s[1]) > f.edge) low = Math.max(low, f.top + SHOULDER);
     }
-    for (const [x, y] of roundedPoints(outline(sigma, rOut), 0.25)) test([x, y, h.zTop]);
+  }
+  if (!Number.isFinite(bandTop)) bandTop = band.topOnAxis;
+  if (!Number.isFinite(low)) low = bandTop + PAD_MIN;
+
+  const faces = prepareFaces(stackFaces(stone.girdle, stone.stations ?? stone.hull));
+  const gaps = (z: number) => {
+    let gap = Infinity, culet = Infinity;
+    for (let i = 0; i < ring.length; i += 2) {
+      const { q, n } = ring[i];
+      for (let k = 0; k < 8; k++) {
+        const ph = (k / 8) * 2 * Math.PI;
+        const p: V3 = [q[0] + n[0] * wide * Math.cos(ph), q[1] + n[1] * wide * Math.cos(ph), z + tube * Math.sin(ph)];
+        gap = Math.min(gap, facesDistance(p, faces));
+        culet = Math.min(culet, Math.hypot(...p));
+      }
+    }
     return { gap, culet };
   };
 
-  // sigma by the landings, then grown as the gaps need. Halved first to
-  // find a sigma whose middle is near the landings: the base's middle grows
-  // with sigma (and with every girdle point's distance out).
-  let lo = 0, hi = 1.2;
-  for (let k = 0; k < 16; k++) {
-    const md = (lo + hi) / 2;
-    const h = heights;
-    const L = landing((h.zTop + h.plateau) / 2);
-    const off = L.reduce((t, { psi, r }) => t + middle(md, psi) - r, 0) / L.length;
-    if (off > 0) hi = md; else lo = md;
+  // The pad for a wire at height z (see PadPlan). Flared out down to the
+  // band by as much as the footprint allows: the feet's outline grown by 0.9
+  // of a prong (I16 allows one).
+  const out = Math.max(0, Math.min(0.45, 0.9 * d - reach - 0.02));
+  const outerPts = roundedPoints({ core: line.core, r: line.r + reach + out }, 0.1);
+  const X = Math.max(...outerPts.map(([x]) => Math.abs(x)));
+  // Across the pad's length: the band's narrowest flank and its line at its
+  // highest, and the band's lowest top and highest bore under the pad.
+  let edge = Infinity, lineZ = -Infinity, under = Infinity, bore = -Infinity;
+  for (let x = -X; x <= X + 1e-9; x += 0.1) {
+    for (const sd of [1, -1] as const) {
+      const f = flank(x, sd);
+      if (f) { edge = Math.min(edge, f.edge); lineZ = Math.max(lineZ, f.top); }
+    }
   }
-  // Never a point: a core of coincident corners has no sides to grow.
-  let sigma = Math.max(0.05, tryScale ?? (lo + hi) / 2);
-  let h = heights, g = gaps(sigma, h);
-  while ((g.gap < v.pavilionClearance || g.culet < v.culetClearance + 0.02 || (holdCrest && !crestHeld(sigma))) && sigma < 1.2) {
-    sigma += 0.02;
-    h = heights; g = gaps(sigma, h);
+  if (!Number.isFinite(edge)) { edge = band.axialMax; lineZ = band.topOnAxis; }
+  // The pad's shank blend runs out over the band from where the pad leaves
+  // it, so on a narrow band it is held to a quarter of the band's half
+  // width (reported, as every hold is): at the full 0.3 mm the pad had to
+  // keep 0.25 mm in from each flank of a 1.2 mm flat band, and held it over
+  // 3.01 mm² against the prongs' 3.42 (I7).
+  const shankFits = Math.max(0.1, 0.25 * edge);
+  const shankR = Math.min(v.filletRadius, BLEND_SHARE * T, shankFits);
+  // In from the flank by half the shank fillet's radius more: where the
+  // band's side is nearly upright (a comfort band near its flank), the
+  // fillet in the corner the pad leaves bulged 0.07 mm past it (I15).
+  const e = Math.max(0.05, edge - FLANK_IN - 0.5 * shankR);
+  for (const [x, y] of [...outerPts, ...roundedPoints({ core: line.core, r: Math.max(0.05, line.r - reach) }, 0.1)]) {
+    const b = band.at(x, Math.sign(y) * Math.min(Math.abs(y), e));
+    if (b) { under = Math.min(under, b.top); bore = Math.max(bore, b.bottom); }
   }
-
-  // The plate, drawn out along the band (across the finger) as far as the
-  // band needs to fall away under its ends; see BasePlan.plate.
-  const along: V2 = [-band.axial[1], band.axial[0]];
-  const plateR = outline(sigma, rOut + margin).r, baseCore = outline(sigma, 0).core;
-  const drawnOut = (e: number): Rounded => ({
-    core: e > 0
-      ? convexHull(baseCore.flatMap(([x, y]) => [[x + along[0] * e, y + along[1] * e], [x - along[0] * e, y - along[1] * e]] as V2[]))
-      : baseCore,
-    r: plateR,
-  });
-  // Halved to 0.02 mm (the band only falls away along it); its outline
-  // probed every 0.25 mm.
-  const tooHigh = (e: number) => roundedPoints(drawnOut(e), 0.25).some(([x, y]) => {
-    const bt = band.at(x, y);
-    return !!bt && bt.top > h.plateau - blend.shank - 0.1;
-  });
-  let plate = drawnOut(0);
-  if (tooHigh(0)) {
-    let lo = 0, hi = 4;
-    if (tooHigh(hi)) lo = hi;
-    else while (hi - lo > 0.02) { const md = (lo + hi) / 2; if (tooHigh(md)) lo = md; else hi = md; }
-    plate = drawnOut(hi);
-  }
-
-  // The saddle's bottom: halfway down through the band on the axis, never
-  // nearer the bore than 0.15 mm (a split shank's slot: its rails').
-  // And at least 0.15 mm under the band all round the plate's edge where the
-  // band runs under it, so its wall always stands in the band: where the
-  // band had fallen under the plate's bottom by its ends, the wall never met
-  // it (a 1.2 mm band, S3).
-  const underEdge = Math.min(...roundedPoints(plate, 0.1).map(([x, y]) => band.at(x, y)?.top ?? Infinity));
-  const zBot = Math.max(Math.min(h.bandTop - 0.5 * thick, underEdge - 0.15), (onAxis ? onAxis.bottom : -Infinity) + 0.15);
-
-  const outerTop = roundedPoints(outline(sigma, rOut), 0.2).map(([x, y]) => [x, y, h.zTop] as V3);
-  return {
-    core: outline(sigma, 0).core, rIn: outline(sigma, rIn).r, rOut: outline(sigma, rOut).r, plate,
-    zBottom: h.zBottom, zTop: h.zTop, height, width,
-    plateau: h.plateau, bandTop: h.bandTop, saddleBottom: zBot, bandUnderEdge: Number.isFinite(underEdge) ? underEdge : zBot,
-    clearance: g.gap, culetClearance: g.culet, sigma, blend, flare: { ...blend }, flareColumn: false, plateThickness: h.plateau - zBot,
-    crestInside: crestHeld(sigma),
-    touchesGallery: outerTop.some((q) => Math.hypot(polygonDistance(gallery.path, [q[0], q[1]]), q[2] - gallery.z) < gr + 0.01),
+  if (!Number.isFinite(under)) under = band.topOnAxis;
+  const reachY = Math.max(...roundedPoints({ core: line.core, r: line.r + reach }, 0.1).map(([, y]) => Math.abs(y)));
+  const padFor = (z: number) => {
+    const top = z - tube + sink;
+    // Its bottom flat, PAD_DEPTH under the band's lowest top beneath it and
+    // clear of the bore: inside the band everywhere. (A floor round the
+    // finger's axis, to follow the band, was coaxial with the band's own
+    // surfaces, and OCCT read the pad and band as not touching, S3b.)
+    const bottom = Math.max(under - PAD_DEPTH, bore + 0.15);
+    // The clip's corner just over the band's line, and its slope clear of
+    // the pad wherever the pad meets the wire: there the pad keeps its whole
+    // section, so the wire's joint is two plain loops (cut across by the
+    // clip, its fillet failed at every corner, S3b).
+    // Clear of the pad from the wire down past the reach of the joint's
+    // fillet, where the band leaves height for that; where it does not (a
+    // narrow flat band), the clip meets the joint and its flare carries it.
+    const exit = z - Math.sqrt(Math.max(0, tube * tube - reach * reach));
+    const lineAt = lineZ + CLIP_OVER, at = Math.max(lineAt + 0.1, exit - Math.min(v.filletRadius, BLEND_SHARE * T) - 0.1);
+    // Where the band is as wide as the pad, the clip need not widen.
+    // At most CLIP_SLOPE across per mm up: steeper, a flat band leaves so
+    // little height under a wire wider than it that the clip reached 0.35 mm
+    // past the flank at the band's own top (I15). There the clip meets the
+    // pad under the wire and the joint is flared.
+    const clip = { edge: e, line: lineAt, slope: Math.min(CLIP_SLOPE, Math.max(0, (reachY + 0.1 + out * 0.15 - e) / Math.max(0.05, at - lineAt))) };
+    return { top, bottom, clip };
   };
-}
 
-/**
- * The largest fillet a prong's foot has room for on the base's top. Where
- * the run that ends in the base comes up through the top, its footprint
- * there is an ellipse (the prong's radius over the leg's lean from upright,
- * along the radius). A fillet of radius r round it reaches r·cot(α/2) out
- * across the top, α the angle between the leg and the top on that side:
- * 90° less the lean on the side the leg leans over, 90° more on the other
- * (at a 45° lean, 2.4 r and 0.4 r). Both reaches must stop 0.02 mm short of
- * the top's edges. Negative where the foot comes in over an edge.
- */
-function baseFootFillet(base: BasePlan, inner: V2[], outer: V2[], points: V3[], half: number): number {
-  const f = points[0], u = unitV(sub(points[1], f));
-  if (u[2] < 0.3) return -1;
-  const g = footGeometry(base, inner, outer, f, u, half);
-  return Math.min(g.roomOut / g.cotOut, g.roomIn / g.cotIn);
-}
-
-/**
- * Where a foot's run comes up through the base's top, the room either side
- * of its footprint, and its fillet's reach per unit radius either side.
- * `rooms` false leaves the rooms out (the dearest part: the layout's search
- * asks only where the balance point is, many times a head).
- */
-function footGeometry(base: BasePlan, inner: V2[], outer: V2[], f: V3, u: V3, half: number, rooms = true) {
-  const E = add(f, scale(u, (base.zTop - f[2]) / u[2]));
-  const rE = Math.hypot(E[0], E[1]), a = Math.atan2(E[1], E[0]);
-  const reach = half / u[2] + 0.02;
-  const inE = radialHit(inner, a).r, outE = radialHit(outer, a).r;
-  // The lean along the radius: outward (the leg leans over the outer side
-  // of the top) when the run rises away from the axis.
-  const out = rE > 1e-9 ? (u[0] * E[0] + u[1] * E[1]) / rE : 0;
-  const lean = Math.asin(Math.min(1, Math.abs(out)));
-  const acute = 1 / Math.tan((Math.PI / 2 - lean) / 2), obtuse = 1 / Math.tan((Math.PI / 2 + lean) / 2);
-  // The room each side is the true distance from the footprint to that
-  // edge, not along the radius: at a marquise's point the edge runs slantwise
-  // and a radial room read 0.15 mm more than there was (4 prongs: 14 STL
-  // edges not used twice where its tip feet's fillets ran off the top, S3).
-  const er: V2 = rE > 1e-9 ? [E[0] / rE, E[1] / rE] : [1, 0], et: V2 = [-er[1], er[0]];
-  let roomIn = Infinity, roomOut = Infinity;
-  // A round base's edges are circles round the axis: exact, and cheap.
-  const round = base.core.length === 1;
-  const dIn = (q: V2) => (round ? Math.hypot(q[0] - base.core[0][0], q[1] - base.core[0][1]) - base.rIn : polygonDistance(inner, q));
-  const dOut = (q: V2) => (round ? base.rOut - Math.hypot(q[0] - base.core[0][0], q[1] - base.core[0][1]) : -polygonDistance(outer, q));
-  for (let k = 0; rooms && k < 24; k++) {
-    const c = Math.cos((k / 12) * Math.PI), sn = Math.sin((k / 12) * Math.PI);
-    const q: V2 = [E[0] + er[0] * reach * c + et[0] * (half + 0.02) * sn, E[1] + er[1] * reach * c + et[1] * (half + 0.02) * sn];
-    roomIn = Math.min(roomIn, dIn(q));
-    roomOut = Math.min(roomOut, dOut(q));
+  const z = low + tube;
+  const pad = padFor(z);
+  const zv = Math.max(bandTop + 0.05, Math.min(pad.top - 0.05, z - tube - 0.03));
+  // The outer face's slope: out by `out` at the band's highest point under
+  // the wire, and no further than the footprint allows where the band is
+  // lowest under the pad (it falls away along the band, and the face meets
+  // it further out there): steep enough for both (I16).
+  const outSlope = Math.min(out / Math.max(0.05, zv - bandTop), (0.9 * d - reach - 0.02) / Math.max(0.05, zv - under));
+  const outerAtBand = line.r + reach + outSlope * Math.max(0, zv - bandTop);
+  // The opening's face in further where the band is narrow: the pad holds
+  // the band only over the band's width, so on a narrow band it needs more
+  // length along it, ahead of and behind the stone, to carry the prongs'
+  // sections (I7: on a 1.2 mm band, 2.99 mm² against 3.42 with the face
+  // 0.6 in). As far in as gives that length with a fifth to spare, from
+  // where the outer face meets the band; the opening there never under the
+  // culet's gap and 0.2 mm, nor 0.5 mm.
+  const need = 1.2 * FIXED_STANDARDS.JOINT_AREA_RATIO.value * prongs.length * Math.PI * (d / 2) ** 2;
+  const lengthNeed = need / (2 * 2 * Math.max(0.05, pad.clip.edge));
+  const openingLeast = Math.max(v.culetClearance + 0.2, 0.5);
+  const inward = Math.max(PAD_INWARD, Math.min((line.r - reach) - openingLeast, (line.r - reach) - (outerAtBand - lengthNeed)));
+  const g = gaps(z);
+  // The pad's opening, round its top edge.
+  for (const [x, y] of roundedPoints({ core: line.core, r: Math.max(0.05, line.r - reach) }, 0.2)) {
+    const A: V3 = [x, y, pad.top];
+    g.gap = Math.min(g.gap, facesDistance(A, faces));
+    g.culet = Math.min(g.culet, Math.hypot(...A));
   }
+  const ok = g.gap >= v.pavilionClearance && g.culet >= v.culetClearance + 0.02 ;
+
+  // The blends, each at most BLEND_SHARE of the thinner part it joins: a
+  // prong and the wire; the wire and the pad's top (2 reach across); the
+  // pad and the band.
+  const onAxis = band.at(0, 0) ?? band.at(band.axial[0] * (band.axialMin + 0.2), band.axial[1] * (band.axialMin + 0.2));
+  const thick = onAxis ? onAxis.top - onAxis.bottom : 1;
+  const fr = v.filletRadius;
+  const feet = Math.min(fr, BLEND_SHARE * Math.min(d, T));
+  const blend = {
+    feet: feet >= FOOT_FILLET_FLOOR - 1e-9 ? feet : 0,
+    base: Math.min(fr, BLEND_SHARE * Math.min(T, 2 * reach)),
+    shank: Math.min(fr, BLEND_SHARE * Math.min(2 * reach + out, thick), shankFits),
+  };
+  const height = pad.top - bandTop;
+  const wideAt = (zz: number) => pad.clip.edge + pad.clip.slope * Math.max(0, zz - pad.clip.line);
+  const plan = convexHull([
+    ...roundedPoints({ core: line.core, r: line.r + reach }, 0.1).map(([x, y]) => [x, Math.sign(y) * Math.min(Math.abs(y), wideAt(pad.top))] as V2),
+    ...outerPts.map(([x, y]) => [x, Math.sign(y) * Math.min(Math.abs(y), wideAt(pad.bottom))] as V2),
+  ]);
+  // Under the head, the band's crest where it rises above the pad's top
+  // would run under the wire unless the opening holds it (q. 32).
+  const crestInside = ring.every(({ q }) => {
+    const b = band.at(q[0], q[1]);
+    return !b || b.top < pad.top - 0.02;
+  });
+  const gb = gallery.z - gallery.t / 2;
+  const touchesGallery = z + tube > gb - 0.01 &&
+    ring.some(({ q }) => Math.hypot(polygonDistance(gallery.path, q), z - gallery.z) < tube + gallery.t / 2 + 0.01);
+  const feetAt: V3[] = psis.map((a, i) => [footR[i] * Math.cos(a), footR[i] * Math.sin(a), z]);
   return {
-    rE, inE, outE, reach, roomIn, roomOut,
-    cotOut: out >= 0 ? acute : obtuse, cotIn: out >= 0 ? obtuse : acute,
+    core: line.core, rc: line.r, tube, wide, z,
+    rIn: line.r - wide, rOut: line.r + wide, zBottom: z - tube, zTop: z + tube, height: 2 * tube, width: 2 * wide,
+    feet: feetAt, tapers, taper: tapers.reduce((t, x) => t + x, 0) / tapers.length,
+    pad: {
+      top: pad.top, reach, out, ref: bandTop, bottom: pad.bottom, under: zv, bandLine: lineZ,
+      outSlope,
+      inSlope: inward / Math.max(0.05, pad.top - bandTop),
+      innerMost: -(round ? line.r - 0.3 : rcCorner - 0.1), clip: pad.clip, plan, height,
+    },
+    bandTop, clearance: g.gap, culetClearance: g.culet, touchesGallery, crestInside,
+    blend, flare: { ...blend, feet }, flareColumn: false, ok,
   };
 }
 
@@ -2288,26 +2372,12 @@ function layoutLeg(
     if (!probes.has(r)) probes.set(r, band.at(xy[0], xy[1]));
     return probes.get(r)!;
   };
-  // On a base, the foot goes straight out from the axis towards the post,
-  // as far out as the base allows: its inner and outer edges along that
-  // direction, less the foot's own radius.
-  const baseInner = base ? roundedPoints({ core: base.core, r: base.rIn }, 0.05) : [];
-  const baseOuter = base ? roundedPoints({ core: base.core, r: base.rOut }, 0.05) : [];
-
-  const baseIn = base ? radialHit(baseInner, psi).r : 0;
-  // How far a leg comes up through the base's top from where its fillet has
-  // most room: where the reach either side (see baseFootFillet) uses the
-  // same share of the room that side.
-  const entryOffset = (points: V3[]) => {
-    const f = points[0], u = unitV(sub(points[1], f));
-    if (u[2] < 0.3) return 0;
-    const g = footGeometry(base!, baseInner, baseOuter, f, u, half, false);
-    const best = (g.cotOut * (g.inE + g.reach) + g.cotIn * (g.outE - g.reach)) / (g.cotOut + g.cotIn);
-    return g.rE - best;
-  };
-  const baseOut = base ? radialHit(baseOuter, psi).r : 0;
+  // On a lower gallery (S3b), the foot is where the wire's centreline
+  // crosses the post's direction, at the wire's height: its end disc is then
+  // wholly inside the wire, which is at least as thick as the prong.
+  const baseFoot = base ? base.feet[p.index] : null;
   const footXY = (r: number): V2 => {
-    if (base) return [r * Math.cos(psi), r * Math.sin(psi)];
+    if (base) return [baseFoot![0], baseFoot![1]];
     const e: V2 = [Math.cos(psi), Math.sin(psi)];
     const a = band.axial;
     let along = r * (e[0] * a[0] + e[1] * a[1]);
@@ -2368,7 +2438,7 @@ function layoutLeg(
     // plateau and the base's top, the disc's room the same above and below
     // (just under the top, a 2 mm prong's legs on a 2 mm base had no length
     // left to bend in: all-max marquise, S3). footOut holds the disc inside.
-    const onBase = (tilt: number) => (deepFoot ? (base!.plateau + base!.zTop - 0.02) / 2 : base!.zTop - 0.1 - half * Math.sin(tilt));
+    const onBase = (_tilt: number) => base!.z;
     let foot: V3 = [fxy[0], fxy[1], base ? onBase(0) : band.topOnAxis - 0.45];
     let knee: V3 = W;
     let used = bend;
@@ -2481,22 +2551,22 @@ function layoutLeg(
   };
   // The foot stands outside a cylinder of culetClearance round the axis; the
   // rest of the prong is held to the culet by the exact distance above.
-  // On a base: the foot's end disc wholly inside the base, its lowest point
-  // above the saddle's plateau, and the whole prong above the plateau too,
-  // so nothing of it reaches the saddle or the band (I6).
+  // On a lower gallery (S3b): the foot at the wire's centre, its end disc
+  // (the prong's radius, no more than the wire's) then wholly inside it, the
+  // leg rising from it, and nothing of the prong below the wire's bottom, so
+  // nothing of it reaches the pad or the band (I6).
   const footOut = (s: Built) => {
     if (!base) return Math.hypot(s.points[0][0], s.points[0][1]) >= rMin - 1e-9;
     const f = s.points[0], u = unitV(sub(s.points[1], f));
-    const r = Math.hypot(f[0], f[1]);
-    // The disc's reach up and down, and in and out along the radius.
-    const across = half * Math.sqrt(Math.max(0, 1 - u[2] * u[2]));
-    const ur = r > 1e-9 ? (u[0] * f[0] + u[1] * f[1]) / r : 0;
-    const out = half * Math.sqrt(Math.max(0, 1 - ur * ur));
-    if (f[2] - across < base.plateau + 0.01 || r - out < baseIn + 0.02 || r + out > baseOut - 0.02) return false;
-
+    // On the wire's centreline; or, a straight leg (no knee: where a low
+    // gallery leaves no room for one, all-max on a marquise, S3b), wherever
+    // its run reaches the wire's height inside the wire's section.
+    if (s.straight) {
+      if (Math.hypot(centrelineOffset(base, f), f[2] - base.z) > 0.6 * base.tube) return false;
+    } else if (Math.hypot(f[0] - baseFoot![0], f[1] - baseFoot![1]) > 0.05 || Math.abs(f[2] - base.z) > 0.05) return false;
     if (u[2] < 0.3) return false;
     return spineSamples(s.points, s.bends, half).every(({ c: q, t, slack }) =>
-      q[2] - half * Math.sqrt(Math.max(0, 1 - t[2] * t[2])) - slack >= base.plateau + 0.01);
+      q[2] - half * Math.sqrt(Math.max(0, 1 - t[2] * t[2])) - slack >= base.zBottom + 0.01);
   };
   // Each run goes down: at least 0.3 mm of fall for every mm across (a
   // lowered corner once ended under its own foot, and OCCT's fuse returned
@@ -2541,23 +2611,16 @@ function layoutLeg(
     for (let x = from; step > 0 ? x <= to + 1e-9 : x >= to - 1e-9; x += step) xs.push(x);
     return xs;
   };
-  // On a base, the distances out its width leaves a foot, nearest its middle first.
-  const baseRs = base ? (() => {
-    const lo = baseIn + half * 0.3, hi = baseOut - half * 0.3, mid = (lo + hi) / 2;
-    return [0, -1, 1, -2, 2, -3, 3].map((k) => mid + (k * (hi - lo)) / 6);
-  })() : [];
+  // On a lower gallery the foot is fixed (see baseFoot): one distance.
+  const baseRs = base ? [Math.hypot(baseFoot![0], baseFoot![1])] : [];
   const search = (bend: number, mode: Mode, drop: number, delta: number, wrap: number, kick = 0, fall = 0) => {
     const at = (r: number) => ({ ...build(r, bend, mode, drop, delta, wrap, kick, fall), r, drop, delta });
     if (base) {
       // Straight on into the base first: one bend fewer.
       const st = build(baseRs[0], bend, mode, drop, delta, wrap, kick, fall, true);
       if (ok(st, mode)) return { ...st, r: baseRs[0], drop, delta };
-      // Then with the foot placed so the leg comes up through the base's top
-      // where its fillet has most room (see entryOffset); then across the
-      // base's width, middle first.
-      const first = build(baseRs[0], bend, mode, drop, delta, wrap, kick, fall);
-      const centred = baseRs[0] - entryOffset(first.points);
-      for (const r of [centred, ...baseRs]) if (ok(build(r, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(r);
+      // Then with a knee, the foot on the wire's centre.
+      if (ok(build(baseRs[0], bend, mode, drop, delta, wrap, kick, fall), mode)) return at(baseRs[0]);
       return null;
     }
     if (ok(build(rMin, bend, mode, drop, delta, wrap, kick, fall), mode)) return at(rMin);
