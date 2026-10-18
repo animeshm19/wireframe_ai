@@ -893,14 +893,20 @@ function filletSections(joint: BlendJoint, metal: Shape3D, frame: HeadFrame, err
           // saddle and below its plateau: on the band. The curve can carry
           // on past the fillet down the band's flank as one edge, so the
           // radius is the curve's own where it leaves the saddle: the circle
-          // through the end and the points a fifth and two fifths of the
-          // fillet's quarter turn along (taken from the edge's length).
+          // through the end and the points 0.05 and 0.1 radii along it (taken
+          // from the edge's length). Not a share of a quarter turn: where the
+          // band's edge falls away steeply (an 8 mm band, whose plate ends
+          // inside its width) the fillet turns far less than 90°, and the
+          // third point then lay on the band's flank and read 0.40 for 0.30.
           const [a, , c] = curve;
           const fromA = onSaddle(a) && off(c) && near(a, p0), fromC = onSaddle(c) && off(a) && near(c, p0);
           if (!fromA && !fromC) continue;
-          const step = Math.min(0.2, (0.2 * Math.PI * b.blend.shank) / 2 / Math.max(1e-9, curve.len));
+          const step = Math.min(0.2, (0.05 * b.blend.shank) / Math.max(1e-9, curve.len));
           const t0 = fromA ? 0 : 1, sgn = fromA ? 1 : -1;
-          out.push(radiusOf(curve.at(t0), curve.at(t0 + sgn * step), curve.at(t0 + 2 * sgn * step)));
+          const rr = radiusOf(curve.at(t0), curve.at(t0 + sgn * step), curve.at(t0 + 2 * sgn * step));
+          // A straight curve is no fillet: on a split shank a tilted cut also
+          // meets the slot's side running off the wall's foot.
+          if (Number.isFinite(rr)) out.push(rr);
         }
       }
     }
