@@ -41,7 +41,22 @@ const prongHead = (spec) => setting(spec) !== "bezel";
 /** The centre head's bearings, or none (a bezel). */
 const centreBearings = (r) => (r.bearings ?? []).filter((b) => b.head === "centre");
 const num = (x) => typeof x === "number" && Number.isFinite(x);
+/** A measured gap, or Infinity (as JSON writes it) where nothing is there to measure. */
+const clearOrNone = (x) => num(x) || x === Infinity || x === "Infinity";
 const fmt = (x) => (num(x) ? String(+x.toFixed(4)) : String(x));
+
+/**
+ * A value the engine held to what this stone's size allows, and reported as
+ * an engine clamp with the value asked and the value built (Animesh's
+ * decision on S2's question 25, 2026-10-18: impossible combinations are
+ * clamped by size, reported with both numbers, and the bounds stay): the
+ * value built, for judging; else the value asked.
+ */
+const heldTo = (r, key, asked) => {
+  const w = (r.bench?.warnings ?? []).find((x) => x.key === key && x.kind === "engine-clamped" &&
+    num(x.asked) && num(x.delivered) && Math.abs(x.asked - asked) < 1e-9);
+  return w ? w.delivered : asked;
+};
 
 const pass = (detail = "") => ({ status: "PASS", detail });
 const fail = (detail) => ({ status: "FAIL", detail });
@@ -77,12 +92,14 @@ export const BENCH_MEASURES = {
     ok: num(b.seatGap) && b.seatGap >= v - 0.01 && b.seatGap <= v + 0.02,
     why: `room round the stone ${fmt(b.seatGap)} mm, wants ${fmt(v - 0.01)} to ${fmt(v + 0.02)}`,
   })),
-  culetClearance: (r, v) => {
+  culetClearance: (r, asked) => {
     const got = r.centre.culetClearance;
-    return { ok: num(got) && got >= v - 0.01 && got <= v + 0.05, why: `culet ${fmt(got)} mm, wants ${fmt(v - 0.01)} to ${fmt(v + 0.05)}` };
+    // Held by the stone's size where the engine said so (see heldTo).
+    const v = heldTo(r, "culetClearance", asked);
+    return { ok: num(got) && got >= v - 0.01 && got <= v + 0.05, why: `culet ${fmt(got)} mm, wants ${fmt(v - 0.01)} to ${fmt(v + 0.05)}${v !== asked ? ` (held from ${fmt(asked)}, reported)` : ""}` };
   },
   pavilionClearance: (r, v) => everyBearing(r, (b) => ({
-    ok: num(b.pavilionClearance) && b.pavilionClearance >= v - 0.02,
+    ok: clearOrNone(b.pavilionClearance) && Number(b.pavilionClearance) >= v - 0.02,
     why: `${fmt(b.pavilionClearance)} mm from the pavilion, wants ≥ ${fmt(v - 0.02)}`,
   })),
   prongDiameter: (r, v) => everyBearing(r, (b) => ({
@@ -115,11 +132,12 @@ export const BENCH_MEASURES = {
     return { ok: true, why: "" };
   },
   // S2
-  galleryClearance: (r, v) => {
+  galleryClearance: (r, asked) => {
     const g = r.galleries.find((x) => x.head === "centre");
     if (!g) return { ok: false, why: "no centre gallery" };
+    const v = heldTo(r, "galleryClearance", asked);
     return { ok: num(g.clearanceToStone) && g.clearanceToStone >= v - 0.02 && g.clearanceToStone <= v + 0.10,
-      why: `gallery ${fmt(g.clearanceToStone)} mm from the stone, wants ${fmt(v - 0.02)} to ${fmt(v + 0.10)}` };
+      why: `gallery ${fmt(g.clearanceToStone)} mm from the stone, wants ${fmt(v - 0.02)} to ${fmt(v + 0.10)}${v !== asked ? ` (held from ${fmt(asked)}, reported)` : ""}` };
   },
   galleryThickness: (r, v) => {
     const g = r.galleries.find((x) => x.head === "centre");
@@ -200,7 +218,9 @@ export const INVARIANTS = [
     title: "culet clearance ≥ culetClearance (effective) − 0.01",
     requiredFrom: (spec) => (prongLike(spec) ? "S1" : "S6"),
     evaluate: (r) => {
-      const want = (r.requested ?? r.bench.values).culetClearance - 0.01;
+      // The value asked, or the one built where the engine held it by the
+      // stone's size and said so (see heldTo; S3, logged).
+      const want = heldTo(r, "culetClearance", (r.requested ?? r.bench.values).culetClearance) - 0.01;
       const got = r.centre.culetClearance;
       return num(got) && got >= want ? pass(fmt(got)) : fail(`culet ${fmt(got)} mm, needs ≥ ${fmt(want)}`);
     },
@@ -247,7 +267,10 @@ export const INVARIANTS = [
         // Each head by the values it asked for (a side head's automatic ones
         // follow its smaller stone), not the engine's; reports from before
         // S2 carry only the built ones.
-        const gc = g.requested?.galleryClearance ?? g.bench?.galleryClearance ?? r.bench.values.galleryClearance;
+        const gcAsked = g.requested?.galleryClearance ?? g.bench?.galleryClearance ?? r.bench.values.galleryClearance;
+        // The centre head's, held by the stone's size where the engine said
+        // so (see heldTo; S3, an assertion change logged in STRUCTURE-LOG).
+        const gc = g.head === "centre" ? heldTo(r, "galleryClearance", gcAsked) : gcAsked;
         return [
         { ok: num(g.inStone) && g.inStone <= 0.001, why: `${g.head} gallery in stone ${fmt(g.inStone)} mm³` },
         { ok: num(g.clearanceToStone) && g.clearanceToStone >= gc - 0.02 && g.clearanceToStone <= gc + 0.10,
@@ -370,12 +393,11 @@ export const INVARIANTS = [
       })));
     },
   },
-  // Known limits, for S3, which owns the joint: the disc is the prompt's
-  // (girdleR × 1.2 round the centre axis), so on a three-stone it also cuts
-  // the side heads and on a cathedral the struts (1 ct round: prong 3.89,
-  // three-stone 6.54, cathedral 6.78 mm²). And the prong sum uses the
-  // effective prongDiameter, which until S1 wires it can differ from the
-  // built one (0.25 ct: clamped 0.80 against 0.744 built), erring strict.
+  // The joint is taken within the centre head's own footprint, its saddle's
+  // plate (open question 14, decided in S3: "the centre head's own metal").
+  // The disc of girdleR × 1.2 it replaced also cut a three-stone's side heads
+  // and a cathedral's struts, and on a small stone with thick prongs it held
+  // only part of the base. The prong sum uses the prongDiameter built.
   {
     id: "I7",
     title: "joint section ≥ JOINT_AREA_RATIO × summed prong sections",
@@ -479,8 +501,10 @@ export const INVARIANTS = [
     evaluate: (r) => {
       const bs = centreBearings(r);
       if (!bs.length) return na("no prongs");
+      // Infinity: nothing of the prong is below girdle − d, so nothing there
+      // can come near the pavilion (S3, logged).
       return all(bs.map((b) => ({
-        ok: num(b.pavilionClearance) && b.pavilionClearance >= b.expected.pavilionClearance - 0.02,
+        ok: clearOrNone(b.pavilionClearance) && Number(b.pavilionClearance) >= b.expected.pavilionClearance - 0.02,
         why: `prong ${b.index} ${fmt(b.pavilionClearance)} mm from the pavilion, wants ≥ ${fmt(b.expected.pavilionClearance - 0.02)}`,
       })));
     },

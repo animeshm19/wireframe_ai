@@ -66,6 +66,12 @@ Measured (`structure-audit-s2`, `55494e5`):
 
 The numbers are now also in the code comment (`889ba4c`).
 
+**S3: I3a, I4 (centre head), and I13 for culetClearance and galleryClearance accept a reported size clamp.** Before: judged against the value asked, always. Now: where the engine held the value by the stone's size and reported it as `engine-clamped` with `asked` and `delivered` (Animesh's decision on question 25), it is judged against the delivered value; a held value with no such warning still fails. Side heads are judged as before. Measured (full matrix): only the 0.25 ct round all-max row is held, the culet 1.5 → 1.3 mm and the gallery gap 0.6 → 0.467 mm. (`252509a`'s message says 1.35, from a probe at 0.01 mm steps before the search was set to the field's 0.05.) No other design is held.
+
+**S3: I10c and I13 (pavilionClearance) accept "nothing there".** Before: a prong with no metal below girdle − d recorded NaN and failed. Now it records Infinity and passes: nothing of it can come near the pavilion. Seen on the oval with 2 mm prongs, whose feet end high in a 2 mm base. A failed measurement is still NaN and still fails.
+
+**S3: I7 is measured within the centre head's saddle plate** (open question 14, decided here as "the centre head's own metal"). Before: a disc of girdleR × 1.2 round the axis, which also cut a three-stone's side heads and a cathedral's struts, and on a 3 ct stone held only part of the base. The bound (`JOINT_AREA_RATIO`) is unchanged. Default ring: 9.52× the prong sections.
+
 ## Bench bounds changed
 
 None in S0. Bounds are as specified in the S0 prompt's table; `test:cad` asserts them row by row.

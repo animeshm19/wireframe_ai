@@ -18,7 +18,7 @@
  * Distances in mm, volumes in mm³, areas in mm², times in ms.
  */
 import {
-  draw, makeCircle, makeCompound, makeFace, makeLine, makeSphere, makeVertex,
+  draw, makeCircle, makeCompound, makeFace, makeLine, makePolygon, makeSphere, makeVertex,
   assembleWire, measureArea, measureDistanceBetween, measureShapeVolumeProperties,
   measureVolume, Plane,
   type Shape3D, type AnyShape,
@@ -203,7 +203,7 @@ export type StructureAudit = {
   /** Centre prongs laid out as kicked legs (S2's fallback; Animesh's decision on question 26: counted). */
   kickedLegs: number;
   joint: {
-    /** Metal section at band-top + 0.10 mm, within girdleR × 1.2 of the head axis. */
+    /** Metal section at band-top + 0.10 mm, within the centre head's saddle plate (S3; before, girdleR × 1.2 of the head axis). */
     jointSectionArea: number;
     prongSectionSum: number;
     prongDiameter: number;
@@ -565,8 +565,17 @@ export async function auditStructure(
       // a solid ∩ face is the section itself, so its area is exact.
       const s = bandTop + 0.10 - dot(centreFrame.culet, centreFrame.axis);
       const at = add(centreFrame.culet, centreFrame.axis, s);
-      const disc = makeFace(assembleWire([makeCircle(dims.girdleR * 1.2, at, centreFrame.axis)]));
-      const area = measureArea(metal.intersect(disc) as Shape3D);
+      // Within the centre head's own footprint (open question 14, decided in
+      // S3): its saddle's plate where it has one, which is the metal under
+      // the head; else the disc of 1.2 girdle radii the audit always took. On
+      // a small stone with thick prongs the base outgrew that disc, and the
+      // disc counted a fraction of the very joint it was there to measure
+      // (0.25 ct, all-max: 13.6 mm² of a joint that carries the base whole).
+      const plan = centreFrame.layout.base;
+      const disc = plan
+        ? makePolygon(roundedPoints(plan.plate, 0.05).map(([x, y]) => toRing(centreFrame, [x, y, s]) as V3))
+        : makeFace(assembleWire([makeCircle(dims.girdleR * 1.2, at, centreFrame.axis)]));
+      const area = measureArea(metal.intersect(disc as unknown as Shape3D) as Shape3D);
       const pd = bench.values.prongDiameter;
       const prongSectionSum = centreFrame.prongCount * Math.PI * (pd / 2) ** 2;
       joint = { jointSectionArea: area, prongSectionSum, prongDiameter: pd, ratio: area / prongSectionSum };
@@ -589,7 +598,7 @@ export async function auditStructure(
   const measured: BlendAudit["measured"] = {};
   for (const j of BLEND_JOINTS) {
     if (resolved.blend.paths[j] === "fillet") {
-      const radii = filletSections(j, metal, centreFrame, errors).filter((x) => Number.isFinite(x));
+      const radii = filletSections(j, metal, centreFrame, errors, dims.bandWidth / 2).filter((x) => Number.isFinite(x));
       measured[j] = { min: Math.min(...radii), max: Math.max(...radii), faces: radii.length };
     } else if (resolved.blend.paths[j] === "flare" && plan) {
       const r = flareRadius(j, resolved.blend.flares[j] ?? [], centreFrame, errors);
@@ -758,7 +767,10 @@ function measureBearing(
   const below = draw([-big, -big]).lineTo([big, -big]).lineTo([big, big]).lineTo([-big, big]).close()
     .sketchOnPlane(plane).extrude(-big) as Shape3D;
   const lower = prong.intersect(below) as Shape3D;
-  const pavilionClearance = measureVolume(lower) > 1e-9 ? measureDistanceBetween(lower, stone) : NaN;
+  // Nothing of the prong below girdle − d (a foot ending high in a 2 mm
+  // base, S3): the rule has nothing to hold, so the gap is unbounded, not
+  // unmeasured.
+  const pavilionClearance = measureVolume(lower) > 1e-9 ? measureDistanceBetween(lower, stone) : Infinity;
 
   return {
     head, index, notchFloor, postFace, notch: notchFloor - postFace, postWidth,
@@ -783,7 +795,7 @@ function measureBearing(
  *   shank  the planes through the axis across and along the finger: from
  *          the saddle's wall or underside to the band.
  */
-function filletSections(joint: BlendJoint, metal: Shape3D, frame: HeadFrame, errors: string[]): number[] {
+function filletSections(joint: BlendJoint, metal: Shape3D, frame: HeadFrame, errors: string[], bandHalfWidth?: number): number[] {
   const b = frame.layout.base!;
   const T = 3e-3;
   const plateOut = densePoly(b.plate.core, b.plate.r), wallIn = densePoly(b.core, b.rIn), wallOut = densePoly(b.core, b.rOut);
@@ -842,8 +854,41 @@ function filletSections(joint: BlendJoint, metal: Shape3D, frame: HeadFrame, err
       // On the saddle's wall only: its underside meeting the band is not
       // filleted (see jointEdges), and a curve off it is the band's flank.
       const onSaddle = (q: V3) => onPoly(plateOut, q) && q[2] <= b.plateau + T && q[2] > b.saddleBottom + T;
-      for (const n of [[0, 1, 0], [1, 0, 0]] as V3[]) {
-        for (const curve of section([0, 0, 0], n)) {
+      // Where the wall is met along the band and across it on the axis, and
+      // along each side of the band (a split shank's band is two rails either
+      // side of a slot, where the middle finds no band); each square to the
+      // wall (on a round plate a plane along the band at the side cuts the
+      // wall at a slant, and the fillet read large).
+      // Off the axis the band's top slopes across the wall, so the fillet's
+      // line on the wall climbs: the plane is turned square to that line,
+      // found from where the fillet leaves the wall in two sections 0.05 mm
+      // apart along it.
+      const side = 0.6 * (bandHalfWidth ?? 0);
+      const reachX = Math.max(...plateOut.map(([x]) => Math.abs(x)));
+      const cuts: [V3, V3][] = [];
+      // Off the saddle, below its plateau, and not the foot of its wall
+      // (where a split shank's slot leaves the wall standing to its bottom).
+      const off = (q: V3) => !onSaddle(q) && q[2] < b.plateau - T && !(onPoly(plateOut, q) && Math.abs(q[2] - b.saddleBottom) < T);
+      const near = (q: V3, at: V3) => Math.hypot(q[0] - at[0], q[1] - at[1]) < 0.5;
+      const leaves = (at: V3, n: V3) => {
+        for (const [a, , c] of section(at, n)) {
+          if (onSaddle(a) && off(c) && near(a, at)) return a;
+          if (onSaddle(c) && off(a) && near(c, at)) return c;
+        }
+        return null;
+      };
+      const angles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+      for (const sgnX of [1, -1]) for (const sgnY of [1, -1]) angles.push(Math.atan2(sgnY * side, sgnX * reachX));
+      for (const ang of angles) {
+        const hit = rayOnPoly(plateOut, ang);
+        const t: V3 = [hit.t[0], hit.t[1], 0], at: V3 = [hit.p[0], hit.p[1], 0];
+        const z0 = leaves(at, t), z1 = leaves(add(at, t, 0.05), t);
+        // Through where the fillet leaves the wall: tilted, a plane through
+        // the plate's middle height would meet the wall elsewhere.
+        cuts.push(z0 && z1 ? [z0, unit(add(z1, z0, -1))] : [at, t]);
+      }
+      for (const [p0, n] of cuts) {
+        for (const curve of section(p0, n)) {
           // One end on the saddle's wall or underside, the other off the
           // saddle and below its plateau: on the band. The curve can carry
           // on past the fillet down the band's flank as one edge, so the
@@ -851,8 +896,7 @@ function filletSections(joint: BlendJoint, metal: Shape3D, frame: HeadFrame, err
           // through the end and the points a fifth and two fifths of the
           // fillet's quarter turn along (taken from the edge's length).
           const [a, , c] = curve;
-          const off = (q: V3) => !onSaddle(q) && q[2] < b.plateau - T;
-          const fromA = onSaddle(a) && off(c), fromC = onSaddle(c) && off(a);
+          const fromA = onSaddle(a) && off(c) && near(a, p0), fromC = onSaddle(c) && off(a) && near(c, p0);
           if (!fromA && !fromC) continue;
           const step = Math.min(0.2, (0.2 * Math.PI * b.blend.shank) / 2 / Math.max(1e-9, curve.len));
           const t0 = fromA ? 0 : 1, sgn = fromA ? 1 : -1;
