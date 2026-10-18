@@ -989,7 +989,21 @@ function layoutHeadOnce(
         const baseFlareClear = (fr: number) => fr <= 0 || clear(swept(baseFlareProfile(b, fr)));
         // The shank's flare reaches in over the band under the opening, and
         // on a 1.5 mm culet gap came 1.39 mm from the culet (S3b).
-        const shankFlareClear = (fr: number) => fr <= 0 || clear(swept(shankFlareProfile(b, fr)));
+        // And inside the feet's footprint grown by a prong (I16) wherever it
+        // stands over the band and the clip leaves it: built into the pad,
+        // on a flat band it stood 0.06 mm past it (S3b).
+        const inFootprint = (poly: V2[]) => {
+          const pts: V2[] = poly.flatMap((p, k) => [p, [(p[0] + poly[(k + 1) % poly.length][0]) / 2, (p[1] + poly[(k + 1) % poly.length][1]) / 2] as V2]);
+          return around.every(({ q, n }) => pts.every(([o, zz]) => {
+            if (o <= d - 0.02) return true;
+            const x = q[0] + n[0] * o, y = q[1] + n[1] * o;
+            const c = b.pad.clip;
+            if (Math.abs(y) > c.edge + c.slope * Math.max(0, zz - c.line)) return true;
+            const t = band.at(x, y);
+            return !!t && zz <= t.top;
+          }));
+        };
+        const shankFlareClear = (fr: number) => fr <= 0 || (clear(swept(shankFlareProfile(b, fr))) && inFootprint(shankFlareProfile(b, fr)));
         const most = (fits: (x: number) => boolean, want: number) => {
           if (fits(want)) return want;
           let lo = 0, hi = want;
@@ -1862,7 +1876,9 @@ export type BasePlan = {
    * wire, the wire the pad, and the pad the band. filletRadius held to 45%
    * of the thinner of the two parts each joins (a fillet larger than the
    * part it runs onto fails in OCCT); a foot's never delivered under 0.10 mm
-   * (Animesh, q. 29): there, 0 and the feet are flared. See layoutHead.
+   * (Animesh, q. 29): there, 0 and the feet are flared. The pad's to the
+   * band is always 0: OCCT cannot fillet it (see planBase), and the pad is
+   * built with its flare (padOutline). See layoutHead.
    */
   blend: { feet: number; base: number; shank: number };
   /** The radius each joint's flare is built at, if its fillet fails or there is no room for one. */
@@ -1997,6 +2013,81 @@ export function shankFlareProfile(b: BasePlan, r: number): V2[] {
     [oHi[0] - 0.02, hi], [oLo[0] + r, lo], [oLo[0] + r, P.ref - 0.6],
     [inner(iLo[0] - r), P.ref - 0.6], [inner(iLo[0] - r), lo], [Math.max(iHi[0] + 0.02, inner(iLo[0] - r) + 0.01), hi],
   ];
+}
+
+/**
+ * The pad's profile with its flare to the band (shankFlareProfile) joined
+ * on, as one profile: at every height each is one span across, and so is
+ * the two together, from the further in of their inner sides to the further
+ * out of their outer ones. Swept and clipped once, the pad is built with its
+ * flare and nothing more is fused (fused on after, the flare cost 0.37 s of
+ * the default ring's resolve, S3b).
+ */
+export function padOutline(P: PadPlan, flare: V2[]): V2[] {
+  const spans = [padProfile(P).poly, flare].map((poly) => (z: number) => {
+    let lo = Infinity, hi = -Infinity;
+    for (let k = 0; k < poly.length; k++) {
+      const a = poly[k], c = poly[(k + 1) % poly.length];
+      if (z < Math.min(a[1], c[1]) - 1e-12 || z > Math.max(a[1], c[1]) + 1e-12) continue;
+      if (Math.abs(c[1] - a[1]) < 1e-12) { lo = Math.min(lo, a[0], c[0]); hi = Math.max(hi, a[0], c[0]); continue; }
+      const x = a[0] + ((c[0] - a[0]) * (z - a[1])) / (c[1] - a[1]);
+      lo = Math.min(lo, x); hi = Math.max(hi, x);
+    }
+    return lo <= hi ? [lo, hi] as V2 : null;
+  });
+  const span = (z: number): V2 | null => {
+    const got = spans.map((f) => f(z)).filter((x): x is V2 => !!x);
+    return got.length ? [Math.min(...got.map((x) => x[0])), Math.max(...got.map((x) => x[1]))] : null;
+  };
+  // Every corner's height, and between each two the heights where the two
+  // profiles' sides cross, where the union's side turns. At a corner's
+  // height a side that steps (a level side of either) gives both its ends.
+  const zs = [...new Set([...padProfile(P).poly, ...flare].map((p) => p[1]))].sort((a, b) => b - a);
+  const eps = 1e-7;
+  const right: V2[] = [], left: V2[] = [];
+  const emit = (z: number, ends: boolean) => {
+    const at = span(z);
+    if (!at) return;
+    const up = ends ? span(z + eps) : null, dn = ends ? span(z - eps) : null;
+    for (const side of [1, 0] as const) {
+      const list = side === 1 ? right : left;
+      const a = up ? up[side] : at[side], c = dn ? dn[side] : at[side];
+      if (Math.abs(a - c) > 1e-5) list.push([a, z], [c, z]);
+      else list.push([at[side], z]);
+    }
+  };
+  for (let k = 0; k < zs.length; k++) {
+    emit(zs[k], true);
+    if (k + 1 < zs.length) {
+      const a = zs[k] - eps, c = zs[k + 1] + eps;
+      const fa = spans.map((f) => f(a)), fc = spans.map((f) => f(c));
+      if (!fa[0] || !fa[1] || !fc[0] || !fc[1]) continue;
+      const cuts: number[] = [];
+      for (const side of [0, 1]) {
+        const da = fa[0][side] - fa[1][side], dc = fc[0][side] - fc[1][side];
+        if (da * dc < 0) cuts.push(a + ((c - a) * da) / (da - dc));
+      }
+      for (const z of cuts.sort((x, y) => y - x)) emit(z, false);
+    }
+  }
+  // Going down, neither side ever steps back in: the flare's foot, where
+  // it stood out beyond the pad's face, carried straight on down to meet
+  // it. Stepped back in, the band closed the space under the step into a
+  // void sealed in the metal (0.25 ct stone, S3b).
+  for (let k = 1; k < right.length; k++) right[k] = [Math.max(right[k][0], right[k - 1][0]), right[k][1]];
+  for (let k = 1; k < left.length; k++) left[k] = [Math.min(left[k][0], left[k - 1][0]), left[k][1]];
+  // Right side down, left side up: one ring, the way padProfile turns. A
+  // side's run of one height is kept in order (the step's ends).
+  const ring = [...right, ...left.reverse()];
+  // Collinear points dropped, so each face of the sweep is one face.
+  const out: V2[] = [];
+  for (let k = 0; k < ring.length; k++) {
+    const a = ring[(k - 1 + ring.length) % ring.length], b = ring[k], c = ring[(k + 1) % ring.length];
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-9) continue;
+    const cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    if (Math.abs(cross) > 1e-9) out.push(b);
+  }
+  return out;
 }
 
 /** A point's signed offset from the wire's centreline in plan: + outward. */
@@ -2255,10 +2346,19 @@ function planBase(
   const thick = onAxis ? onAxis.top - onAxis.bottom : 1;
   const fr = v.filletRadius;
   const feet = Math.min(fr, BLEND_SHARE * Math.min(d, T));
+  // The pad and the band are never filleted, only flared, the flare built
+  // into the pad (padOutline): the clip leaves the pad's edge on the band
+  // turning outside corners where the clip's sides cut its faces, two
+  // inside edges meeting one outside, and OCCT's fillet failed there on
+  // every ring of S3b's audit (32 of 32, wide bands too), at every radius
+  // down to 0.05 mm, and rounding those corners first failed as well. Each
+  // build tried it anyway, then fused the flare in on its own: 0.54 s of the
+  // default ring's 2.3 s resolve (S3b).
+  const shankFlare = Math.min(fr, BLEND_SHARE * Math.min(2 * reach + out, thick), shankFits);
   const blend = {
     feet: feet >= FOOT_FILLET_FLOOR - 1e-9 ? feet : 0,
     base: Math.min(fr, BLEND_SHARE * Math.min(T, 2 * reach)),
-    shank: Math.min(fr, BLEND_SHARE * Math.min(2 * reach + out, thick), shankFits),
+    shank: 0,
   };
   const height = pad.top - bandTop;
   const wideAt = (zz: number) => pad.clip.edge + pad.clip.slope * Math.max(0, zz - pad.clip.line);
@@ -2287,7 +2387,7 @@ function planBase(
       innerMost: -(round ? line.r - 0.3 : rcCorner - 0.1), clip: pad.clip, plan, height,
     },
     bandTop, clearance: g.gap, culetClearance: g.culet, touchesGallery, crestInside,
-    blend, flare: { ...blend, feet }, flareColumn: false, ok,
+    blend, flare: { ...blend, feet, shank: shankFlare }, flareColumn: false, ok,
   };
 }
 

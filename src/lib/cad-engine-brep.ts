@@ -30,7 +30,7 @@ import {
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  baseFlareProfile, envelopeFaces, filletArc, FLARE_NARROW, hullPlanes, padFaceDistance, padProfile, shankFlareProfile, wireDistance, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
+  baseFlareProfile, envelopeFaces, filletArc, FLARE_NARROW, hullPlanes, padFaceDistance, padOutline, padProfile, shankFlareProfile, wireDistance, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
   type BandProbe, type BasePlan, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type Rounded, type StoneProfile,
 } from "./head-layout.js";
 
@@ -1247,7 +1247,9 @@ function outlineLoop(o: Rounded, z: number, reverse = false): Wire {
  */
 export function baseParts(b: BasePlan): { pad: Shape3D; ring: Shape3D } {
   const ring = sweptRound(b, circleProfile(b), Math.PI * b.tube * b.tube, 0, "lower gallery");
-  const pad = clipped(b, sweptPolygon(b, padProfile(b.pad).poly, "pad"), "pad");
+  // With its flare to the band (padOutline): that joint is never filleted (BasePlan.blend).
+  const prof = b.blend.shank === 0 && b.flare.shank > 0 ? padOutline(b.pad, shankFlareProfile(b, b.flare.shank)) : padProfile(b.pad).poly;
+  const pad = clipped(b, sweptPolygon(b, prof, "pad"), "pad");
   return { pad, ring };
 }
 
@@ -2627,6 +2629,15 @@ export function blendHead(metal: Shape3D, parts: RingParts, flareOnly: BlendJoin
       res.failed.push({ joint, why: "no room for a foot fillet of at least 0.10 mm (q. 29); built flared" });
       res.paths.feet = "flare";
       res.flares.feet = h.layout.prongs.map((pr) => placeShape(flaredFoot(pr.spine!.points, pr.d, b.flare.feet, b), headSteps(h)));
+      continue;
+    }
+    // The pad and the band: built flared, the flare part of the pad itself
+    // (baseParts), which is what is measured.
+    if (joint === "shank" && r === 0) {
+      const pad = parts.metalRoles.findIndex((x) => x.head === "centre" && x.role === "bridge");
+      res.failed.push({ joint, why: "OCCT cannot fillet the pad to the band where the band's clip cuts it; built flared" });
+      res.paths.shank = "flare";
+      res.flares.shank = pad >= 0 ? [parts.metalParts[pad].clone() as Shape3D] : [];
       continue;
     }
     let got: ReturnType<typeof filletChecked> = { why: flareOnly.includes(joint) ? "its fillet left the mesh open at the export's tolerance" : "no room for a fillet" };
