@@ -1011,7 +1011,7 @@ function flareRadius(joint: BlendJoint, flares: Shape3D[], frame: HeadFrame, err
  *             culet gap failed against a wire 1.58 mm from the culet).
  *   headMetal I17: the volume of the wire and the pad less the band, as
  *             built: the metal the head adds below its prongs.
- *   tapers    I13: each foot's distance out ÷ the girdle's in that direction.
+ *   tapers    I13: each foot's distance out ÷ the girdle's in its prong's direction (its post's).
  *             The foot: the middle of the prong's end disc, read off its
  *             part inside the wire as the mesh points furthest back along
  *             its last run. (That part's centroid sits out from the foot by
@@ -1119,7 +1119,11 @@ function measureBasket(
     const vs = vertsOf(inWire), along = vs.map((q) => dot(q, u)), least = Math.min(...along);
     const disc = vs.filter((_, i) => along[i] <= least + 0.005);
     const c: V3 = [0, 1, 2].map((j) => disc.reduce((t, q) => t + q[j], 0) / disc.length) as V3;
-    const a = Math.atan2(c[1], c[0]);
+    // The girdle in the prong's own direction, its post's, as the field
+    // is defined (the S3b prompt) and the layout places the feet: in the
+    // foot's direction, a 3 ct all-max marquise's straight legs, landing
+    // off their posts' line near the tips, read 0.15 off at one foot.
+    const post = frame.layout.prongs[k].postCentre, a = Math.atan2(post[1], post[0]);
     const g = frame.cut === "round" ? frame.girdleR : radialHit(frame.layout.stone.girdle, a).r;
     return Math.hypot(c[0], c[1]) / g;
   });
