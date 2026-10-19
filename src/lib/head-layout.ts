@@ -986,7 +986,19 @@ function layoutHeadOnce(
           const pts: V2[] = poly.flatMap((p, k) => [p, [(p[0] + poly[(k + 1) % poly.length][0]) / 2, (p[1] + poly[(k + 1) % poly.length][1]) / 2] as V2]);
           return around.flatMap(({ q, n }) => pts.map(([o, zz]) => [q[0] + n[0] * o, q[1] + n[1] * o, zz] as V3));
         };
-        const baseFlareClear = (fr: number) => fr <= 0 || clear(swept(baseFlareProfile(b, fr)));
+        // And with room for its 2r down each of the pad's faces from where
+        // the face leaves the wire: no further than the face's own corner
+        // (V, E) and never under the band's line (see baseFlareProfile). Run
+        // short, it was built at 0.50 where 0.77 was laid out (all-max, S3b).
+        const baseFlareRoom = (fr: number) => {
+          const { A, B, V, E } = padProfile(b.pad), floor = b.pad.bandLine + 0.01;
+          return ([[B, V], [A, E]] as [V2, V2][]).every(([top, low]) => {
+            const K = leavesWire(b, top, low);
+            return 2 * fr <= Math.min(Math.hypot(low[0] - K[0], low[1] - K[1]) - 0.01, K[1] - floor) + 1e-9;
+          });
+        };
+        const baseFlareClear = (fr: number) => fr <= 0 || (clear(swept(baseFlareProfile(b, fr))) && baseFlareRoom(fr));
+
         // The shank's flare reaches in over the band under the opening, and
         // on a 1.5 mm culet gap came 1.39 mm from the culet (S3b).
         // And inside the feet's footprint grown by a prong (I16) wherever it
@@ -2515,6 +2527,9 @@ function layoutLeg(
   // the deepest bearing, S2); before the gallery its leg stepped out there
   // anyway, towards a foot further out.
   let deepFoot = false;
+  // Whether a straight leg may land anywhere in the wire (see footOut).
+  let looseStraight = !base;
+  const girdleAt = base ? (stone.cut === "round" ? stone.girdleR : radialHit(stone.girdle, psi).r) : 0;
   // straight: on a base, no knee: the run from the post through the wire
   // carries straight on into the base, the foot where it reaches it (r is
   // then not used). Where the base sits just under a low gallery there is no
@@ -2661,8 +2676,15 @@ function layoutLeg(
     // On the wire's centreline; or, a straight leg (no knee: where a low
     // gallery leaves no room for one, all-max on a marquise, S3b), wherever
     // its run reaches the wire's height inside the wire's section.
+    // First only where it lands at the taper asked (within 0.02 of the
+    // girdle's radius that way): landing anywhere in the wire, an all-max
+    // round's straight legs put the feet at 0.99 of the girdle with 0.9
+    // asked, where knees on tighter bends land at 0.9 (S3b). Anywhere in
+    // the wire only once nothing else fits (looseStraight).
     if (s.straight) {
-      if (Math.hypot(centrelineOffset(base, f), f[2] - base.z) > 0.6 * base.tube) return false;
+      const o = centrelineOffset(base, f);
+      if (Math.hypot(o, f[2] - base.z) > 0.6 * base.tube) return false;
+      if (!looseStraight && Math.abs(o) > 0.02 * girdleAt) return false;
     } else if (Math.hypot(f[0] - baseFoot![0], f[1] - baseFoot![1]) > 0.05 || Math.abs(f[2] - base.z) > 0.05) return false;
     if (u[2] < 0.3) return false;
     return spineSamples(s.points, s.bends, half).every(({ c: q, t, slack }) =>
@@ -2815,6 +2837,8 @@ function layoutLeg(
     ...depths.map((deep) => ({ deep, tiers: tiers.filter((t) => typeof t !== "string") })),
     ...depths.map((deep) => ({ deep, tiers: tiers.filter((t) => typeof t === "string") })),
   ];
+  for (const loose of base ? [false, true] : [false]) {
+  looseStraight = loose;
   for (const phase of phases) {
   if (chosen) break;
   deepFoot = phase.deep;
@@ -2835,6 +2859,7 @@ function layoutLeg(
         }
       }
     }
+  }
   }
   }
   wantJoint = false; wantBall = false;
