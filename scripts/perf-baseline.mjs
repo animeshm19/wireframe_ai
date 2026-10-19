@@ -6,6 +6,7 @@
  *   node scripts/perf-baseline.mjs --runs 9
  *   node scripts/perf-baseline.mjs --spec '{"gemShape":"oval"}'
  *   node scripts/perf-baseline.mjs --cold     without the boot warm-up
+ *   node scripts/perf-baseline.mjs --no-matrix   the default ring only
  *
  * Two numbers, in ms:
  *   preview  buildRingParts(spec) + previewMesh + previewEdges, as the
@@ -24,12 +25,22 @@
  * warms its code at boot (warmKernel in cad-engine-brep.ts), and a harness
  * that boots some other way measures a kernel the app never runs. `--cold`
  * boots the old way, without the warm-up, for comparison.
+ *
+ * The budgets (STRUCTURE-LOG.md, Baseline, measured at 72b375b): preview
+ * 1.5 × 124.0 = 186.0 ms, resolve 2.0 × 1124.7 = 2249.4 ms, both on the
+ * default ring. Since Animesh's decision of 2026-10-19 (q. 43), warm, the
+ * preview budget also holds on every design of the structure audit's fast
+ * matrix, and resolve on any design other than the default ring may take up
+ * to 2.0 × its budget (4498.8 ms): each design timed `--matrix-runs` times
+ * (default 3), median, and every one over its budget named. Not with --cold
+ * or --spec, which time one ring as before. Exit 1 if any budget is broken.
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { buildBrep } from "./brep-build.mjs";
+import { matrices } from "./structure-matrix.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(ROOT);
@@ -78,20 +89,58 @@ const median = (xs) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-const out = {};
-for (const phase of ["preview", "resolve"]) {
+const cold = process.argv.includes("--cold");
+const time = (phase, specJson, n) => {
   const ms = [];
-  for (let i = 0; i < runs; i++) {
+  for (let i = 0; i < n; i++) {
     const r = spawnSync(process.execPath,
-      [fileURLToPath(import.meta.url), "--child", phase, "--spec", spec,
-        ...(process.argv.includes("--cold") ? ["--cold"] : [])], { encoding: "utf8" });
+      [fileURLToPath(import.meta.url), "--child", phase, "--spec", specJson,
+        ...(cold ? ["--cold"] : [])], { encoding: "utf8" });
     if (r.status !== 0) {
-      console.error(`${phase} run ${i + 1} failed:\n${r.stderr}`);
+      console.error(`${phase} run ${i + 1} of ${specJson} failed:\n${r.stderr}`);
       process.exit(1);
     }
     ms.push(JSON.parse(r.stdout).ms);
   }
-  out[phase] = { medianMs: +median(ms).toFixed(1), runsMs: ms.map((x) => +x.toFixed(1)) };
+  return { medianMs: +median(ms).toFixed(1), runsMs: ms.map((x) => +x.toFixed(1)) };
+};
+
+const PREVIEW_BUDGET = 186.0, RESOLVE_BUDGET = 2249.4, COLD_PREVIEW_BUDGET = 500;
+const out = {};
+for (const phase of ["preview", "resolve"]) {
+  out[phase] = time(phase, spec, runs);
   console.log(`${phase.padEnd(8)} median ${out[phase].medianMs} ms  (runs: ${out[phase].runsMs.join(", ")})`);
 }
-console.log(JSON.stringify({ spec: JSON.parse(spec), node: process.version, ...out }));
+const over = [];
+if (spec === "{}") {
+  const pb = cold ? COLD_PREVIEW_BUDGET : PREVIEW_BUDGET;
+  if (out.preview.medianMs > pb) over.push(`default ring: preview ${out.preview.medianMs} ms > ${pb}`);
+  if (!cold && out.resolve.medianMs > RESOLVE_BUDGET) over.push(`default ring: resolve ${out.resolve.medianMs} ms > ${RESOLVE_BUDGET}`);
+  console.log(`budgets  preview ${out.preview.medianMs} / ${pb} ms (headroom ${(pb - out.preview.medianMs).toFixed(1)})` +
+    (cold ? "" : `, resolve ${out.resolve.medianMs} / ${RESOLVE_BUDGET} ms (headroom ${(RESOLVE_BUDGET - out.resolve.medianMs).toFixed(1)})`));
+}
+
+// The fast matrix, warm (q. 43): preview within its budget on every design,
+// resolve within twice its budget on every design but the default ring.
+let matrix = null;
+if (!cold && spec === "{}" && !process.argv.includes("--no-matrix")) {
+  const std = await import(`${ROOT}/.brepcheck/setting-standards.js`);
+  const n = Number(arg("--matrix-runs", 3));
+  const designs = matrices(std).fastMatrix().filter((d) => d.id !== "{}");
+  const resolveMost = 2 * RESOLVE_BUDGET;
+  matrix = [];
+  for (const d of designs) {
+    const pv = time("preview", JSON.stringify(d.spec), n), rs = time("resolve", JSON.stringify(d.spec), n);
+    matrix.push({ id: d.id, preview: pv, resolve: rs });
+    if (pv.medianMs > PREVIEW_BUDGET) over.push(`${d.id}: preview ${pv.medianMs} ms > ${PREVIEW_BUDGET}`);
+    if (rs.medianMs > resolveMost) over.push(`${d.id}: resolve ${rs.medianMs} ms > ${resolveMost.toFixed(1)}`);
+    console.log(`${d.id.padEnd(60).slice(0, 60)} preview ${String(pv.medianMs).padStart(6)}  resolve ${String(rs.medianMs).padStart(7)}`);
+  }
+  const worst = (k) => matrix.reduce((a, b) => (b[k].medianMs > a[k].medianMs ? b : a));
+  const wp = worst("preview"), wr = worst("resolve");
+  console.log(`matrix   ${matrix.length} designs, median of ${n}: slowest preview ${wp.preview.medianMs} / ${PREVIEW_BUDGET} ms (${wp.id}, headroom ${(PREVIEW_BUDGET - wp.preview.medianMs).toFixed(1)}), ` +
+    `slowest resolve ${wr.resolve.medianMs} / ${resolveMost.toFixed(1)} ms (${wr.id}, headroom ${(resolveMost - wr.resolve.medianMs).toFixed(1)})`);
+}
+for (const o of over) console.log(`OVER BUDGET  ${o}`);
+console.log(JSON.stringify({ spec: JSON.parse(spec), node: process.version, ...out, ...(matrix ? { matrix } : {}), over }));
+if (over.length) process.exit(1);
