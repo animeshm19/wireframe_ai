@@ -246,20 +246,28 @@ For Animesh (decisions, not bench questions):
       - (b) let the wire step outside basketTaper's bounds here;
       - (c) let the wire dip where the band falls away under a long stone;
       - (d) accept these all-max corners as failing, reported.
+    - **Decided (Animesh, 2026-10-19): (a), with a floor.** The engine may hold culetClearance below the value asked, by stone size, where a wire basket cannot keep it, reported in `warnings` with asked and delivered. It may never deliver less than the field's default (0.30 mm); where 0.30 cannot be kept, the row fails and is reported. (b) and (c) are rejected.
 39. **How S3b's new rules were read (to confirm).**
     - **I16's footprint:** the feet's outline (the wire's centreline) grown by one prong diameter, for the wire and the pad. A leg crossing from the gallery to its foot is outside that footprint by construction, so legs are judged by only coming in.
     - **I15's band line:** the band's top 0.1 mm inside its flank, read from the band as built (`7ab1aec`).
     - **The taper:** on 42 designs (0.25 ct stones) the wire sits at the gallery's height, the legs run straight down through the gallery, and the taper built (0.904–0.98, reported) is above the field's 0.90 maximum. Is that acceptable on small stones, or should the wire be pulled in there?
+    - **Decided (Animesh, 2026-10-19): confirmed.** I16's footprint (the wire's centreline grown by one prong diameter; legs judged by only coming in) and I15's band line stand. A taper above 0.90 is allowed on stones under 0.5 ct only, up to 1.0, reported as `engine-clamped`; from 0.5 ct the 0.90 bound stands.
 40. **The I7 prong clamp thins 2 mm prongs a lot (S3b).** 2 → 1.45 mm on a 1 ct round with 2 mm asked; 1.3 on an oval; 1.25 on a marquise; 1.15 on the 0.25 ct all-max round; 1.85 on the all-max 1 and 3 ct rounds. All are reported with both numbers. The other way to hold I7 there is to let the pad grow past the footprint + d along the band (I16), which the prompt forbids. Confirm the clamp is the preferred trade.
+    - **Decided (Animesh, 2026-10-19): accepted,** as the preferred trade over a pad that grows past I16. Both numbers stay reported.
 41. **The wire is 1.1 × max(prongDiameter, minWall) (S3b), not the prompt's 1.0.** At exactly the prong's thickness the legs meet the wire as an equal-radius T, which OCCT cannot fillet. Is 10% thicker acceptable?
+    - **Decided (Animesh, 2026-10-19): accepted.** The documentation derived from the prompt says so.
 42. **I4 on 0.25 ct emeralds and an 8-prong 0.25 ct marquise (S3b, 6 rows, the regressions against S3).**
     - The lower wire sits at the gallery's height (emerald: wire z 0.287, gallery z 0.401, overlapping by 2.09 mm³), so each leg ends inside the gallery's span instead of passing through it.
     - Where it must also cross 0.5–0.55 mm off the gallery's centreline, the prong overlaps the gallery by 0.0062–0.0136 mm³, against I4's 0.02. In S3 it was 0.054.
     - Every prong is fused to the wire, and the wire to the gallery.
     - **Options:** (a) count the gallery and the wire it is fused to as one tie for I4 on such heads (an assertion change); (b) drop the lower wire where it meets the gallery and stand the prongs on the pad; (c) keep failing them.
+    - **Decided (Animesh, 2026-10-19): merge them.** Where the lower wire would sit at or overlap the gallery, build one wire that is both gallery and base. I4 (every prong touches it, ≥ 0.02 mm³) and I6 (feet end in it) are judged on that single tie, and every gallery rule still applies to it (clearance from the pavilion, thickness, hidden from above). Recorded per design and counted in the audit. A geometry change, not only an assertion change.
 43. **Narrow bands cost more time (S3b, finding).** On a 1.2 mm band the warm preview is 180 ms (the budget, measured on the default ring, is 186), and resolve 3085 ms (default ring 1983.5, budget 2249.4). The seat reckoning and the prong clamp run there. Should the budgets also be held on a narrow band?
+    - **Decided (Animesh, 2026-10-19):** warm preview ≤ 186 ms on every design in the fast matrix. Resolve ≤ 2249.4 ms on the default ring; on any other design up to 2.0× that (≤ 4499 ms), reported with its design. Both in perf-baseline's report.
 44. **Foot flares held to almost nothing (S3b, from the review).** On 17 designs the feet's flare, held clear of the stone and culet, is 0.006–0.045 mm: in effect no blend, though I14 counts it as one. Mostly 1 ct emeralds (0.034) and 0.25 ct marquises (0.007), all settings. Should I14 ask for a blend of at least 0.10 mm (the Q29 floor) at every joint, which would fail these 17 until their feet are reworked?
+    - **Decided (Animesh, 2026-10-19): rejected.** Every joint's blend (fillet or flare) must be at least 0.10 mm, the Q29 floor. I14 is tightened to require it, and the feet of these designs are reworked to pass; the floor is not relaxed.
 45. **I17 measures the wire and pad, not every non-prong metal below the gallery (S3b, from the review).** Left out: the base's flare where its fillet fails, the foot flares, and a cathedral's struts. It is the same formula as S3's reference, so like is compared with like. Should the reference be recomputed on S3's code with everything below the gallery that is not a prong?
+    - **Decided (Animesh, 2026-10-19): recompute it.** S3's reference is rebuilt on S3's code (`943430e`) counting all metal below the upper gallery that is not a prong (wire or base, pad, base flares, foot flares, cathedral struts), and S3b is measured the same way.
 
 ## Progress
 
@@ -400,3 +408,17 @@ Status: **stopped for decisions** (q. 38, 42, 44); see `claude/tasks/S3b.md`. Co
 - **Performance:** warm preview 161.5 / 186, resolve 1983.5 / 2249.4, cold 355.9 / 500.
 - **Review:** 12 findings. Two fixed (I16's opening, the audit's booleans); the tests committed; the rest recorded (q. 39, 40, 43–45).
 - **For Animesh:** q. 38–45 and setter q. 10. Setter questions 1–10 are open.
+
+### S3b-close decisions — 2026-10-19
+
+Animesh's answers to S3b's stop (q. 38–45), recorded before the close (each is also under its question above):
+- **Q38 (a), with a floor:** culetClearance may be held by stone size where a wire basket cannot keep it, reported with asked and delivered; never below the field's default 0.30 mm. Below that the row fails and is reported. (b), (c) rejected.
+- **Q39 confirmed:** I16's footprint and I15's band line stand. Taper above 0.90 allowed under 0.5 ct only, up to 1.0, reported `engine-clamped`; from 0.5 ct the 0.90 bound stands.
+- **Q40 accepted:** the I7 prong clamp, both numbers reported.
+- **Q41 accepted:** wire 1.1 × max(prongDiameter, minWall); the documentation says so.
+- **Q42 merge:** where the lower wire would sit at or overlap the gallery, one wire is both. I4 and I6 judged on it; every gallery rule applies to it; counted per design. A geometry change.
+- **Q43:** warm preview ≤ 186 ms on every fast-matrix design; resolve ≤ 2249.4 ms on the default ring and ≤ 2.0× that (4499 ms) elsewhere, reported with its design; both in perf-baseline's report.
+- **Q44 rejected:** every joint's blend ≥ 0.10 mm; I14 tightened; the feet reworked, the floor not relaxed.
+- **Q45 recompute:** S3's reference rebuilt on `943430e` with all non-prong metal below the upper gallery; S3b measured the same way.
+
+Stop rules unchanged. Setter questions 1–10 are still open; the bench defaults stay provisional.
