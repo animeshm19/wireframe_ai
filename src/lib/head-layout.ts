@@ -666,8 +666,41 @@ export function layoutHead(
   cut: GemCut, girdleR: number, prongCount: number, bench: BenchValues,
   band: BandProbe | null, opts: LayoutOptions = {},
 ): HeadLayout {
-  return layoutHeadOnce(cut, girdleR, prongCount, bench, band, opts);
+  const first = layoutHeadOnce(cut, girdleR, prongCount, bench, band, opts);
+  // I7 on a narrow band (Animesh, 2026-10-19): where the pad's opening is
+  // held at the culet's gap and its seat on the band still falls short of
+  // the prongs' summed section, the prongs are thinned, 0.05 mm at a time
+  // (the field's step), to the thickest whose seat holds them, never under
+  // the alloy's minimum, and that is reported with both numbers. The seat
+  // wants what the prongs carry, which grows with their thickness squared;
+  // the pad's footprint (the feet's outline grown by one thickness, I16)
+  // only with it. Never culetClearance or an alloy minimum.
+  // Only a base that keeps its gaps: where none does at any taper (an
+  // all-max marquise's wire, 2.2 mm thick, cannot keep a 1.5 mm culet gap
+  // inside a 0.9 taper, nor at any prong thickness), thinner prongs do not
+  // make it a head, and the head is left as asked for the audit to report.
+  const short = (L: HeadLayout) => {
+    const b = L.base;
+    if (!b || b.seat == null || !b.ok) return false;
+    return b.seat < SEAT_SPARE * FIXED_STANDARDS.JOINT_AREA_RATIO.value * L.prongs.length * Math.PI * (L.values.prongDiameter / 2) ** 2;
+  };
+  if (!short(first)) return first;
+  const asked = bench.prongDiameter, floor = opts.minProngDiameter ?? 0;
+  for (let d = first.values.prongDiameter - 0.05; d >= floor - 1e-9; d -= 0.05) {
+    const at = +d.toFixed(2);
+    const L = layoutHeadOnce(cut, girdleR, prongCount, { ...bench, prongDiameter: at }, band, opts);
+    if (short(L)) continue;
+    L.warnings.push({ key: "prongDiameter", kind: "engine-clamped", asked, delivered: at,
+      message: `Prongs ${fmt(asked)} mm thick need more of the band under the head than this band's width leaves round the culet, so they are ${fmt(at)} mm.` });
+    return L;
+  }
+  // No thickness down to the alloy's minimum holds: the head as asked, its
+  // I7 shortfall for the audit to report.
+  return first;
 }
+
+/** The seat a clamp must reach, over the prongs' summed section: its reckoning (padSeatArea) against the audit's solids, with room for the difference. */
+const SEAT_SPARE = 1.02;
 
 function layoutHeadOnce(
   cut: GemCut, girdleR: number, prongCount: number, bench: BenchValues,
@@ -998,7 +1031,6 @@ function layoutHeadOnce(
           });
         };
         const baseFlareClear = (fr: number) => fr <= 0 || (clear(swept(baseFlareProfile(b, fr))) && baseFlareRoom(fr));
-
         // The shank's flare reaches in over the band under the opening, and
         // on a 1.5 mm culet gap came 1.39 mm from the culet (S3b).
         // And inside the feet's footprint grown by a prong (I16) wherever it
@@ -1023,6 +1055,9 @@ function layoutHeadOnce(
           return Math.floor(lo * 1000) / 1000;
         };
         base = { ...b, flare: { feet: most(footFlare, b.flare.feet), base: most(baseFlareClear, b.flare.base), shank: most(shankFlareClear, b.flare.shank) } };
+        // The pad's seat on the band, reckoned where its opening was held
+        // short (layoutHead clamps the prongs where it falls short).
+        if (base.seatAtRisk) base = { ...base, seat: padSeatArea(base, band) };
       }
       // A blend the parts it joins are too thin for is held to what they
       // take, and said so with both numbers (Animesh, on S2's question 25).
@@ -1895,6 +1930,15 @@ export type BasePlan = {
   blend: { feet: number; base: number; shank: number };
   /** The radius each joint's flare is built at, if its fillet fails or there is no room for one. */
   flare: { feet: number; base: number; shank: number };
+  /**
+   * Whether the pad's opening was held at the culet's gap short of the
+   * length along the band its seat on the band wants (I7); then `seat` is
+   * that seat, as padSeatArea reckons it. Null where the opening was not held.
+   */
+  seatAtRisk: boolean;
+  seat: number | null;
+  /** Whether the wire and pad keep pavilionClearance from the stone and culetClearance from the culet (see planBase). */
+  ok: boolean;
   /** Always false since S3b (S3's foot flares that stood beside a flat base). */
   flareColumn: boolean;
 };
@@ -2027,6 +2071,56 @@ export function shankFlareProfile(b: BasePlan, r: number): V2[] {
   ];
 }
 
+/** A profile's span across at height z (its offsets, in to out), or null above or below it. */
+function profileSpan(poly: V2[], z: number): V2 | null {
+  let lo = Infinity, hi = -Infinity;
+  for (let k = 0; k < poly.length; k++) {
+    const a = poly[k], c = poly[(k + 1) % poly.length];
+    if (z < Math.min(a[1], c[1]) - 1e-12 || z > Math.max(a[1], c[1]) + 1e-12) continue;
+    if (Math.abs(c[1] - a[1]) < 1e-12) { lo = Math.min(lo, a[0], c[0]); hi = Math.max(hi, a[0], c[0]); continue; }
+    const x = a[0] + ((c[0] - a[0]) * (z - a[1])) / (c[1] - a[1]);
+    lo = Math.min(lo, x); hi = Math.max(hi, x);
+  }
+  return lo <= hi ? [lo, hi] : null;
+}
+
+/** The pad's profile as built: with its flare to the band where that joint is flared (see BasePlan.blend). */
+export function padBuilt(b: BasePlan): V2[] {
+  return b.blend.shank === 0 && b.flare.shank > 0 ? padOutline(b.pad, shankFlareProfile(b, b.flare.shank)) : padProfile(b.pad).poly;
+}
+
+/**
+ * The band's top surface inside the pad as built, mm²: the area the pad
+ * holds the band over, which I7 asks to be at least the prongs' summed
+ * section (the structure audit measures it on the solids: the pad ∩ the
+ * band's skin). Summed over a grid h across, each cell's area tilted by the
+ * band's slope there.
+ */
+export function padSeatArea(b: BasePlan, band: BandProbe, h = 0.05): number {
+  const prof = padBuilt(b), c = b.pad.clip;
+  const line = b.core.length === 1 ? undefined : roundedPoints({ core: b.core, r: b.rc }, 0.05);
+  const far = b.rc + Math.max(...b.core.map(([x, y]) => Math.hypot(x, y))) + Math.max(...prof.map(([o]) => o)) + h;
+  const Y = Math.min(far, band.axialMax + h);
+  const nx = Math.ceil(far / h), ny = Math.ceil(Y / h);
+  const top = (i: number, j: number) => band.at(i * h, j * h)?.top ?? null;
+  let area = 0;
+  for (let i = -nx; i <= nx; i++) {
+    for (let j = -ny; j <= ny; j++) {
+      const z = top(i, j);
+      if (z == null) continue;
+      const x = i * h, y = j * h;
+      if (Math.abs(y) > c.edge + c.slope * Math.max(0, z - c.line)) continue;
+      const s = profileSpan(prof, z);
+      if (!s) continue;
+      const o = centrelineOffset(b, [x, y, z], line);
+      if (o < s[0] || o > s[1]) continue;
+      const zx = (top(i + 1, j) ?? z) - (top(i - 1, j) ?? z), zy = (top(i, j + 1) ?? z) - (top(i, j - 1) ?? z);
+      area += h * h * Math.sqrt(1 + (zx * zx + zy * zy) / (4 * h * h));
+    }
+  }
+  return area;
+}
+
 /**
  * The pad's profile with its flare to the band (shankFlareProfile) joined
  * on, as one profile: at every height each is one span across, and so is
@@ -2036,17 +2130,7 @@ export function shankFlareProfile(b: BasePlan, r: number): V2[] {
  * the default ring's resolve, S3b).
  */
 export function padOutline(P: PadPlan, flare: V2[]): V2[] {
-  const spans = [padProfile(P).poly, flare].map((poly) => (z: number) => {
-    let lo = Infinity, hi = -Infinity;
-    for (let k = 0; k < poly.length; k++) {
-      const a = poly[k], c = poly[(k + 1) % poly.length];
-      if (z < Math.min(a[1], c[1]) - 1e-12 || z > Math.max(a[1], c[1]) + 1e-12) continue;
-      if (Math.abs(c[1] - a[1]) < 1e-12) { lo = Math.min(lo, a[0], c[0]); hi = Math.max(hi, a[0], c[0]); continue; }
-      const x = a[0] + ((c[0] - a[0]) * (z - a[1])) / (c[1] - a[1]);
-      lo = Math.min(lo, x); hi = Math.max(hi, x);
-    }
-    return lo <= hi ? [lo, hi] as V2 : null;
-  });
+  const spans = [padProfile(P).poly, flare].map((poly) => (z: number) => profileSpan(poly, z));
   const span = (z: number): V2 | null => {
     const got = spans.map((f) => f(z)).filter((x): x is V2 => !!x);
     return got.length ? [Math.min(...got.map((x) => x[0])), Math.max(...got.map((x) => x[1]))] : null;
@@ -2342,6 +2426,7 @@ function planBase(
   const lengthNeed = need / (2 * 2 * Math.max(0.05, pad.clip.edge));
   const openingLeast = Math.max(v.culetClearance + 0.2, 0.5);
   const inward = Math.max(PAD_INWARD, Math.min((line.r - reach) - openingLeast, (line.r - reach) - (outerAtBand - lengthNeed)));
+  const seatAtRisk = outerAtBand - lengthNeed < openingLeast;
   const g = gaps(z);
   // The pad's opening, round its top edge.
   for (const [x, y] of roundedPoints({ core: line.core, r: Math.max(0.05, line.r - reach) }, 0.2)) {
@@ -2398,7 +2483,7 @@ function planBase(
       inSlope: inward / Math.max(0.05, pad.top - bandTop),
       innerMost: -(round ? line.r - 0.3 : rcCorner - 0.1), clip: pad.clip, plan, height,
     },
-    bandTop, clearance: g.gap, culetClearance: g.culet, touchesGallery, crestInside,
+    bandTop, clearance: g.gap, culetClearance: g.culet, touchesGallery, crestInside, seatAtRisk, seat: null,
     blend, flare: { ...blend, feet, shank: shankFlare }, flareColumn: false, ok,
   };
 }

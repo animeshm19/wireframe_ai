@@ -30,7 +30,7 @@ import {
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  baseFlareProfile, envelopeFaces, filletArc, FLARE_NARROW, hullPlanes, padFaceDistance, padOutline, padProfile, shankFlareProfile, wireDistance, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
+  baseFlareProfile, envelopeFaces, filletArc, FLARE_NARROW, hullPlanes, padBuilt, padFaceDistance, padProfile, shankFlareProfile, wireDistance, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
   type BandProbe, type BasePlan, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type Rounded, type StoneProfile,
 } from "./head-layout.js";
 
@@ -1248,8 +1248,7 @@ function outlineLoop(o: Rounded, z: number, reverse = false): Wire {
 export function baseParts(b: BasePlan): { pad: Shape3D; ring: Shape3D } {
   const ring = sweptRound(b, circleProfile(b), Math.PI * b.tube * b.tube, 0, "lower gallery");
   // With its flare to the band (padOutline): that joint is never filleted (BasePlan.blend).
-  const prof = b.blend.shank === 0 && b.flare.shank > 0 ? padOutline(b.pad, shankFlareProfile(b, b.flare.shank)) : padProfile(b.pad).poly;
-  const pad = clipped(b, sweptPolygon(b, prof, "pad"), "pad");
+  const pad = clipped(b, sweptPolygon(b, padBuilt(b), "pad"), "pad");
   return { pad, ring };
 }
 
