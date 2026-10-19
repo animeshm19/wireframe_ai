@@ -932,10 +932,10 @@ function layoutHeadOnce(
     }
     if (g.blocked) blocked ??= g.blocked;
 
-    const legs = (through: GalleryPlan | null) => {
+    const legs = (through: GalleryPlan | null, straightAnywhere = false) => {
       const choices: LegChoice[] = [];
       return prongs.map((p) => {
-        const r = layoutLeg(p, stone, values, band, planes, through, through ? base : null, choices, avoid, avoidPoints);
+        const r = layoutLeg(p, stone, values, band, planes, through, through ? base : null, choices, avoid, avoidPoints, straightAnywhere);
         if (!choices.some((c) => c.r === r.choice.r && c.bend === r.choice.bend && c.mode === r.choice.mode &&
           c.drop === r.choice.drop && c.delta === r.choice.delta && c.wrap === r.choice.wrap &&
           c.kick === r.choice.kick && c.fall === r.choice.fall && c.straight === r.choice.straight && c.deep === r.choice.deep)) choices.push(r.choice);
@@ -968,19 +968,41 @@ function layoutHeadOnce(
       for (let t = asked + 0.05; t <= tMax + 1e-9; t += 0.05) tries.push(+t.toFixed(2));
       for (let t = asked - 0.05; t >= tMin - 1e-9; t -= 0.05) tries.push(+t.toFixed(2));
       let best: { base: BasePlan; laid: typeof laid; score: number[]; at: number } | null = null;
+      // Where the feet stand, as a share of the girdle's radius that way.
+      const feetTaper = (l: ReturnType<typeof legs>) => l.reduce((t, r, i) => {
+        const f = r.spine.points[0], a = Math.atan2(prongs[i].postCentre[1], prongs[i].postCentre[0]);
+        return t + Math.hypot(f[0], f[1]) / (stone.cut === "round" ? stone.girdleR : radialHit(stone.girdle, a).r);
+      }, 0) / l.length;
+      // Where the wire meets the gallery (a small stone: the wire at the
+      // gallery's own height), a leg has no room to lean in between them,
+      // and its straight run lands where it crosses the gallery, anywhere in
+      // the wire: kept, unless that puts the feet outside the field's
+      // bounds (all-max round: 0.99 of the girdle, where knees on tighter
+      // bends land at the 0.9 asked). Held to the taper asked, a 0.25 ct
+      // marquise's legs crossed the gallery at its edge, 0.006 mm³ in it (I4).
+      const legsOn = (b: BasePlan) => {
+        if (!b.touchesGallery) return legs(gallery);
+        const l = legs(gallery, true), t = feetTaper(l);
+        return t >= tMin - 1e-9 && t <= tMax + 1e-9 ? l : legs(gallery);
+      };
       for (const at of tries) {
         const b = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at);
         base = b;
-        const l = legs(gallery), sc = [b.ok ? 1 : 0, ...score(l)];
+        const l = legsOn(b), sc = [b.ok ? 1 : 0, ...score(l)];
         if (!best || better(sc, best.score)) best = { base: b, laid: l, score: sc, at };
         if (b.ok && sc[1] === prongs.length) break;
       }
       base = best!.base;
       laid = best!.laid;
-      if (Math.abs(best!.at - asked) > 1e-9) {
-        values.basketTaper = best!.at;
-        warnings.push({ key: "basketTaper", kind: "engine-clamped", asked, delivered: best!.at,
-          message: `Prongs ending at ${fmt(asked)} of the stone's radius cannot keep their gaps to this stone, so they end at ${fmt(best!.at)}.` });
+      // The taper built: the wire's, or where the straight legs land when
+      // that is more than 0.03 off it. Reported with both numbers.
+      const built = Math.abs(feetTaper(laid) - best!.at) > 0.03 ? +feetTaper(laid).toFixed(3) : best!.at;
+      if (Math.abs(built - asked) > 1e-9) {
+        values.basketTaper = built;
+        warnings.push({ key: "basketTaper", kind: "engine-clamped", asked, delivered: built,
+          message: built === best!.at
+            ? `Prongs ending at ${fmt(asked)} of the stone's radius cannot keep their gaps to this stone, so they end at ${fmt(built)}.`
+            : `On this small stone the prongs run straight down through the gallery into the wire beside it, so they end at ${fmt(built)} of the stone's radius, not ${fmt(asked)}.` });
       }
       // Each flare held to what keeps it pavilionClearance from the stone
       // and culetClearance from the culet, as every other part is (the
@@ -2393,7 +2415,22 @@ function planBase(
     return { top, bottom, clip };
   };
 
-  const z = low + tube;
+  // Where the wire would only graze the upper gallery, it is lifted into
+  // it, 0.1 mm deep: grazing, they met near tangent and the merge's mesh
+  // had zero-area slivers where a prong ran through both (a twisted
+  // shank's band stands higher under the head, S3b). Only as far as 0.3 mm,
+  // and only where the wire then still keeps its gaps to the stone.
+  const into = (zz: number) => Math.max(...ring.map(({ q }) =>
+    tube + gallery.t / 2 - Math.hypot(Math.abs(polygonDistance(gallery.path, q)), zz - gallery.z)));
+  let z = low + tube;
+  if (into(z) > -0.05 && into(z) < 0.1) {
+    for (let up = 0.01; up <= 0.3 + 1e-9; up += 0.01) {
+      if (into(z + up) < 0.1) continue;
+      const gp = gaps(z + up);
+      if (gp.gap >= v.pavilionClearance && gp.culet >= v.culetClearance + 0.02) z += up;
+      break;
+    }
+  }
   const pad = padFor(z);
   const zv = Math.max(bandTop + 0.05, Math.min(pad.top - 0.05, z - tube - 0.03));
   // The outer face's slope: out by `out` at the band's highest point under
@@ -2511,6 +2548,8 @@ function layoutLeg(
   hints: LegChoice[] = [],
   avoid: { planes: HalfSpace[]; clearance: number }[] = [],
   avoidPoints: { p: V3; r: number }[] = [],
+  /** On a base that meets the gallery: a straight leg may land anywhere in the wire from the start (see footOut). */
+  straightAnywhere = false,
 ) {
   const d = p.d, half = d / 2;
   const rMin = v.culetClearance + half + 0.05;
@@ -2600,7 +2639,7 @@ function layoutLeg(
   // anyway, towards a foot further out.
   let deepFoot = false;
   // Whether a straight leg may land anywhere in the wire (see footOut).
-  let looseStraight = !base;
+  let looseStraight = !base || straightAnywhere;
   const girdleAt = base ? (stone.cut === "round" ? stone.girdleR : radialHit(stone.girdle, psi).r) : 0;
   // straight: on a base, no knee: the run from the post through the wire
   // carries straight on into the base, the foot where it reaches it (r is
@@ -2908,7 +2947,7 @@ function layoutLeg(
     ...depths.map((deep) => ({ deep, tiers: tiers.filter((t) => typeof t !== "string") })),
     ...depths.map((deep) => ({ deep, tiers: tiers.filter((t) => typeof t === "string") })),
   ];
-  for (const loose of base ? [false, true] : [false]) {
+  for (const loose of base && !straightAnywhere ? [false, true] : [looseStraight]) {
   looseStraight = loose;
   for (const phase of phases) {
   if (chosen) break;
