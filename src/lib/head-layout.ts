@@ -667,36 +667,47 @@ export function layoutHead(
   band: BandProbe | null, opts: LayoutOptions = {},
 ): HeadLayout {
   const first = layoutHeadOnce(cut, girdleR, prongCount, bench, band, opts);
-  // I7 on a narrow band (Animesh, 2026-10-19): where the pad's opening is
-  // held at the culet's gap and its seat on the band still falls short of
-  // the prongs' summed section, the prongs are thinned, 0.05 mm at a time
-  // (the field's step), to the thickest whose seat holds them, never under
-  // the alloy's minimum, and that is reported with both numbers. The seat
-  // wants what the prongs carry, which grows with their thickness squared;
-  // the pad's footprint (the feet's outline grown by one thickness, I16)
-  // only with it. Never culetClearance or an alloy minimum.
-  // Only a base that keeps its gaps: where none does at any taper (an
-  // all-max marquise's wire, 2.2 mm thick, cannot keep a 1.5 mm culet gap
-  // inside a 0.9 taper, nor at any prong thickness), thinner prongs do not
-  // make it a head, and the head is left as asked for the audit to report.
+  // The prongs thinned by the stone's size and the band's (Animesh,
+  // 2026-10-19, on I7; and Q25's size clamps), reported with both numbers,
+  // never under the alloy's minimum, never culetClearance:
+  // - where the pad's seat on the band falls short of the prongs' summed
+  //   section (I7): the seat wants what the prongs carry, which grows with
+  //   their thickness squared, and the pad's length along the band is held
+  //   by the culet's gap inside and the footprint + d outside (I16), which
+  //   grow only with it;
+  // - where the wire, 1.1 × the prong thick, cannot keep its gaps to the
+  //   stone at any taper (an oval with 2 mm prongs: 0.001 mm from the
+  //   pavilion, 0.33 mm³ in the stone).
+  // The thickest on the field's 0.05 mm steps that does neither. Where even
+  // the alloy's minimum does not (an all-max marquise's wire keeps no
+  // 1.5 mm culet gap at any thickness), the head is left as asked, for the
+  // audit to report.
   const short = (L: HeadLayout) => {
     const b = L.base;
-    if (!b || b.seat == null || !b.ok) return false;
+    if (!b || b.seat == null) return false;
     return b.seat < SEAT_SPARE * FIXED_STANDARDS.JOINT_AREA_RATIO.value * L.prongs.length * Math.PI * (L.values.prongDiameter / 2) ** 2;
   };
-  if (!short(first)) return first;
+  const bad = (L: HeadLayout) => !!L.base && (!L.base.ok || short(L));
+  if (!bad(first)) return first;
   const asked = bench.prongDiameter, floor = opts.minProngDiameter ?? 0;
-  for (let d = first.values.prongDiameter - 0.05; d >= floor - 1e-9; d -= 0.05) {
-    const at = +d.toFixed(2);
-    const L = layoutHeadOnce(cut, girdleR, prongCount, { ...bench, prongDiameter: at }, band, opts);
-    if (short(L)) continue;
-    L.warnings.push({ key: "prongDiameter", kind: "engine-clamped", asked, delivered: at,
-      message: `Prongs ${fmt(asked)} mm thick need more of the band under the head than this band's width leaves round the culet, so they are ${fmt(at)} mm.` });
-    return L;
+  const steps: number[] = [];
+  for (let d = first.values.prongDiameter - 0.05; d >= floor - 1e-9; d -= 0.05) steps.push(+d.toFixed(2));
+  if (!steps.length) return first;
+  const at = (d: number) => layoutHeadOnce(cut, girdleR, prongCount, { ...bench, prongDiameter: d }, band, opts);
+  let good = at(steps[steps.length - 1]);
+  if (bad(good)) return first;
+  // Thinner never makes either worse: the largest step that is good, by halves.
+  let lo = steps.length - 1, hi = -1;
+  while (lo - hi > 1) {
+    const mid = (lo + hi) >> 1, L = at(steps[mid]);
+    if (bad(L)) hi = mid; else { lo = mid; good = L; }
   }
-  // No thickness down to the alloy's minimum holds: the head as asked, its
-  // I7 shortfall for the audit to report.
-  return first;
+  const d = steps[lo];
+  good.warnings.push({ key: "prongDiameter", kind: "engine-clamped", asked, delivered: d,
+    message: short(first)
+      ? `Prongs ${fmt(asked)} mm thick need more of the band under the head than this band's width leaves round the culet, so they are ${fmt(d)} mm.`
+      : `Prongs ${fmt(asked)} mm thick make the wire under the stone too thick to keep its gap to this stone, so they are ${fmt(d)} mm.` });
+  return good;
 }
 
 /** The seat a clamp must reach, over the prongs' summed section: its reckoning (padSeatArea) against the audit's solids, with room for the difference. */
