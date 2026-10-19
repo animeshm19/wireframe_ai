@@ -341,14 +341,25 @@ export async function auditStructure(
   // in turn, the largest taken, and the retry counted (S3b: two of a
   // marquise's six feet read 0 in a wire the merge had joined them to).
   let commonRetries = 0;
-  const common = (a: Shape3D, b: Shape3D, what: string): number => {
+  // `retry`: only for an overlap the parts are built to have (a prong in
+  // its base, its gallery, its pad). Never for one that must be nothing: a
+  // stone held with no room round it (seatTolerance 0) touches its seats,
+  // and moved 0.001 mm into them read 0.0012 mm³ of metal in the stone (I2a,
+  // S3b).
+  const common = (a: Shape3D, b: Shape3D, what: string, retry = false): number => {
     try {
       const v = overlapVolume(a, b, volOf);
-      if (v > 1e-9 || a.boundingBox.isOut(b.boundingBox) || !(measureDistanceBetween(a, b) < 1e-6)) return v;
+      if (!retry || v > 1e-9 || a.boundingBox.isOut(b.boundingBox) || !(measureDistanceBetween(a, b) < 1e-6)) return v;
       let most = v;
-      for (const dlt of [[1e-3, 0, 0], [-1e-3, 0, 0], [0, 1e-3, 0], [0, -1e-3, 0], [0, 0, 1e-3], [0, 0, -1e-3]] as V3[]) {
-        const moved = b.clone().translate(dlt) as Shape3D;
-        most = Math.max(most, measureVolume(a.clone().intersect(moved) as Shape3D));
+      // 0.001 mm each way, then 0.005 where none of those finds it (as
+      // fuseMetal's retry does: an 8-prong emerald's side prongs in their
+      // wire read 0 at every 0.001 shift and 0.247 mm³ at 0.005, S3b).
+      for (const step of [1e-3, 5e-3]) {
+        for (const dlt of [[step, 0, 0], [-step, 0, 0], [0, step, 0], [0, -step, 0], [0, 0, step], [0, 0, -step]] as V3[]) {
+          const moved = b.clone().translate(dlt) as Shape3D;
+          most = Math.max(most, measureVolume(a.clone().intersect(moved) as Shape3D));
+        }
+        if (most > v) break;
       }
       if (most > v) commonRetries++;
       return most;
@@ -440,10 +451,10 @@ export async function auditStructure(
       // Into its own head's saddle (S3, review): a flared foot's column
       // stands 0.01 mm into the plateau beside the base. Recorded, not yet
       // judged (see S3.md).
-      inBridge: r.head === "centre" ? sum(bridgeIdx.filter((b) => metalRoles[b].head === r.head).map((b) => common(p, metalParts[b], `${tag} ∩ saddle`))) : NaN,
+      inBridge: r.head === "centre" ? sum(bridgeIdx.filter((b) => metalRoles[b].head === r.head).map((b) => common(p, metalParts[b], `${tag} ∩ saddle`, true))) : NaN,
       inStone: common(p, held, `${tag} ∩ stone`),
-      inGallery: sum(galleryIdx.map((g) => common(p, metalParts[g], `${tag} ∩ gallery ${g}`))),
-      inBase: sum(baseIdx.map((b) => common(p, metalParts[b], `${tag} ∩ base ${b}`))),
+      inGallery: sum(galleryIdx.map((g) => common(p, metalParts[g], `${tag} ∩ gallery ${g}`, true))),
+      inBase: sum(baseIdx.map((b) => common(p, metalParts[b], `${tag} ∩ base ${b}`, true))),
       clearanceToStone: distance(p, held, `${tag} to stone`),
     });
   }
@@ -677,7 +688,8 @@ export async function auditStructure(
     try {
       basket = measureBasket(centreFrame, metal, metalParts[bi], metalParts[pi],
         idx((r) => r.role === "prong" && r.head === "centre").map((i) => metalParts[i]),
-        bandIdx.map((i) => metalParts[i]), errors);
+        bandIdx.map((i) => metalParts[i]), errors,
+        idx((r) => r.role !== "band" && r.head != null && r.head !== "centre").map((i) => metalParts[i]));
     } catch (e) {
       errors.push(`basket measure threw ${(e as Error)?.message ?? e}`);
     }
@@ -1007,34 +1019,57 @@ function flareRadius(joint: BlendJoint, flares: Shape3D[], frame: HeadFrame, err
  */
 function measureBasket(
   frame: HeadFrame, metal: Shape3D, wire: Shape3D, pad: Shape3D, prongs: Shape3D[], bands: Shape3D[], errors: string[],
+  /** Other heads' parts (a three-stone's side heads, S6's): not the centre joint's, left out of I15's sections. */
+  others: Shape3D[] = [],
 ): NonNullable<StructureAudit["basket"]> {
   const b = frame.layout.base!, band = frame.band!;
-  const flank = (x: number, sd: 1 | -1) => {
-    for (let y = band.axialMax + 0.6; y >= 0; y -= 0.005) {
-      if (!band.at(x, sd * y)) continue;
-      const t = band.at(x, sd * Math.max(0, y - 0.1));
-      return { edge: y, line: t ? t.top : -Infinity };
+  // Only near the head: the plane at x = 0 also cuts the band at the
+  // bottom of the ring, which on a tapered shank is not the band's width here.
+  const lowest = band.topOnAxis - 5;
+  const pointsOf = (sec: AnyShape) => {
+    const out: V3[] = [];
+    for (const e of sec.edges) {
+      const n = Math.max(8, Math.ceil(e.length / 0.01));
+      for (let k = 0; k <= n; k++) {
+        const v = e.pointAt(k / n), q = toHead(frame, [v.x, v.y, v.z]);
+        if (q[2] >= lowest) out.push(q);
+      }
     }
-    return null;
+    return out;
   };
+  // The band as built, in the section: its flank each side, the furthest
+  // it reaches, and its line, its top 0.1 inside that. (From the band's
+  // probe, a twisted band's turned section under the head read 0.49 mm
+  // narrower than the band is, and the band's own flank counted as the
+  // head's overhang, S3b.)
+  const flankIn = (pts: V3[], sd: 1 | -1) => {
+    const mine = pts.filter((q) => sd * q[1] > 0);
+    if (!mine.length) return null;
+    const edge = Math.max(...mine.map((q) => sd * q[1]));
+    const near = mine.filter((q) => sd * q[1] >= edge - 0.1 - 0.005);
+    return { edge, line: Math.max(...near.map((q) => q[2])) };
+  };
+  // The centre head's own metal: other heads' parts cut out (a 3 ct
+  // three-stone's side prongs stand in the band beyond its flank by up to
+  // 1.08 mm, S6's to settle, not this joint's).
+  let own = metal;
+  for (const o of others) own = own.cut(o.clone()) as Shape3D;
   const line = roundedPoints({ core: b.core, r: b.rc }, 0.05);
   const L = Math.max(...line.map(([x]) => Math.abs(x)));
   let overhang = -Infinity, overhangAt = "";
   for (const x0 of [-L, 0, L]) {
     const R = frame.girdleR * 4;
-    const face = makePolygon(([[x0, -R, -R], [x0, R, -R], [x0, R, R], [x0, -R, R]] as V3[]).map((q) => toRing(frame, q)));
-    const section = metal.intersect(face as unknown as Shape3D);
+    const face = () => makePolygon(([[x0, -R, -R], [x0, R, -R], [x0, R, R], [x0, -R, R]] as V3[]).map((q) => toRing(frame, q)));
+    const section = own.intersect(face() as unknown as Shape3D);
+    const bandPts = bands.flatMap((bd) => pointsOf(bd.intersect(face() as unknown as Shape3D)));
+    const pts = pointsOf(section);
     for (const sd of [1, -1] as const) {
-      const f = flank(x0, sd);
+      const f = flankIn(bandPts, sd);
       if (!f) continue;
-      for (const e of section.edges) {
-        const n = Math.max(8, Math.ceil(e.length / 0.01));
-        for (let k = 0; k <= n; k++) {
-          const v = e.pointAt(k / n), q = toHead(frame, [v.x, v.y, v.z]);
-          if (sd * q[1] <= 0 || q[2] > f.line) continue;
-          const over = sd * q[1] - f.edge;
-          if (over > overhang) { overhang = over; overhangAt = `x ${x0.toFixed(2)}, ${sd > 0 ? "+" : "−"}y, z ${q[2].toFixed(3)}`; }
-        }
+      for (const q of pts) {
+        if (sd * q[1] <= 0 || q[2] > f.line) continue;
+        const over = sd * q[1] - f.edge;
+        if (over > overhang) { overhang = over; overhangAt = `x ${x0.toFixed(2)}, ${sd > 0 ? "+" : "−"}y, z ${q[2].toFixed(3)}`; }
       }
     }
   }
