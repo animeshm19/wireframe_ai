@@ -484,6 +484,11 @@ export const INVARIANTS = [
         // 0.01 for the 0.02 mm mesh.
         { ok: num(b.opening) && num(cc) && b.opening >= cc - 0.01, why: `the wire ${fmt(b.opening)} mm from the culet at its nearest, the culet gap ${fmt(cc)}` },
         { ok: num(b.padOpening) && num(cc) && b.padOpening >= cc - 0.01, why: `the pad ${fmt(b.padOpening)} mm from the culet at its nearest, the culet gap ${fmt(cc)}` },
+        // A ring, not a plate: the head's axis, from the band's top up to the
+        // wire's, runs through an opening in both (review: the culet
+        // distances alone would pass a disc culetClearance under the culet).
+        // Reports from before this measure carry none and are not judged on it.
+        { ok: b.axisOpen === undefined || (num(b.axisOpen) && b.axisOpen > 0), why: `the head's axis ${fmt(b.axisOpen)} mm from the wire or pad: no opening at the centre` },
       ]);
     },
   },

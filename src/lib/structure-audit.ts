@@ -232,6 +232,8 @@ export type StructureAudit = {
     overhang: number; overhangAt: string; outside: number; outsideAt: string; legsOut: number; legsOutAt: string;
     opening: number; padOpening: number;
     headMetal: number; tapers: number[]; taper: number; crestInside: boolean;
+    /** I16: how far the head's axis, band top to the wire's top, stays from the wire and pad (> 0: the base is open at its centre). */
+    axisOpen: number;
   } | null;
   /** Pairwise stone ∩ stone, every pair whose boxes meet. */
   stonePairs: { a: number; b: number; volume: number }[];
@@ -1054,6 +1056,9 @@ function measureBasket(
   // 1.08 mm, S6's to settle, not this joint's).
   let own = metal;
   for (const o of others) own = own.cut(o.clone()) as Shape3D;
+  // Checked as a cut must be (rule 4): never more metal than before (a cut
+  // OCCT got wrong would leave side-head metal in the sections).
+  if (others.length && !(measureVolume(own) <= measureVolume(metal) + 1e-6)) errors.push("I15: cutting the other heads out gained metal");
   const line = roundedPoints({ core: b.core, r: b.rc }, 0.05);
   const L = Math.max(...line.map(([x]) => Math.abs(x)));
   let overhang = -Infinity, overhangAt = "";
@@ -1107,9 +1112,24 @@ function measureBasket(
   const opening = openingOf(wire, () => true);
   const padOpening = openingOf(pad, aboveBand);
 
+  // The base is a ring, not a plate (I16): the head's axis, from the band's
+  // top up to the wire's, passes through neither the wire nor the pad. (The
+  // culet distances above alone would pass a disc held culetClearance
+  // under the culet.)
+  const axisFrom = toRing(frame, [0, 0, band.topOnAxis + 0.01]), axisTo = toRing(frame, [0, 0, b.zTop + 0.5]);
+  const axisLine = makeLine(axisFrom, axisTo) as unknown as AnyShape;
+  const axisOpen = Math.min(measureDistanceBetween(axisLine, wire), measureDistanceBetween(axisLine, pad));
+
+  // Checked as booleans must be (rule 4): the union no less than either
+  // part and no more than both, the band's cut never adding metal. A fuse
+  // that lost metal would read as less head metal, and pass I17.
+  const vw = measureVolume(wire), vp = measureVolume(pad);
   let head = wire.clone().fuse(pad.clone()) as Shape3D;
+  const vu = measureVolume(head);
+  if (!(vu >= Math.max(vw, vp) - 1e-6 && vu <= vw + vp + 1e-6)) errors.push(`I17: the wire and pad fused to ${vu.toFixed(4)} mm³ from ${vw.toFixed(4)} and ${vp.toFixed(4)}`);
   for (const bd of bands) head = head.cut(bd.clone()) as Shape3D;
   const headMetal = measureVolume(head);
+  if (!(headMetal <= vu + 1e-6 && headMetal > 0)) errors.push(`I17: the band's cut left ${headMetal.toFixed(4)} mm³ of ${vu.toFixed(4)}`);
 
   const tapers = prongs.map((p, k) => {
     const inWire = p.clone().intersect(wire.clone()) as Shape3D;
@@ -1128,7 +1148,7 @@ function measureBasket(
     return Math.hypot(c[0], c[1]) / g;
   });
   return {
-    overhang, overhangAt, outside, outsideAt, legsOut, legsOutAt, opening, padOpening, headMetal, tapers,
+    overhang, overhangAt, outside, outsideAt, legsOut, legsOutAt, opening, padOpening, axisOpen, headMetal, tapers,
     taper: tapers.reduce((t, x) => t + x, 0) / tapers.length,
     crestInside: b.crestInside,
   };
