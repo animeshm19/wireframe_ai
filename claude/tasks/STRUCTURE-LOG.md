@@ -110,6 +110,13 @@ Stricter since (`7c36cb5`): a held value counts only if `delivered < asked` and 
 
 **S3b, `d4296cd`: I16 also needs an opening on the head's axis** (from the band's top up to the wire's, clear of the wire and the pad: 0.376–1.575 mm on the fast matrix), and the basket audit's own booleans are checked. Stricter only; from the adversarial review.
 
+**S3b close: I17's head metal is every non-prong metal below the upper gallery, and S3's reference is rebuilt on that measure** (Animesh, 2026-10-19, q. 45; commit below).
+- **Before:** vol((base ∪ pad) − band), on the parts as built. It left out the base's flare where its fillet fails, the foot flares, every fillet and a cathedral's struts, and counted the prongs' feet inside the base as base.
+- **Now:** the resolved metal (fused and blended) below the gallery's bottom (less 0.001 mm: a box face tangent to the wire's underside left OCCT's common empty on S3's 3 ct emerald), less the union there of every part that is not the centre's base or wire, pad or struts, the centre prongs bare (built without seats, so without the foot flares a flared head builds into them). The union by inclusion and exclusion over the parts' own overlaps: cutting the merged metal by the parts it was fused from gained metal on 28 of S3's designs.
+- **The reference** (`structure-head-metal-s3.json`) is that measure on S3's code (`943430e`, a scratch export, its compiled engine checked against the source), for all 253 designs: 232 prong heads measured, 0 errors. Against the old reference, new ÷ old 0.70 to 1.12, median 1.00. Default ring 68.4458 → 68.1342 mm³.
+- **S3b, the same measure:** default ring 19.0371 mm³, three-stone 18.9334, 3 ct cushion 4-prong 28.2623 (the audit and the scratch measure agree to 1e-4 on S3b's code at `c2281ab`).
+- The bound (≤ S3 + 1%) is unchanged.
+
 ## Bench bounds changed
 
 None in S0. Bounds are as specified in the S0 prompt's table; `test:cad` asserts them row by row.

@@ -18,7 +18,7 @@
  * Distances in mm, volumes in mm³, areas in mm², times in ms.
  */
 import {
-  draw, makeCircle, makeCompound, makeFace, makeLine, makePolygon, makeSphere, makeVertex,
+  draw, makeBox, makeCircle, makeCompound, makeFace, makeLine, makePolygon, makeSphere, makeVertex,
   assembleWire, measureArea, measureDistanceBetween, measureShapeVolumeProperties,
   measureVolume, Plane, getOC,
   type Shape3D, type AnyShape, type Face,
@@ -692,6 +692,19 @@ export async function auditStructure(
         idx((r) => r.role === "prong" && r.head === "centre").map((i) => metalParts[i]),
         bandIdx.map((i) => metalParts[i]), errors,
         idx((r) => r.role !== "band" && r.head != null && r.head !== "centre").map((i) => metalParts[i]));
+      // Every part that is not head metal, in build order (the band first,
+      // so what is left is small and later parts are passed over by their
+      // boxes), the centre prongs from a build without seats: bare, with no
+      // foot flare in them.
+      const bare = buildRingParts(spec, { seats: false });
+      const centre = (r: PartRole) => (r.head ?? "centre") === "centre";
+      const headPart = (r: PartRole) => centre(r) && ["base", "bridge", "strut"].includes(r.role);
+      const centreProng = (r: PartRole) => centre(r) && r.role === "prong";
+      const notHead = [
+        ...idx((r) => !headPart(r) && !centreProng(r)).map((i) => metalParts[i]),
+        ...bare.metalRoles.map((r, i) => (centreProng(r) ? bare.metalParts[i] : null)).filter((x): x is Shape3D => !!x),
+      ];
+      basket.headMetal = headMetalBelow(centreFrame, metal, notHead, errors);
     } catch (e) {
       errors.push(`basket measure threw ${(e as Error)?.message ?? e}`);
     }
@@ -984,6 +997,61 @@ function flareRadius(joint: BlendJoint, flares: Shape3D[], frame: HeadFrame, err
 // --------------------------------------------------------- basket (S3b) --
 
 /**
+ * I17's head metal (Animesh, 2026-10-19, q. 45): every metal below the
+ * centre head's upper gallery that is not a prong. The resolved metal (fused
+ * and blended) below the gallery's bottom, less the union there of every
+ * part that is not the centre's base or wire, pad or struts, the centre
+ * prongs bare (built without seats, which leaves out the foot flares a
+ * flared head builds into them). What is left is the wire or base, the pad,
+ * the struts and every fillet and flare. S3's reference
+ * (structure-head-metal-s3.json) is the same measure on S3's code
+ * (943430e), so I17 compares like with like.
+ *
+ * The union by inclusion and exclusion over the parts' own overlaps
+ * (singles, pairs, and triples of parts that all meet), each piece cut by
+ * the box: cutting the merged metal by the parts it was fused from meets
+ * their shared faces, and on 28 of S3's designs OCCT's cut gained metal.
+ * The box's top 0.001 mm under the gallery's bottom: tangent to the wire's
+ * underside, OCCT's common came back empty (S3's 3 ct emerald). Checked:
+ * something left, and no more than the metal below the gallery.
+ */
+function headMetalBelow(frame: HeadFrame, metal: Shape3D, notHead: Shape3D[], errors: string[]): number {
+  const g = frame.layout.gallery;
+  if (!g) return NaN;
+  const near = (a: V3, b: V3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 1e-9;
+  // The centre head stands on +Y with its x along the ring's: head (x, y, z)
+  // is ring (cx + x, cy + z, cz − y), and below the gallery is ring y under cy + its bottom.
+  if (!near(frame.xDir, [1, 0, 0]) || !near(frame.axis, [0, 1, 0])) { errors.push("I17: the centre head is not on +Y"); return NaN; }
+  const c = frame.culet, top = g.z - g.t / 2 - 0.001;
+  const box = makeBox([c[0] - 60, c[1] - 60, c[2] - 60], [c[0] + 60, c[1] + top, c[2] + 60]);
+  const below = (x: Shape3D) => measureVolume(x.clone().intersect(box.clone()) as Shape3D);
+  const v0 = below(metal);
+  if (!(v0 <= measureVolume(metal) + 1e-6 && v0 > 0)) { errors.push(`I17: the metal below the gallery read ${v0.toFixed(4)} mm³`); return NaN; }
+  const Q = notHead.filter((p) => !p.boundingBox.isOut(box.boundingBox));
+  let union = 0;
+  for (const p of Q) union += below(p);
+  const pair = new Map<string, Shape3D>();
+  for (let i = 0; i < Q.length; i++) {
+    for (let j = i + 1; j < Q.length; j++) {
+      if (Q[i].boundingBox.isOut(Q[j].boundingBox)) continue;
+      const ij = Q[i].clone().intersect(Q[j].clone()) as Shape3D;
+      if (!(measureVolume(ij) > 1e-7)) continue;
+      pair.set(`${i},${j}`, ij);
+      union -= below(ij);
+    }
+  }
+  for (const [key, ij] of pair) {
+    const [i, j] = key.split(",").map(Number);
+    for (let k = j + 1; k < Q.length; k++) {
+      if (pair.has(`${i},${k}`) && pair.has(`${j},${k}`)) union += below(ij.clone().intersect(Q[k].clone()) as Shape3D);
+    }
+  }
+  const v = v0 - union;
+  if (!(v > 0 && v <= v0)) { errors.push(`I17: head metal read ${v.toFixed(4)} of the ${v0.toFixed(4)} mm³ below the gallery`); return NaN; }
+  return v;
+}
+
+/**
  * The head below the stone, measured (S3b):
  *   overhang  I15: on sections square to the band at the joint's front,
  *             middle and back (x = −L, 0, L, L the wire's reach along the
@@ -1011,8 +1079,10 @@ function flareRadius(joint: BlendJoint, flares: Shape3D[], frame: HeadFrame, err
  *             the pad above the band: the centre is open as far as the
  *             culet's clearance needs (read in plan from the axis, a 1.5 mm
  *             culet gap failed against a wire 1.58 mm from the culet).
- *   headMetal I17: the volume of the wire and the pad less the band, as
- *             built: the metal the head adds below its prongs.
+ *   headMetal I17 (Animesh, 2026-10-19, q. 45): every metal below the
+ *             upper gallery's bottom that is not a prong, on the resolved
+ *             metal: the wire or base, the pad, the struts, and every
+ *             fillet and flare (see headMetalBelow). Set by the caller.
  *   tapers    I13: each foot's distance out ÷ the girdle's in its prong's direction (its post's).
  *             The foot: the middle of the prong's end disc, read off its
  *             part inside the wire as the mesh points furthest back along
@@ -1120,17 +1190,7 @@ function measureBasket(
   const axisLine = makeLine(axisFrom, axisTo) as unknown as AnyShape;
   const axisOpen = Math.min(measureDistanceBetween(axisLine, wire), measureDistanceBetween(axisLine, pad));
 
-  // Checked as booleans must be (rule 4): the union no less than either
-  // part and no more than both, the band's cut never adding metal. A fuse
-  // that lost metal would read as less head metal, and pass I17.
-  const vw = measureVolume(wire), vp = measureVolume(pad);
-  let head = wire.clone().fuse(pad.clone()) as Shape3D;
-  const vu = measureVolume(head);
-  if (!(vu >= Math.max(vw, vp) - 1e-6 && vu <= vw + vp + 1e-6)) errors.push(`I17: the wire and pad fused to ${vu.toFixed(4)} mm³ from ${vw.toFixed(4)} and ${vp.toFixed(4)}`);
-  for (const bd of bands) head = head.cut(bd.clone()) as Shape3D;
-  const headMetal = measureVolume(head);
-  if (!(headMetal <= vu + 1e-6 && headMetal > 0)) errors.push(`I17: the band's cut left ${headMetal.toFixed(4)} mm³ of ${vu.toFixed(4)}`);
-
+  const headMetal = NaN;
   const tapers = prongs.map((p, k) => {
     const inWire = p.clone().intersect(wire.clone()) as Shape3D;
     const spine = frame.layout.prongs[k]?.spine;

@@ -494,7 +494,7 @@ export const INVARIANTS = [
   },
   {
     id: "I17",
-    title: "head metal (the base and joint, less the band) ≤ S3's for the same design (+1%)",
+    title: "head metal (all non-prong metal below the upper gallery: base or wire, pad, struts, fillets, flares) ≤ S3's for the same design (+1%)",
     requiredFrom: (spec) => (prongHead(spec) ? "S3" : null),
     evaluate: (r) => {
       const b = r.basket, ref = r.reference?.headMetalS3;
