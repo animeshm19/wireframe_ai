@@ -90,6 +90,26 @@ Stricter since (`7c36cb5`): a held value counts only if `delivered < asked` and 
 
 **S3, `7c36cb5`: I13 filletRadius is judged per joint.** Before, any `engine-clamped` filletRadius warning excused every joint laid out under the value asked. Now the warning must carry the value asked (the one being judged) and the value delivered, and no joint may be laid out under the delivered value. Stricter only.
 
+**S3b, `ff629cf`: three new binding invariants, I15, I16, I17,** from S3 for every prong-family centre head:
+- **I15, flush with the band:** nothing at or under the band's line more than 0.05 mm beyond its flank, on sections at the joint's front, middle and back.
+- **I16, basket form:** below the upper gallery the wire and pad within the feet's footprint (the wire's centreline) grown by one prong diameter (0.01 mm tolerance); every leg only coming in from the gallery to its foot (0.02); the base's opening and the pad's at least the culet's gap (−0.01). *Interpretation, for Animesh to confirm (q. 39):* the prompt's footprint is "the prongs' foot footprint plus one prong diameter"; legs are judged by coming in rather than by that footprint, because between the gallery and the feet every leg is outside it by construction.
+- **I17, head metal does not grow:** vol((base ∪ pad) − band) ≤ S3's for the same design + 1%. The reference is `structure-head-metal-s3.json`, measured on S3's code (`943430e`) for 253 designs; default ring 68.4458 mm³.
+- **I13** gains basketTaper: the feet's mean ÷ girdle radius within 0.03 of the value asked (or of an engine clamp reported with both numbers, inside the bounds), every foot within 0.10.
+
+**S3b, `8d04aba`: the shank flare's radius is read as its greatest standout beyond the pad's outer face,** not at the section's farthest point. Built into the pad (`0f721c3`), the farthest point is the pad's own bottom corner, which lies on the face and would read 0. Same ±0.02 bound.
+
+**S3b, `ca48dd2`: I13 judges prongDiameter at the thickness built where the engine reports a hold** with asked and delivered (as culetClearance and galleryClearance since S3), never under the alloy's minimum. Needed for Animesh's 2026-10-19 decision (the I7 clamp). Rows held: see S3b.md.
+
+**S3b, `7ab1aec`: I15 is read against the band as built, the centre head only; the common retry only for overlaps that must exist.**
+- I15's flank and band line came from the band probe. A twisted shank's band section is turned under the head, and the probe read it 0.49 mm narrower than the band is, so the band's own flank counted as overhang. Now from the band parts' own section in each plane, near the head.
+- A 3 ct three-stone's side-head prongs (S6's, still standing in the band) stood 0.95–1.08 mm past the flank in I15's sections. Other heads' parts are cut out first, as I6/I6b split them.
+- The 0.001 mm common retry (S3b, for OCCT's blind spot) ran on every overlap, and on a stone held with no room round it (seatTolerance 0) moved the stone into its seats: 0.0012 mm³ "in the stone" (I2a), a regression against S3. It now runs only where parts are built to overlap (a prong in its base, gallery or pad), at 0.001 mm and then 0.005.
+- Bounds unchanged.
+
+**S3b, `87319c8`: basketTaper's feet are read against the girdle in the prong's (post's) direction,** not the foot's, as the field is defined. Same bounds. A 3 ct all-max marquise read one foot 0.15 off the other way.
+
+**S3b, `d4296cd`: I16 also needs an opening on the head's axis** (from the band's top up to the wire's, clear of the wire and the pad: 0.376–1.575 mm on the fast matrix), and the basket audit's own booleans are checked. Stricter only; from the adversarial review.
+
 ## Bench bounds changed
 
 None in S0. Bounds are as specified in the S0 prompt's table; `test:cad` asserts them row by row.
@@ -120,6 +140,7 @@ From `PROVISIONAL_INPUTS` (every bench field that is not a sourced default). Eac
 7. **galleryClearance 0.25 mm** (published 0.20–0.30 for diamonds).
 8. **filletRadius 0.30 mm.** Unsourced.
 9. **minBendRadius 1.0 × prong diameter.** Unsourced.
+10. **basketTaper 0.60 of the girdle radius (S3b).** Where the prongs end under the stone, as a share of the stone's radius in each prong's direction. Bounds 0.45–0.90. An open-source jewellery CAD reference is said to use 55–70% for tulip heads; not verified. What taper does your caster use for a solitaire basket, by stone size?
 
 For Animesh (decisions, not bench questions):
 
@@ -214,6 +235,31 @@ For Animesh (decisions, not bench questions):
 37. **`meshOpen` is stricter than I8 (S3, finding).** After the fuse the engine meshes the metal at the export's 0.01 mm, welds vertices at 1e-5 mm, and flares joints in turn until that mesh is closed. On 9 designs it never closes (`meshOpen`: oval 3 ct on every setting, 0.25 ct cushion on 8 prongs, pavilionClearance 0.1), so every joint is flared. Measured on `{"bench":{"pavilionClearance":0.1}}`: the 1e-5 weld collapses 2 of 20066 triangles; the exported STL keeps them distinct, with non-zero area, and I8 passes (0 edges not used twice, 0 zero-area, 1 component). So the flag is a false alarm against I8, and those 9 designs carry flares where fillets may have served. Not changed in S3: a triangle that thin may still trouble a slicer. To decide with the caster (S7).
 
     **Decided 2026-10-18 (agreed).** Decided with the caster in S7, not before.
+
+38. **The culet gap at its largest cannot be kept by a wire basket on some stones (S3b).** The S3b prompt's own case: a stop for a decision, not a fix.
+    - **All-max 1 ct marquise:** the wire comes 0.61 mm from the culet at d = 2 mm, at every taper up to 0.9. At the alloy's minimum prong (0.8 mm) it comes 1.39–1.41 against 1.52. Also fails I7 (14.98 against 18.85 mm²), I10c and I16.
+    - **All-max 0.25 ct round:** culet held to 1.35 (Q35), prongs to 1.15 (the I7 clamp); the wire comes 1.30 mm from the culet against 1.34.
+    - **All-max 3 ct marquise:** passes the culet, but one foot is 0.158 off the taper asked (I13's 0.10).
+    - S3's flat base, as wide as the stone, kept these gaps.
+    - **Options:**
+      - (a) let the engine hold culetClearance further for these, reported: the prompt says never to clamp it to reach I7, but this is the culet's own rule;
+      - (b) let the wire step outside basketTaper's bounds here;
+      - (c) let the wire dip where the band falls away under a long stone;
+      - (d) accept these all-max corners as failing, reported.
+39. **How S3b's new rules were read (to confirm).**
+    - **I16's footprint:** the feet's outline (the wire's centreline) grown by one prong diameter, for the wire and the pad. A leg crossing from the gallery to its foot is outside that footprint by construction, so legs are judged by only coming in.
+    - **I15's band line:** the band's top 0.1 mm inside its flank, read from the band as built (`7ab1aec`).
+    - **The taper:** on 42 designs (0.25 ct stones) the wire sits at the gallery's height, the legs run straight down through the gallery, and the taper built (0.904–0.98, reported) is above the field's 0.90 maximum. Is that acceptable on small stones, or should the wire be pulled in there?
+40. **The I7 prong clamp thins 2 mm prongs a lot (S3b).** 2 → 1.45 mm on a 1 ct round with 2 mm asked; 1.3 on an oval; 1.25 on a marquise; 1.15 on the 0.25 ct all-max round; 1.85 on the all-max 1 and 3 ct rounds. All are reported with both numbers. The other way to hold I7 there is to let the pad grow past the footprint + d along the band (I16), which the prompt forbids. Confirm the clamp is the preferred trade.
+41. **The wire is 1.1 × max(prongDiameter, minWall) (S3b), not the prompt's 1.0.** At exactly the prong's thickness the legs meet the wire as an equal-radius T, which OCCT cannot fillet. Is 10% thicker acceptable?
+42. **I4 on 0.25 ct emeralds and an 8-prong 0.25 ct marquise (S3b, 6 rows, the regressions against S3).**
+    - The lower wire sits at the gallery's height (emerald: wire z 0.287, gallery z 0.401, overlapping by 2.09 mm³), so each leg ends inside the gallery's span instead of passing through it.
+    - Where it must also cross 0.5–0.55 mm off the gallery's centreline, the prong overlaps the gallery by 0.0062–0.0136 mm³, against I4's 0.02. In S3 it was 0.054.
+    - Every prong is fused to the wire, and the wire to the gallery.
+    - **Options:** (a) count the gallery and the wire it is fused to as one tie for I4 on such heads (an assertion change); (b) drop the lower wire where it meets the gallery and stand the prongs on the pad; (c) keep failing them.
+43. **Narrow bands cost more time (S3b, finding).** On a 1.2 mm band the warm preview is 180 ms (the budget, measured on the default ring, is 186), and resolve 3085 ms (default ring 1983.5, budget 2249.4). The seat reckoning and the prong clamp run there. Should the budgets also be held on a narrow band?
+44. **Foot flares held to almost nothing (S3b, from the review).** On 17 designs the feet's flare, held clear of the stone and culet, is 0.006–0.045 mm: in effect no blend, though I14 counts it as one. Mostly 1 ct emeralds (0.034) and 0.25 ct marquises (0.007), all settings. Should I14 ask for a blend of at least 0.10 mm (the Q29 floor) at every joint, which would fail these 17 until their feet are reworked?
+45. **I17 measures the wire and pad, not every non-prong metal below the gallery (S3b, from the review).** Left out: the base's flare where its fillet fails, the foot flares, and a cathedral's struts. It is the same formula as S3's reference, so like is compared with like. Should the reference be recomputed on S3's code with everything below the gallery that is not a prong?
 
 ## Progress
 
@@ -319,3 +365,38 @@ Animesh's answers to S3's questions, recorded before S3b started (each is also w
 - **Q35 confirmed:** culet before gallery gap. **Q36, Q37:** S7.
 
 Setter / caster questions 1–9 are still open; the bench defaults stay provisional.
+
+### S3b decisions — 2026-10-19
+
+Animesh's answers to the S3b stop report (resolve over budget; the all-max row's I7):
+- **Pad-to-band fillet: approved, at its cause.** First confirm what costs the time; if OCCT cannot fillet that edge, use the designed flare there, never an attempt that fails on every build; its own commit; then the three budgets again, headroom reported, stop if any is still over.
+- **All-max I7 shortfall: an engine clamp, not a plate.** Name the rows, the values that drive it and the numbers. No plate or washer; I7 not relaxed. A size-dependent engine clamp on the value that drives it (expected prongDiameter or basketTaper), reported in warnings with asked and delivered, as Q25's are. Never culetClearance or an alloy minimum. If no clamp makes I7 hold, grow that row's shoulders only, keeping I15, and report its head metal against I17; stop for a decision if I17 fails. Clamped rows listed in S3b.md.
+- **Commit the work in logical pieces first,** then finish S3b as written.
+
+What was found and done (details in S3b.md):
+- The resolve time was the pad-to-band joint: 0.54 s of the default ring's 2.29 s (a 68 ms fillet attempt that always failed, 24 ms finding its edges, then the flare's own fuse, about 0.4 s). OCCT cannot fillet that edge where the band's clip cuts the pad (32 of 32 rings). The joint is now always the designed flare, built into the pad (`0f721c3`). Resolve 2523.7 → 1984.4 ms warm.
+- The I7 rows: all-max 1 ct round, the pad's seat on the band 17.46 mm² against the prongs' 18.85 (d = 2 mm, basketTaper already at its 0.9 maximum, culetClearance 1.5). The value that drives it is prongDiameter: the seat must carry 6π(d/2)², which grows with d², while the pad's length along the band is held by the culet's gap inside and the footprint + d outside, which grow only with d. Clamped 2 → 1.85 mm (`5bcb27d`): seat 17.05 against 16.13. The shoulders did not need to grow.
+- The all-max 1 ct marquise is not an I7 case: its wire keeps no 1.5 mm culet gap at any taper up to 0.9 or any prong thickness down to the alloy's minimum (0.8 mm: 1.39 to 1.41 against 1.52). It is left as asked and reported; see open question 38.
+
+### S3b — 2026-10-19 — a basket head: tapered legs, a wire lower gallery, a pad flush with the band
+
+Status: **stopped for decisions** (q. 38, 42, 44); see `claude/tasks/S3b.md`. Commits `338c340`..HEAD.
+- **Built:**
+  - legs lean in below the gallery to a round wire at basketTaper (0.60);
+  - a pad from the wire into the band, flush with its flanks, its flare to the band built in;
+  - I15, I16, I17 and basketTaper's I13 bind.
+- **Resolve fixed:** the pad-to-band fillet never succeeded (the clip's corners), and its flare was fused on its own. Now it is built into the pad: 2523.7 → 1983.5 ms.
+- **I7 clamp (decided 19 Oct):** prongDiameter thinned where the pad's seat cannot carry the prongs, or the wire would touch the stone. Rows in S3b.md.
+- **Full audit** `--stage S3 --compare s3` at `87319c8`: 253 designs, 0 crashed, 15 binding failures on 9 rows, 6 regressions.
+  - I4 on six 0.25 ct rows (q. 42);
+  - the culet gap on the all-max marquise and 0.25 ct round, and one taper on the 3 ct all-max marquise (q. 38).
+  - Otherwise I6, I12, I14, I15 and I17 pass on 232 of 232 heads; I7 on 231; I16 on 230.
+- **Basket figures:**
+  - largest overhang 0.000 mm; the widest base 0.0205 mm inside its footprint;
+  - no foot fillet under 0.10 (95 at 0.30 or more, 6 between, 131 flared);
+  - Q32: 7 → 0; Q34: 60 → 0;
+  - default ring head metal 68.45 → 20.28 mm³, ring 5.74 → 4.70 g.
+- **Suites:** build passes; lint 103 + 4 (unchanged); test:cad 32/32; test:brep 62/62.
+- **Performance:** warm preview 161.5 / 186, resolve 1983.5 / 2249.4, cold 355.9 / 500.
+- **Review:** 12 findings. Two fixed (I16's opening, the audit's booleans); the tests committed; the rest recorded (q. 39, 40, 43–45).
+- **For Animesh:** q. 38–45 and setter q. 10. Setter questions 1–10 are open.
