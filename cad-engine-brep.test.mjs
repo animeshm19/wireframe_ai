@@ -12,8 +12,10 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import opencascade from "replicad-opencascadejs";
-import { setOC, measureVolume } from "replicad";
+import { setOC, measureVolume, measureDistanceBetween, makeVertex } from "replicad";
+import jscad from "@jscad/modeling";
 
 let mesh, brep, pick;
 
@@ -25,6 +27,34 @@ before(async () => {
   pick = await import("./.brepcheck/studio-pick.js");
   brep = await import("./.brepcheck/cad-engine-brep.js");
 });
+
+/**
+ * One design built in a Node process of its own, as the structure audit
+ * builds them. OCCT's heap only grows (see cad-engine-brep.ts), and since S3
+ * the merge fillets the head: a test that resolved two dozen rings in one
+ * process reached the WASM heap's 4 GB and aborted at the 19th, on a design
+ * that builds cleanly alone. `task` is "ring" (buildRing's metrics) or
+ * "audit" (auditStructure's record, without the STL and STEP).
+ */
+function isolated(task, spec) {
+  const code = `
+    import { readFileSync } from "node:fs";
+    import opencascade from "replicad-opencascadejs";
+    import { setOC } from "replicad";
+    setOC(await opencascade({ wasmBinary: readFileSync("node_modules/replicad-opencascadejs/dist/replicad_single.wasm") }));
+    const spec = JSON.parse(process.argv[1]);
+    const out = process.argv[2] === "ring"
+      ? (await import("./.brepcheck/cad-engine-brep.js")).buildRing(spec).metrics
+      : await (await import("./.brepcheck/structure-audit.js")).auditStructure(spec, { stl: false, step: false });
+    const json = JSON.stringify(out, (_k, v) => (typeof v === "number" && !Number.isFinite(v) ? { nonFinite: String(v) } : v));
+    process.stdout.write("\\n@@" + json + "\\n");
+    process.exit(0);`;
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", code, JSON.stringify(spec), task],
+    { encoding: "utf8", maxBuffer: 1 << 28 });
+  const line = (r.stdout ?? "").split("\n").find((l) => l.startsWith("@@"));
+  assert.ok(r.status === 0 && line, `${JSON.stringify(spec)}: ${task} failed in its own process (${r.status ?? r.signal})\n${(r.stderr ?? "").slice(-2000)}`);
+  return JSON.parse(line.slice(2), (_k, v) => (v && typeof v === "object" && "nonFinite" in v ? Number(v.nonFinite) : v));
+}
 
 const thick = (w) => Math.min(2.6, Math.max(1.2, w * 0.62));
 const innerRadius = (size) => (11.63 + size * 0.8128) / 2;
@@ -104,33 +134,43 @@ test("B-rep and mesh engines agree on every supported design", () => {
     for (const k of DIMS) {
       assert.equal(b[k], m[k], `${JSON.stringify(spec)} ${k}: ${b[k]} vs ${m[k]}`);
     }
-    const dv = Math.abs(b.volumeMm3 - m.volumeMm3) / m.volumeMm3 * 100;
     const ds = Math.abs(b.stoneVolumeMm3 - m.stoneVolumeMm3) / m.stoneVolumeMm3 * 100;
 
-    // The mesh engine tessellates curved profiles and runs 0.04-2% light, so it
-    // is the looser of the two. These bounds catch a kernel bug, not that gap.
+    // Metal: the BAND, compared directly, not the whole ring.
     //
-    // Halo and bezel are held to a wider bound because the two engines
-    // deliberately differ there, and the B-rep one is right. Both mesh versions
-    // were not castable:
+    // Changed in S1 of the ring-structure series (STRUCTURE-LOG.md,
+    // "Assertions changed"). The whole-ring bound was 5% (25% for halo and
+    // bezel). Since S1 the B-rep head is deliberately not the mesh head: the
+    // mesh head's prongs pass 0.64 mm³ each through the diamond and its culet
+    // sits 0.35 mm inside the band, and the frozen mesh engine keeps them that
+    // way as the reference. The default ring measured 7.8% apart once the
+    // B-rep head had seats, as-cast prongs and its culet clear, so a whole-
+    // ring bound now measures the intended redesign, not a kernel bug.
     //
-    //   halo  — the rail is a circle sized to the outline's MAXIMUM radius, so
-    //           on an oval it sails past the narrow ends without touching the
-    //           stones it carries, and nothing ties it to the centre at all.
-    //           The B-rep rail follows the outline and is carried on bearers.
-    //           Its seats are also exact rather than 12-sided and 4.5% light.
-    //   bezel — the seat floated inside the collar, touching neither it nor the
-    //           band: three separate solids. The B-rep version has a real
-    //           under-gallery flaring from the shank to the collar bore, which
-    //           is more metal because a ring that holds together IS more metal.
-    //
-    // Tightening these would mean copying those defects back in.
+    // The band is the same design in both engines, so it is compared on its
+    // own. The prompt asked for under 0.1%, and that holds only where the
+    // mesh section is exact. Measured, B-rep against mesh, default sizes:
+    //   flat −0.040%, knife −0.040%   the 128-step revolve alone
+    //   round −0.877%                  plus a 28-gon for the ellipse
+    //   comfort −2.027%                plus 14 straight runs for the dome
+    // (−2.011% to −2.032% across sizes 4 to 11 and widths 1.4 to 8 mm.) The
+    // B-rep band is exact against Pappus in "band volume matches closed form";
+    // the gap is the frozen engine's polygon, and tightening below it would
+    // mean editing the reference. So each profile gets the bound just above
+    // its measured gap.
+    const p = spec.bandProfile ?? "comfort";
+    const size = spec.ringSize ?? 6, w = spec.bandWidth ?? 2.5;
+    const innerR = innerRadius(size), t = thick(w);
+    const bandB = measureVolume(brep.buildBand(innerR, w, t, p));
+    const bandM = jscad.measurements.measureVolume(mesh.buildBand(innerR, w, t, p));
+    const db = Math.abs(bandB - bandM) / bandB * 100;
+    const bandLimit = { flat: 0.1, knife: 0.1, round: 0.95, comfort: 2.1 }[p];
+    assert.ok(db < bandLimit, `${JSON.stringify(spec)} band ${db.toFixed(3)}% (limit ${bandLimit}%)`);
+
     // three_stone and any shank stones exist only in the B-rep engine — the
     // mesh engine is frozen as the differential reference and builds neither,
-    // so it is compared on dimensions alone for those.
+    // so it is compared on dimensions and band alone for those.
     if (spec.setting === "three_stone" || spec.shankStones) continue;
-    const limit = spec.setting === "halo" || spec.setting === "bezel" ? 25 : 5;
-    assert.ok(dv < limit, `${JSON.stringify(spec)} metal ${dv.toFixed(1)}% (limit ${limit}%)`);
     assert.ok(ds < 1, `${JSON.stringify(spec)} stone ${ds.toFixed(1)}%`);
   }
 });
@@ -186,9 +226,14 @@ test("every design fuses into ONE connected solid", () => {
     // The combinations someone would actually order.
     { setting: "three_stone", shankStones: "pave" },
     { setting: "halo", shankStones: "half_eternity" },
+    // S2: the long stones whose interim rail missed prongs (oval dropped it,
+    // marquise came out in two pieces), at four prongs and six.
+    { gemShape: "oval", prongCount: 4 }, { gemShape: "oval", prongCount: 6 },
+    { gemShape: "pear", prongCount: 4 }, { gemShape: "pear", prongCount: 6 },
+    { gemShape: "marquise", prongCount: 4 }, { gemShape: "marquise", prongCount: 6 },
   ];
   for (const spec of cases) {
-    const { metrics } = brep.buildRing(spec);
+    const metrics = isolated("ring", spec);
     assert.equal(metrics.solidCount, 1,
       `${JSON.stringify(spec)} is ${metrics.solidCount} disconnected pieces — not castable`);
   }
@@ -320,9 +365,17 @@ test("shank styles change the metal they should", () => {
   assert.ok(vol("tapered") < plain, `tapered ${vol("tapered")} should be under plain ${plain}`);
   // A split shank has a slot cut out of it, so it must be lighter too.
   assert.ok(vol("split") < plain, `split ${vol("split")} should be under plain ${plain}`);
-  // A twist reorients the section without removing anything.
-  assert.ok(Math.abs(vol("twisted") - plain) / plain < 0.08,
-    `twisted ${vol("twisted")} should be close to plain ${plain}`);
+  // A twist reorients the section without removing anything. The band's
+  // own metal, since S3: the head's saddle fills down to the band, and on a
+  // twisted section the band's top is tilted under the head, so its saddle
+  // is the larger (82.0 mm³ against 60.5; the ring 296.3 against 267.5),
+  // which says nothing about the twist. The band alone: 172.25 against 170.40.
+  const band = (shankStyle) => {
+    const { metalParts, metalRoles } = brep.buildRingParts({ shankStyle });
+    return metalParts.reduce((t, s, i) => t + (metalRoles[i].role === "band" ? measureVolume(s) : 0), 0);
+  };
+  assert.ok(Math.abs(band("twisted") - band("plain")) / band("plain") < 0.08,
+    `twisted band ${band("twisted")} should be close to plain ${band("plain")}`);
 });
 
 test("STEP export is real boundary representation", async () => {
@@ -499,4 +552,631 @@ test("a lasso becomes the region the designer drew", () => {
   const tiny = pick.toRegions(sweep(100, 102), "metal", B)[0];
   assert.ok(deg(tiny.end) - deg(tiny.start) >= 12,
     `a tiny pick must be widened, got ${deg(tiny.start)}-${deg(tiny.end)}`);
+});
+
+/* ------------------------------------------------------------ roles (S0) */
+
+test("every part and stone carries a role, for every setting", () => {
+  // The structure audit asks questions of individual parts (how far does
+  // prong 3 sink into the band?), so it has to know which part is which.
+  // Parallel arrays: a length mismatch would silently label the wrong solid.
+  const cases = [
+    {}, { setting: "bezel" }, { setting: "halo" }, { setting: "cathedral" },
+    { setting: "three_stone" }, { shankStones: "pave" }, { shankStyle: "split" },
+    { setting: "three_stone", shankStones: "pave" }, { setting: "halo", gemShape: "marquise" },
+    { gemShape: "princess", prongCount: 4 }, { setting: "bezel", gemShape: "emerald" },
+  ];
+  for (const spec of cases) {
+    const p = brep.buildRingParts(spec);
+    const tag = JSON.stringify(spec);
+    assert.equal(p.metalRoles.length, p.metalParts.length, `${tag} metalRoles`);
+    assert.equal(p.stoneRoles.length, p.stones.length, `${tag} stoneRoles`);
+    assert.equal(p.metalRoles[0].role, "band", `${tag} band first`);
+    assert.equal(p.stoneRoles[0].role, "centre", `${tag} centre stone first`);
+    assert.equal(p.heads[0].head, "centre", `${tag} centre head first`);
+
+    const n = (role, head) => p.metalRoles.filter((r) => r.role === role && (!head || r.head === head)).length;
+    const setting = spec.setting ?? "prong";
+    if (setting === "bezel") {
+      assert.equal(n("collar"), 1, tag);
+      assert.equal(n("base"), 1, tag);
+      assert.equal(n("prong"), 0, tag);
+    } else {
+      assert.equal(n("prong", "centre"), spec.prongCount ?? 6, `${tag} prongs`);
+      assert.equal(n("gallery", "centre"), 1, `${tag} gallery`);
+      // Prong indices are 0..n-1 in order, matching the head's prong angles.
+      assert.deepEqual(p.metalRoles.filter((r) => r.role === "prong" && r.head === "centre").map((r) => r.index),
+        [...Array(spec.prongCount ?? 6).keys()]);
+      assert.equal(p.heads[0].prongAngles.length, spec.prongCount ?? 6);
+    }
+    if (setting === "halo") {
+      const halo = p.stoneRoles.filter((r) => r.role === "halo").length;
+      assert.ok(halo >= 10, tag);
+      assert.equal(n("halo-seat"), halo, `${tag} one seat per halo stone`);
+      assert.equal(n("halo-rail"), 1, tag);
+      assert.equal(n("bearer"), 4, tag);
+    }
+    if (setting === "cathedral") assert.equal(n("strut"), 2, tag);
+    if (setting === "three_stone") {
+      for (const h of ["side-left", "side-right"]) {
+        assert.equal(n("prong", h), 4, `${tag} ${h} prongs`);
+        assert.equal(n("gallery", h), 1, `${tag} ${h} gallery`);
+        assert.equal(p.stoneRoles.filter((r) => r.role === "side" && r.head === h).length, 1);
+        assert.ok(p.heads.some((f) => f.head === h), `${tag} ${h} frame`);
+      }
+    }
+    if (spec.shankStones) {
+      assert.ok(p.stoneRoles.filter((r) => r.role === "accent").length > 3, `${tag} accents`);
+    }
+    assert.ok(p.metalRoles.every((r) => r.role === "band" || r.head), `${tag} every head part names its head`);
+  }
+});
+
+test("each stone's recorded culet and axis are where the stone actually is", () => {
+  // The culet and axis are carried through the same placement steps as the
+  // solid. If they ever drift apart, every clearance the audit reports is
+  // measured from the wrong point. Two checks, both against the real solid:
+  // the culet lies on the stone, and nothing of the stone is below it.
+  for (const spec of [{}, { setting: "three_stone" }, { setting: "halo", gemShape: "pear" },
+    { shankStones: "pave" }, { gemShape: "emerald" }, { gemShape: "princess", setting: "bezel" }]) {
+    const p = brep.buildRingParts(spec);
+    p.stones.forEach((stone, i) => {
+      const { culet, axis, role } = p.stoneRoles[i];
+      const tag = `${JSON.stringify(spec)} stone ${i} (${role})`;
+      assert.ok(Math.abs(Math.hypot(...axis) - 1) < 1e-9, `${tag} axis is a unit vector`);
+      const d = measureDistanceBetween(makeVertex(culet), stone);
+      assert.ok(d < 1e-6, `${tag}: culet is ${d.toExponential(2)}mm off the stone`);
+      const v = stone.mesh({ tolerance: 0.05, angularTolerance: 30 }).vertices;
+      let lowest = Infinity;
+      for (let k = 0; k < v.length; k += 3) {
+        lowest = Math.min(lowest,
+          (v[k] - culet[0]) * axis[0] + (v[k + 1] - culet[1]) * axis[1] + (v[k + 2] - culet[2]) * axis[2]);
+      }
+      // Float32 mesh coordinates on a ~10mm ring: a few 1e-6 of rounding.
+      assert.ok(lowest > -1e-5, `${tag}: stone reaches ${lowest}mm below its culet`);
+    });
+    // The centre head's frame agrees with the centre stone's.
+    assert.deepEqual(p.heads[0].culet, p.stoneRoles[0].culet);
+    assert.deepEqual(p.heads[0].axis, p.stoneRoles[0].axis);
+  }
+});
+
+/* -------------------------------------------- the structure audit's tools */
+//
+// The audit is the source of truth for the whole ring-structure series, so
+// its instruments are proved against shapes whose answers are closed form
+// before any ring is measured with them.
+
+test("audit overlap and gap match closed form on two cylinders", async () => {
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const { makeCylinder } = await import("replicad");
+  const r = 1, h = 40;
+  // Two long cylinders crossing at right angles: the Steinmetz solid, 16r³/3.
+  const a = makeCylinder(r, h, [0, 0, -h / 2], [0, 0, 1]);
+  const b = makeCylinder(r, h, [-h / 2, 0, 0], [1, 0, 0]);
+  const steinmetz = (16 * r ** 3) / 3;
+  const got = audit.overlapVolume(a, b);
+  assert.ok(Math.abs(got - steinmetz) / steinmetz < 0.005, `Steinmetz ${got} vs ${steinmetz}`);
+
+  // Two parallel cylinders d apart overlap in a lens: area × height.
+  const d = 1.2, H = 3;
+  const c1 = makeCylinder(r, H, [0, 0, 0], [0, 0, 1]);
+  const c2 = makeCylinder(r, H, [d, 0, 0], [0, 0, 1]);
+  const lens = (2 * r * r * Math.acos(d / (2 * r)) - (d / 2) * Math.sqrt(4 * r * r - d * d)) * H;
+  const lensGot = audit.overlapVolume(c1, c2);
+  assert.ok(Math.abs(lensGot - lens) / lens < 0.005, `lens ${lensGot} vs ${lens}`);
+
+  // The same pair 2.7 apart: no overlap, and a 0.7 gap between the surfaces.
+  const c3 = makeCylinder(r, H, [2.7, 0, 0], [0, 0, 1]);
+  assert.equal(audit.overlapVolume(c1, c3), 0);
+  assert.ok(Math.abs(measureDistanceBetween(c1, c3) - 0.7) < 1e-6, "gap 0.7");
+  // Overlapping solids are 0 apart, which is what clearanceToStone relies on.
+  assert.ok(measureDistanceBetween(c1, c2) < 1e-9, "touching or overlapping is 0");
+
+  // One solid wholly inside another: the overlap is all of the smaller one.
+  const inner = makeCylinder(0.5, 1, [0, 0, 1], [0, 0, 1]);
+  const whole = audit.overlapVolume(inner, c1);
+  assert.ok(Math.abs(whole - Math.PI * 0.25) < 1e-6, `contained ${whole} vs ${Math.PI * 0.25}`);
+});
+
+test("audit signed depth is right inside and outside known solids", async () => {
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const { makeBox, makeSphere } = await import("replicad");
+  const box = makeBox([-5, -5, -5], [5, 5, 5]);
+  const near = (got, want, msg) => assert.ok(Math.abs(got - want) < 1e-6, `${msg}: ${got} vs ${want}`);
+  let r = audit.signedDepth([0, 0, 3.65], box);
+  assert.equal(r.inside, true);
+  near(r.depth, -1.35, "1.35 below the top face");
+  r = audit.signedDepth([1, -4.2, 0], box);
+  near(r.depth, -0.8, "nearest face, not the top");
+  r = audit.signedDepth([0, 0, 7], box);
+  assert.equal(r.inside, false);
+  near(r.depth, 2, "outside is positive");
+  r = audit.signedDepth([0, 0, 5], box);
+  near(r.depth, 0, "on the surface is 0");
+  // A culet inside a sphere, the curved case.
+  const ball = makeSphere(2).translate([1, 1, 1]);
+  r = audit.signedDepth([1, 1, 1.5], ball);
+  assert.equal(r.inside, true);
+  near(r.depth, -1.5, "0.5 from the centre of a radius-2 ball");
+  r = audit.signedDepth([1, 1, 4], ball);
+  near(r.depth, 1, "1 outside the ball");
+});
+
+test("STL checker: a closed cube, a hole and a sliver", async () => {
+  const { checkStl } = await import("./.brepcheck/stl-check.js");
+  const V = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+  const T = [
+    [0,2,1],[0,3,2], [4,5,6],[4,6,7], [0,1,5],[0,5,4],
+    [1,2,6],[1,6,5], [2,3,7],[2,7,6], [3,0,4],[3,4,7],
+  ];
+  const ascii = (tris) => "solid cube\n" + tris.map((t) =>
+    " facet normal 0 0 0\n  outer loop\n" + t.map((i) => `   vertex ${V[i].join(" ")}\n`).join("") +
+    "  endloop\n endfacet\n").join("") + "endsolid cube\n";
+  const binary = (tris) => {
+    const buf = Buffer.alloc(84 + tris.length * 50);
+    buf.write("solid but binary", 0);            // OCCT's headers say "solid" too
+    buf.writeUInt32LE(tris.length, 80);
+    tris.forEach((t, k) => t.forEach((i, j) => V[i].forEach((x, c) =>
+      buf.writeFloatLE(x, 84 + k * 50 + 12 + j * 12 + c * 4))));
+    return new Uint8Array(buf);
+  };
+
+  for (const enc of [ascii, binary]) {
+    const ok = checkStl(enc(T));
+    assert.equal(ok.format, enc === ascii ? "ascii" : "binary");
+    assert.equal(ok.triangles, 12);
+    assert.equal(ok.vertices, 8);
+    assert.equal(ok.edges, 18);
+    assert.equal(ok.edgesNot2, 0);
+    assert.equal(ok.zeroArea, 0);
+    assert.equal(ok.components, 1);
+    assert.equal(ok.watertight, true);
+
+    const holed = checkStl(enc(T.slice(1)));
+    assert.equal(holed.openEdges, 3, "a missing triangle leaves its three edges open");
+    assert.equal(holed.edgesNot2, 3);
+    assert.equal(holed.watertight, false);
+
+    // A zero-area triangle sharing two of the cube's corners: the kind OCCT
+    // leaves at a prong tip. Its edge 0-0 is used once and 0-2 four times.
+    const slivered = checkStl(enc([...T, [0, 0, 2]]));
+    assert.equal(slivered.zeroArea, 1);
+    assert.equal(slivered.triangles, 13);
+    assert.deepEqual(slivered.edgeUse, { 1: 1, 2: 17, 4: 1 });
+    assert.equal(slivered.components, 2, "the sliver is not part of the closed surface");
+    assert.deepEqual(slivered.componentSizes, [12, 1]);
+    assert.equal(slivered.edgesNot2IgnoringZeroArea, 0, "the cube itself is still closed");
+    assert.equal(slivered.watertight, false);
+  }
+});
+
+test("every cut builds at every carat the app accepts", () => {
+  // Every pear from 0.05 to 0.40ct used to throw "Failed to build the face":
+  // one facet was flat enough for the engine's planarity check and not for
+  // OCCT's. Found by the structure audit's full matrix (S0). Stones only, so
+  // one process is fine.
+  const sizes = [0.05, 0.1, 0.25, 0.3, 0.4, 0.5, 1, 3, 15];
+  for (const cut of ["round", "oval", "pear", "marquise", "cushion", "emerald", "princess"]) {
+    for (const ct of sizes) {
+      let v;
+      assert.doesNotThrow(() => { v = measureVolume(brep.buildGem(cut, mesh.girdleRadiusFor(cut, ct))); },
+        `${cut} at ${ct}ct`);
+      const want = (ct * 0.2) / 3.52 * 1000;
+      assert.ok(Math.abs(v - want) / want < 0.02, `${cut} at ${ct}ct weighs ${(v * 3.52 / 200).toFixed(3)}ct`);
+    }
+  }
+});
+
+/* ------------------------------------------------- seats and prongs (S1) */
+
+test("audit probe reads a known groove exactly", async () => {
+  // The bearing measurement is a straight line through the prong; proved
+  // first on a cylinder with a groove of known depth cut into it.
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const { makeCylinder, makeBox } = await import("replicad");
+  const grooved = makeCylinder(1, 3, [0, 0, 0], [0, 0, 1]).cut(makeBox([0.6, -2, 1], [2, 2, 1.5]));
+  const xs = (z) => audit.probeSpan(grooved, [-3, 0, z], [3, 0, z]).map((p) => p[0]);
+  const at = (z) => ({ lo: Math.min(...xs(z)), hi: Math.max(...xs(z)) });
+  const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
+  near(at(0.5).hi, 1, "plain cylinder face");
+  near(at(1.25).hi, 0.6, "groove floor");
+  near(at(0.5).hi - at(1.25).hi, 0.4, "groove depth");
+  near(at(0.5).hi - at(0.5).lo, 2, "diameter");
+  const up = audit.probeSpan(grooved, [0, 0, -1], [0, 0, 5]).map((p) => p[2]);
+  near(Math.max(...up), 3, "top");
+});
+
+test("the seat cutter contains the stone, for every cut", async () => {
+  // A cut by the envelope can only clear the stone if the stone is inside it.
+  // Proved here on the solids, at the default room and at none, and the room
+  // at the girdle measured: the envelope's edge along the girdle's normal is
+  // that far out.
+  const layout = await import("./.brepcheck/head-layout.js");
+  const audit = await import("./.brepcheck/structure-audit.js");
+  for (const cut of ["round", "oval", "pear", "marquise", "cushion", "emerald", "princess"]) {
+    const gR = mesh.girdleRadiusFor(cut, 1);
+    const st = layout.stoneProfile(cut, gR);
+    const stone = brep.buildGem(cut, gR);
+    for (const tol of [0.05, 0]) {
+      const env = brep.seatCutter(st, tol);
+      const outside = measureVolume(stone.clone().cut(env.clone()));
+      assert.ok(outside <= 1e-6, `${cut} tol ${tol}: ${outside} mm³ of stone outside the seat`);
+      if (tol > 0) {
+        assert.ok(measureDistanceBetween(stone, audit.skinOf(env)) > 0, `${cut}: the seat touches the stone`);
+        const z = (st.zGb + st.zGt) / 2;
+        for (const a of [0, 1, 2.5, 4]) {
+          const hit = layout.radialHit(st.girdle, a);
+          const g = [hit.r * Math.cos(a), hit.r * Math.sin(a)];
+          const far = (s) => Math.max(...audit.probeSpan(s, [0, 0, z], [g[0] * 3, g[1] * 3, z]).map((p) => Math.hypot(p[0], p[1])));
+          const gap = far(env) - far(stone);
+          // Along a ray, not the normal: never less than the room, a little
+          // more where the ray meets the girdle at a slant.
+          assert.ok(gap >= tol - 0.01, `${cut} at ${a} rad: ${gap.toFixed(4)} mm round the girdle`);
+        }
+      }
+    }
+  }
+});
+
+/** Audits a design without its files, and checks what S1 promises of its centre stone and prongs. */
+async function checkSeated(spec) {
+  const audit = await import("./.brepcheck/structure-audit.js");
+  const r = await audit.auditStructure(spec, { stl: false, step: false });
+  const tag = JSON.stringify(spec);
+  assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
+  // Judged against what the design asked for, not what the engine built.
+  const v = r.requested;
+  assert.ok(r.stones[0].overlapWithMetal <= 0.001, `${tag}: ${r.stones[0].overlapWithMetal} mm³ of metal in the stone`);
+  assert.ok(r.centre.culetClearance >= v.culetClearance - 0.01, `${tag}: culet ${r.centre.culetClearance}`);
+  const bs = r.bearings.filter((b) => b.head === "centre");
+  assert.equal(bs.length, spec.prongCount ?? 6, `${tag}: a bearing per prong`);
+  for (const b of bs) {
+    assert.ok(Math.abs(b.notch - (v.bearingDepth / 100) * b.expected.d) <= 0.02, `${tag} prong ${b.index}: seat ${b.notch}`);
+    assert.ok(Math.abs(b.top - b.expected.top) <= 0.05, `${tag} prong ${b.index}: top ${b.top} vs ${b.expected.top}`);
+    assert.ok(b.pavilionClearance >= v.pavilionClearance - 0.02, `${tag} prong ${b.index}: ${b.pavilionClearance} from the pavilion`);
+  }
+  return r;
+}
+
+test("seated: brilliant cuts on six prongs", async () => {
+  for (const gemShape of ["round", "oval", "pear", "marquise", "cushion"]) await checkSeated({ gemShape });
+});
+
+test("seated: step cuts on six prongs", async () => {
+  for (const gemShape of ["emerald", "princess"]) await checkSeated({ gemShape });
+});
+
+test("seated: round at 3, 4 and 8 prongs", async () => {
+  for (const prongCount of [3, 4, 8]) await checkSeated({ prongCount });
+});
+
+test("seated: round at 0.25 and 3 ct, and a three-stone's centre", async () => {
+  for (const spec of [{ gemSize: 0.25 }, { gemSize: 3 }, { setting: "three_stone" }]) await checkSeated(spec);
+});
+
+/** The bench fields wired so far, at a bound, must show in the geometry (I13). */
+async function checkBench(fields, more = () => {}) {
+  const { BENCH_MEASURES } = await import("./scripts/structure-invariants.mjs");
+  const std = await import("./.brepcheck/setting-standards.js");
+  for (const key of fields) {
+    for (const which of ["min", "max"]) {
+      const value = std.benchBounds(key, "platinum")[which];
+      const r = await checkSeated({ bench: { [key]: value } });
+      assert.ok(r.bench.customised.includes(key), `${key} ${which} reached the engine`);
+      const m = BENCH_MEASURES[key](r, r.requested[key]);
+      assert.ok(m.ok, `${key} at its ${which} (${value}): ${m.why}`);
+      more(r, { bench: { [key]: value } });
+    }
+  }
+}
+
+test("bench: seat depth and room round the stone reach the geometry", async () => {
+  await checkBench(["bearingDepth", "seatTolerance"]);
+});
+
+test("bench: culet gap and pavilion gap reach the geometry", async () => {
+  await checkBench(["culetClearance", "pavilionClearance"]);
+});
+
+test("bench: prong thickness and cast height reach the geometry", async () => {
+  await checkBench(["prongDiameter", "asCastProngHeight"]);
+});
+
+/**
+ * What S2 promises of the centre head's gallery. Height: half way down the
+ * pavilion (the rule of thirds), or lower by as much as hiding it under the
+ * girdle takes, and then said so (Animesh's decision, S2). Thickness: as
+ * asked, or thinner where the engine said hiding it needed that. Clear of
+ * the stone by the gap asked, through every prong, and not seen from above.
+ */
+function checkGallery(r, spec) {
+  const tag = JSON.stringify(spec);
+  const g = r.galleries.find((x) => x.head === "centre");
+  assert.ok(g, `${tag}: a centre gallery`);
+  const v = r.requested;
+  assert.ok(Math.abs(g.centreHeightAboveCulet - g.planHeight) <= 0.05, `${tag}: gallery at ${g.centreHeightAboveCulet}, laid out at ${g.planHeight}`);
+  assert.ok(g.planHeight <= g.ruleOfThirdsHeight + 1e-6, `${tag}: gallery above the rule of thirds`);
+  if (g.ruleOfThirdsHeight - g.planHeight > 0.05) assert.ok(g.loweredReported, `${tag}: lowered ${g.lowered} mm without saying so`);
+  else assert.ok(Math.abs(g.centreHeightAboveCulet - g.ruleOfThirdsHeight) <= 0.05, `${tag}: gallery at ${g.centreHeightAboveCulet}, rule ${g.ruleOfThirdsHeight}`);
+  const t = g.thinnedReported ? g.bench.galleryThickness : v.galleryThickness;
+  if (!g.thinnedReported) assert.equal(g.bench.galleryThickness, v.galleryThickness, `${tag}: thinned without saying so`);
+  assert.ok(Math.abs(g.thicknessEstimate - t) <= 0.02, `${tag}: gallery ${g.thicknessEstimate} thick, wants ${t}`);
+  assert.ok(g.inStone <= 0.001, `${tag}: ${g.inStone} mm³ of gallery in the stone`);
+  assert.ok(g.clearanceToStone >= v.galleryClearance - 0.02 && g.clearanceToStone <= v.galleryClearance + 0.10,
+    `${tag}: gallery ${g.clearanceToStone} from the stone, wants ${v.galleryClearance - 0.02} to ${v.galleryClearance + 0.10}`);
+  const prongs = r.prongs.filter((p) => p.head === "centre");
+  for (const p of prongs) assert.ok(p.inGallery >= 0.02, `${tag} prong ${p.index}: ${p.inGallery} mm³ in the gallery`);
+  assert.equal(g.prongsTouched, g.prongCount, `${tag}: every prong through the gallery`);
+  assert.ok(g.beyondGirdle <= 0, `${tag}: gallery reaches ${g.beyondGirdle} mm beyond the girdle`);
+  return g;
+}
+
+test("gallery: brilliant cuts on six prongs", async () => {
+  for (const gemShape of ["round", "oval", "pear", "marquise", "cushion"]) checkGallery(await checkSeated({ gemShape }), { gemShape });
+});
+
+test("gallery: step cuts on six prongs", async () => {
+  for (const gemShape of ["emerald", "princess"]) checkGallery(await checkSeated({ gemShape }), { gemShape });
+});
+
+test("gallery: round at 3, 4 and 8 prongs", async () => {
+  for (const prongCount of [3, 4, 8]) checkGallery(await checkSeated({ prongCount }), { prongCount });
+});
+
+test("gallery: round at 0.25 and 3 ct", async () => {
+  for (const gemSize of [0.25, 3]) checkGallery(await checkSeated({ gemSize }), { gemSize });
+});
+
+test("bench: gallery gap and wire thickness reach the geometry", async () => {
+  // At its min and its max each, on the default ring, with everything S1
+  // promises still holding (checkSeated) and the gallery's own checks.
+  await checkBench(["galleryClearance", "galleryThickness"], checkGallery);
+});
+
+test("the gallery is one valid solid of its analytic volume, and clear of the seat", async () => {
+  // galleryWire checks its own volume and throws; the merge path cuts it by
+  // the whole seat envelope and throws if that takes more than 0.001 mm³.
+  const { getOC } = await import("replicad");
+  const layout = await import("./.brepcheck/head-layout.js");
+  for (const gemShape of ["round", "oval", "pear", "marquise", "emerald"]) {
+    const parts = brep.buildRingParts({ gemShape }, { seats: true });
+    const i = parts.metalRoles.findIndex((r) => r.role === "gallery" && r.head === "centre");
+    const g = parts.metalParts[i];
+    const plan = parts.heads.find((h) => h.head === "centre").layout.gallery;
+    const n = plan.path.length;
+    const L = plan.path.reduce((t, p, k) => t + Math.hypot(plan.path[(k + 1) % n][0] - p[0], plan.path[(k + 1) % n][1] - p[1]), 0);
+    const want = Math.PI * (plan.t / 2) ** 2 * L;
+    assert.equal(g.solids.length, 1, `${gemShape}: one solid`);
+    assert.ok(new (getOC().BRepCheck_Analyzer)(g.wrapped, true, false).IsValid(), `${gemShape}: valid`);
+    assert.ok(Math.abs(measureVolume(g) - want) <= want * 0.01, `${gemShape}: ${measureVolume(g)} mm³ against ${want}`);
+    // Its centreline is convex, as the outline it follows is.
+    assert.ok(layout.isConvex(plan.path), `${gemShape}: gallery path convex`);
+  }
+});
+
+test("every cut's outline is convex, and so is its gallery, which never turns tighter than the wire", async () => {
+  // The gallery is the girdle outline set outward, which can only fold where
+  // the outline is not convex: this is what makes the outward offset safe.
+  // Its corners are bevelled where the outline turns sharply (S2), and a
+  // bevel shorter than the wire's mitres need folds the tube's inner side,
+  // which the volume check cannot see.
+  const layout = await import("./.brepcheck/head-layout.js");
+  const cuts = ["round", "oval", "pear", "marquise", "cushion", "emerald", "princess"];
+  for (const cut of cuts) {
+    for (const carat of [0.25, 1, 3]) {
+      const R = mesh.girdleRadiusFor(cut, carat);
+      assert.ok(layout.isConvex(layout.stoneProfile(cut, R).girdle), `${cut} ${carat} ct: outline convex`);
+    }
+    const plan = brep.buildRingParts({ gemShape: cut }).heads.find((h) => h.head === "centre").layout.gallery;
+    assert.ok(layout.isConvex(plan.path), `${cut}: gallery path convex`);
+    for (let k = 0; k < plan.path.length; k++) {
+      assert.ok(layout.tubeSideFits(plan.path, k, plan.t / 2), `${cut}: gallery side ${k} long enough for the wire to turn`);
+    }
+  }
+});
+
+test("three-stone side heads keep clear of the centre stone and its culet", async () => {
+  // Side heads' cast prongs stand tall; at 3 ct, or with 2 mm prongs and a
+  // 1.5 mm culet gap, they reached the centre stone and came within 0.97 mm
+  // of its culet. The side stones open out until they clear (S1).
+  const std = await import("./.brepcheck/setting-standards.js");
+  const max = Object.fromEntries(std.BENCH_FIELDS.map((f) => [f.key, std.benchBounds(f.key, "platinum").max]));
+  for (const spec of [{ setting: "three_stone", gemSize: 3 }, { setting: "three_stone", bench: max }]) {
+    await checkSeated(spec);
+  }
+});
+
+test("the merge leaves no sealed cavity and exports one manifold solid", async () => {
+  // Near-tangent contacts sealed specks of air inside the metal (a 1 ct
+  // cushion halo, a marquise halo), which STEP writes as a solid with voids.
+  const { iterTopo } = await import("replicad");
+  for (const spec of [{ setting: "halo", gemShape: "cushion" }, { setting: "halo", gemShape: "marquise" }]) {
+    const { metal } = brep.fuseMetal(brep.buildRingParts(spec, { seats: true }).metalParts);
+    assert.equal(metal.solids.length, 1, `${JSON.stringify(spec)} one solid`);
+    assert.equal([...iterTopo(metal.wrapped, "shell")].length, 1, `${JSON.stringify(spec)} one shell, no voids`);
+    const text = await brep.toSTEP(metal, null).text();
+    assert.equal((text.match(/MANIFOLD_SOLID_BREP/g) || []).length, 1, `${JSON.stringify(spec)} STEP manifold solid`);
+    assert.equal((text.match(/BREP_WITH_VOIDS/g) || []).length, 0, `${JSON.stringify(spec)} no voids in STEP`);
+  }
+});
+
+/**
+ * What S3 promises of the centre head: every prong stands in the base and
+ * none in the band (I6), the joint just above the band is at least the
+ * prongs' own section (I7), the base's section is at least a prong's or the
+ * alloy's minimum wall (I12), and every joint is blended (I14), with the
+ * radius measured the one laid out (I13's measure for filletRadius).
+ */
+async function checkBase(spec) {
+  const { INVARIANTS, BENCH_MEASURES } = await import("./scripts/structure-invariants.mjs");
+  const r = isolated("audit", spec);
+  const tag = JSON.stringify(spec);
+  assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
+  for (const id of ["I6", "I7", "I12", "I14"]) {
+    const res = INVARIANTS.find((x) => x.id === id).evaluate(r, spec, { stage: "S3" });
+    assert.equal(res.status, "PASS", `${tag} ${id}: ${res.detail}`);
+  }
+  const m = BENCH_MEASURES.filletRadius(r, r.requested.filletRadius);
+  assert.ok(m.ok, `${tag}: blends ${m.why}`);
+  assert.equal(r.solidCount, 1, `${tag}: one solid`);
+  return r;
+}
+
+test("base: prongs in the base and not the band, the joint, the base's section, on every profile", async () => {
+  for (const bandProfile of ["comfort", "flat", "knife", "round"]) await checkBase({ bandProfile });
+});
+
+test("base: on the narrowest band with each profile", async () => {
+  for (const bandProfile of ["comfort", "flat", "knife", "round"]) await checkBase({ bandWidth: 1.2, bandProfile });
+});
+
+test("base: on split, tapered and twisted shanks, a wide band and a region edit under the head", async () => {
+  for (const spec of [{ shankStyle: "split" }, { bandWidth: 1.2, shankStyle: "split" }, { shankStyle: "tapered" },
+    { shankStyle: "twisted" }, { bandWidth: 8 }, { regions: [{ start: 1.25, end: 1.9, thicknessScale: 0.75 }] }]) {
+    await checkBase(spec);
+  }
+});
+
+test("base: fancy cuts, small and large stones, and the other prong settings", async () => {
+  for (const spec of [{ gemShape: "marquise" }, { gemShape: "emerald" }, { gemShape: "pear" }, { gemSize: 0.25 }, { gemSize: 3 },
+    { setting: "halo" }, { setting: "cathedral" }, { setting: "three_stone" }]) {
+    await checkBase(spec);
+  }
+});
+
+test("bench: the rounding where parts meet reaches the geometry", async () => {
+  // At its min and its max. Past what the parts can take it is held, and
+  // said so with both numbers (the measure accepts only a reported hold).
+  const std = await import("./.brepcheck/setting-standards.js");
+  for (const which of ["min", "max"]) {
+    const r = await checkBase({ bench: { filletRadius: std.benchBounds("filletRadius", "platinum")[which] } });
+    assert.ok(r.bench.customised.includes("filletRadius"), `filletRadius ${which} reached the engine`);
+  }
+});
+
+test("the head leaves the finger bore as it was, on every band", async () => {
+  // The bore is the ring size. The base, saddle and blends must neither add
+  // metal inside it nor take any from round it: the metal within 0.05 mm
+  // outside the bore, over the band's width, is the band's own, to 0.1%.
+  const { makeCylinder } = await import("replicad");
+  const variants = [{}, { bandProfile: "flat" }, { bandProfile: "knife" }, { bandProfile: "round" },
+    { bandWidth: 1.2 }, { bandWidth: 8 }, { shankStyle: "split" }, { shankStyle: "tapered" }, { shankStyle: "twisted" },
+    { regions: [{ start: 1.25, end: 1.9, thicknessScale: 0.75 }] }];
+  for (const spec of variants) {
+    const tag = JSON.stringify(spec);
+    const r = brep.resolveRing(spec);
+    const band = brep.buildRingParts(spec, { seats: true }).metalParts[0];
+    const metrics = brep.ringMetrics(r.metal, r.parts.stones, r.parts.dims);
+    const innerR = r.parts.dims.innerR, w = r.parts.dims.bandWidth;
+    assert.equal(metrics.innerDiameter, +(innerR * 2).toFixed(2), `${tag}: inner diameter`);
+    const shell = () => makeCylinder(innerR + 0.05, w + 2, [0, 0, -(w + 2) / 2]).cut(makeCylinder(innerR - 0.05, w + 4, [0, 0, -(w + 4) / 2]));
+    const ofRing = measureVolume(r.metal.intersect(shell())), ofBand = measureVolume(band.intersect(shell()));
+    assert.ok(Math.abs(ofRing - ofBand) <= ofBand * 0.001, `${tag}: metal by the bore ${ofRing} mm³ against the band's ${ofBand}`);
+  }
+});
+
+test("light reaches the pavilion: under the stone only prongs and the gallery", async () => {
+  // Seen from the side, between the base and the girdle a basket is open.
+  // The merged metal cut at the gallery's height, and half way down to the
+  // base where there is daylight between them: every piece of that section
+  // is a piece of the gallery's and prongs' own (with a foot's blend, which
+  // can rise to there on a small stone, on it), nothing stands alone, as a
+  // wall would, and the whole is no more than a quarter again of theirs.
+  const { makeFace, assembleWire, makeCircle, measureArea } = await import("replicad");
+  for (const spec of [{}, { gemShape: "oval" }, { gemShape: "emerald" }, { gemSize: 0.25 }, { bandWidth: 1.2 }]) {
+    const tag = JSON.stringify(spec);
+    const r = brep.resolveRing(spec);
+    const fresh = brep.buildRingParts(spec, { seats: true });
+    const h = fresh.heads[0], g = h.layout.gallery, b = h.layout.base;
+    const heights = [g.z];
+    if (b.zTop < g.z - g.t / 2) heights.push((b.zTop + g.z - g.t / 2) / 2);
+    const basket = brep.fuseMetal(fresh.metalParts.filter((_, i) => ["gallery", "prong"].includes(fresh.metalRoles[i].role) && fresh.metalRoles[i].head === "centre")).metal;
+    for (const z of heights) {
+      const at = [h.culet[0] + h.axis[0] * z, h.culet[1] + h.axis[1] * z, h.culet[2] + h.axis[2] * z];
+      const disc = () => makeFace(assembleWire([makeCircle(h.girdleR * 1.5, at, h.axis)]));
+      const all = r.metal.intersect(disc()), own = basket.intersect(disc());
+      assert.ok(measureArea(own) > 0, `${tag} at ${z.toFixed(3)}: the basket is cut`);
+      for (const f of all.faces) {
+        assert.ok(measureArea(own.intersect(f)) > 1e-6, `${tag} at ${z.toFixed(3)} mm: a piece of metal there (${measureArea(f).toFixed(3)} mm²) is not the gallery's or a prong's`);
+      }
+      // And no more than a quarter again of theirs: the feet's blends (the
+      // most, on a 0.25 ct stone, 14%), not a wall grown on them.
+      assert.ok(measureArea(all) <= 1.25 * measureArea(own), `${tag} at ${z.toFixed(3)} mm: ${measureArea(all)} mm² of metal, the basket's ${measureArea(own)}`);
+    }
+  }
+});
+
+/**
+ * What S3b promises of the head below the stone: flush with the band at the
+ * joint's front, middle and back (I15), and a basket, not a plate (I16): the
+ * wire and pad within the feet's footprint grown by one prong, the legs only
+ * coming in, the base open round the culet.
+ */
+async function checkBasket(spec) {
+  const { INVARIANTS } = await import("./scripts/structure-invariants.mjs");
+  const r = isolated("audit", spec);
+  const tag = JSON.stringify(spec);
+  assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
+  for (const id of ["I15", "I16"]) {
+    const res = INVARIANTS.find((x) => x.id === id).evaluate(r, spec, { stage: "S3" });
+    assert.equal(res.status, "PASS", `${tag} ${id}: ${res.detail}`);
+  }
+  assert.ok(r.basket.overhang <= 0.05, `${tag}: ${r.basket.overhang} mm beyond the flank at ${r.basket.overhangAt}`);
+  return r;
+}
+
+// Every profile, and the split and tapered shanks, at each width (one test
+// a width: the suite runs a test per process, see run-brep-tests.mjs).
+async function checkBasketWidth(bandWidth) {
+  for (const bandProfile of ["comfort", "flat", "knife", "round"]) await checkBasket({ bandWidth, bandProfile });
+  for (const shankStyle of ["split", "tapered"]) await checkBasket({ bandWidth, shankStyle });
+}
+
+test("basket: flush with a 1.2 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(1.2);
+});
+
+test("basket: flush with a 1.6 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(1.6);
+});
+
+test("basket: flush with a 2.5 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(2.5);
+});
+
+test("basket: flush with a 6 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(6);
+});
+
+test("basket: flush with a 8 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(8);
+});
+
+test("basket: the default ring's head metal is less than S3's", async () => {
+  // The base and joint less the band (I17), against the figure measured on
+  // S3's code (structure-head-metal-s3.json, 68.4458 mm³): at most 1% over,
+  // and S3b's basket clearly less (20.16 mm³ when written).
+  const ref = JSON.parse(readFileSync("claude/tasks/structure-head-metal-s3.json", "utf8")).designs["{}"].headMetal;
+  const r = await checkBasket({});
+  assert.ok(Number.isFinite(r.basket.headMetal), "head metal measured");
+  assert.ok(r.basket.headMetal <= ref * 1.01, `head metal ${r.basket.headMetal} mm³ against S3's ${ref}`);
+  assert.ok(r.basket.headMetal <= 0.5 * ref, `head metal ${r.basket.headMetal} mm³ is not clearly less than S3's ${ref}`);
+});
+
+test("no prong foot is filleted under 0.10 mm: it is flared instead", async () => {
+  // Animesh, q. 29: the feet's fillet may be held under filletRadius, never
+  // under 0.10 mm; where it would be, the feet are flared. Small stones,
+  // thin and thick prongs, the least rounding.
+  const std = await import("./.brepcheck/setting-standards.js");
+  const least = std.benchBounds("filletRadius", "platinum").min;
+  for (const spec of [{}, { gemSize: 0.25 }, { bench: { filletRadius: least } }, { bench: { prongDiameter: 2 } },
+    { bench: { prongDiameter: std.benchBounds("prongDiameter", "platinum").min } }, { gemShape: "marquise", prongCount: 4 }]) {
+    const tag = JSON.stringify(spec);
+    const r = isolated("audit", spec);
+    const planned = r.blend.planned.feet, path = r.blend.paths.feet, m = r.blend.measured.feet;
+    assert.ok(planned === 0 || planned >= 0.10 - 1e-9, `${tag}: feet laid out at ${planned} mm`);
+    assert.ok(path === "fillet" || path === "flare", `${tag}: feet ${path}`);
+    if (path === "fillet") assert.ok(m && m.min >= 0.10 - 0.005, `${tag}: a foot filleted at ${m?.min} mm`);
+  }
 });

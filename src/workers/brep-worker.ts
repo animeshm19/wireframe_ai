@@ -15,7 +15,7 @@
  */
 import wasmUrl from "replicad-opencascadejs/wasm?url";
 import {
-  buildRingParts, previewMesh, previewEdges, fuseMetal, ringMetrics, toSTEP, toSTL,
+  buildRingParts, previewMesh, previewEdges, resolveRing, ringMetrics, toSTEP, toSTL,
   initKernel,
   kernelHeapMB,
   type RingDims,
@@ -25,6 +25,13 @@ import type { Shape3D } from "replicad";
 
 /** The engine owns the kernel; the worker only says where the wasm lives. */
 const boot = (): Promise<void> => initKernel(() => wasmUrl);
+
+// Boot as soon as the worker exists, not on its first message. useBrepWorker
+// spawns a replacement in an idle moment; booting then (and warming the
+// kernel's code, see warmKernel) keeps both off the next slider movement,
+// which would otherwise wait for boot, warm-up and build together. A failed
+// boot is not lost: the first message awaits the same promise and reports it.
+boot().catch(() => {});
 
 const report = (progress: number, stage: string) =>
   self.postMessage({ type: "PROGRESS", progress, stage });
@@ -70,11 +77,11 @@ self.onmessage = async (e: MessageEvent) => {
 
     if (type === "RESOLVE") {
       report(20, "Rebuilding");
-      // seats: true — the merge is where pavé seats get cut. The preview skips
-      // them because they cost seconds and sit under the stones anyway.
-      const { metalParts, stones, dims } = buildRingParts(params, { seats: true });
+      // The merge is where pavé seats get cut (the preview skips them: they
+      // cost seconds and sit under the stones anyway), and where the head's
+      // joints are blended (S3; the preview shows them unrounded).
       report(45, "Merging solids");
-      const { metal, dropped } = fuseMetal(metalParts);
+      const { metal, dropped, parts: { stones, dims } } = resolveRing(params);
       report(85, "Measuring");
       const metrics = ringMetrics(metal, stones, dims as RingDims);
       const issues = checkManufacturability(params, metrics as any);
