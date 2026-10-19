@@ -30,8 +30,8 @@ import {
 } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import {
-  baseFlareProfile, envelopeFaces, filletArc, FLARE_NARROW, hullPlanes, padBuilt, padFaceDistance, padProfile, shankFlareProfile, wireDistance, layoutHead, matchingProng, polygonDistance, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
-  type BandProbe, type BasePlan, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type Rounded, type StoneProfile,
+  baseFlareProfile, envelopeFaces, filletArc, FLARE_NARROW, hullPlanes, padBuilt, padFaceDistance, shankFlareProfile, wireDistance, layoutHead, matchingProng, radialHit, roundedPoints, roundedSegments, spineFits, stepCutStations, stoneProfile, tubeSideFits,
+  type BandProbe, type BasePlan, type HalfSpace, type HeadLayout, type V2, type LayoutOptions, type ProngPlan, type StoneProfile,
 } from "./head-layout.js";
 
 // ------------------------------------------------------------------ kernel --
@@ -1198,44 +1198,6 @@ function cutSeat(part: Shape3D, cutter: Shape3D, what: string, mayMiss = false):
     throw new Error(`seat cut on ${what} failed: ${before.toFixed(4)} → ${after.toFixed(4)} mm³, ${solids} solid(s)`);
   }
   return out;
-}
-
-/**
- * A rounded outline as a closed wire of its exact lines and arcs, at height
- * z; reversed, for a face's inner wire.
- *
- * Not one spline through it: fewer faces, but replicad's volume and area of
- * a solid bounded by a long periodic spline came out up to 6% wrong, by an
- * amount that moved with the spline's pole count (S3), and every boolean
- * check in this file rests on those volumes. Lines and arcs extrude to planes
- * and cylinders, which it measures exactly.
- */
-function roundedWire(o: Rounded, z: number, reverse = false): Wire {
-  const at = (p: V2): V3 => [p[0], p[1], z];
-  const edges = roundedSegments(o).map((sg) => sg.kind === "line"
-    ? (reverse ? makeLine(at(sg.b), at(sg.a)) : makeLine(at(sg.a), at(sg.b)))
-    : (reverse ? makeThreePointArc(at(sg.b), at(sg.m), at(sg.a)) : makeThreePointArc(at(sg.a), at(sg.m), at(sg.b))));
-  return assembleWire(reverse ? edges.reverse() : edges);
-}
-
-/** Area of a rounded outline: the core's, its perimeter times r, and a disc of r. */
-function roundedArea(o: Rounded): number {
-  const K = o.core;
-  if (K.length === 1) return Math.PI * o.r * o.r;
-  let a = 0, per = 0;
-  for (let i = 0; i < K.length; i++) {
-    const p = K[i], q = K[(i + 1) % K.length];
-    a += p[0] * q[1] - q[0] * p[1];
-    per += Math.hypot(q[0] - p[0], q[1] - p[1]);
-  }
-  return Math.abs(a) / 2 + per * o.r + Math.PI * o.r * o.r;
-}
-
-/** A rounded outline at height z: a circle on a round stone (a cylinder fuses fastest of all), else its lines and arcs. */
-function outlineLoop(o: Rounded, z: number, reverse = false): Wire {
-  return o.core.length === 1
-    ? assembleWire([makeCircle(o.r, [o.core[0][0], o.core[0][1], z], [0, 0, reverse ? -1 : 1])])
-    : roundedWire(o, z, reverse);
 }
 
 /**

@@ -2249,19 +2249,6 @@ function flankAt(band: BandProbe, x: number, side: 1 | -1): { edge: number; top:
   return null;
 }
 
-/** The band's top under (x, y), or under the nearest rail across a split shank's slot. */
-function topNear(band: BandProbe, x: number, y: number): number | null {
-  const b = band.at(x, y);
-  if (b) return b.top;
-  for (let k = 1; k <= 120; k++) {
-    for (const s of [1, -1]) {
-      const c = band.at(x, y + s * k * 0.01);
-      if (c) return c.top;
-    }
-  }
-  return null;
-}
-
 /**
  * The lower gallery and the pad under it, for one taper. See BasePlan.
  * `ok` is false where the wire cannot keep pavilionClearance from the stone
@@ -2638,8 +2625,8 @@ function layoutLeg(
     // plateau and the base's top, the disc's room the same above and below
     // (just under the top, a 2 mm prong's legs on a 2 mm base had no length
     // left to bend in: all-max marquise, S3). footOut holds the disc inside.
-    const onBase = (_tilt: number) => base!.z;
-    let foot: V3 = [fxy[0], fxy[1], base ? onBase(0) : band.topOnAxis - 0.45];
+    const onBase = () => base!.z;
+    let foot: V3 = [fxy[0], fxy[1], base ? onBase() : band.topOnAxis - 0.45];
     let knee: V3 = W;
     let used = bend;
     let fits = true;
@@ -2652,8 +2639,8 @@ function layoutLeg(
       const t2 = straight ? 0 : used * kneeTan(u, foot, knee);
       knee = add(W, scale(u, wrap * through(u) + t2));
       const tilt = Math.acos(Math.min(1, Math.max(-1, -unitV(sub(foot, straight ? W : knee))[2])));
-      if (straight) foot = add(W, scale(u, (W[2] - onBase(tilt)) / Math.max(1e-9, -u[2])));
-      else if (base) foot = [fxy[0], fxy[1], onBase(tilt)];
+      if (straight) foot = add(W, scale(u, (W[2] - onBase()) / Math.max(1e-9, -u[2])));
+      else if (base) foot = [fxy[0], fxy[1], onBase()];
       else if (probe) {
         // Seven tenths of the way through the band, never nearer its bore
         // than 0.15 mm (OCCT fuses a buried end seven times faster, S1).
@@ -2694,8 +2681,7 @@ function layoutLeg(
     const start = kick > 0 ? midOf(cz) : corner;
     const u = unitV(sub(W, start));
     if (straight) {
-      const tilt = Math.acos(Math.min(1, Math.max(-1, -u[2])));
-      foot = add(W, scale(u, (W[2] - onBase(tilt)) / Math.max(1e-9, -u[2])));
+      foot = add(W, scale(u, (W[2] - onBase()) / Math.max(1e-9, -u[2])));
     } else {
       for (let k = 0; k < 3; k++) {
         const t2 = used * kneeTan(u, foot, knee);

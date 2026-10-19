@@ -28,7 +28,7 @@ import {
   type PartRole, type StoneRole, type HeadFrame, type HeadName, type BlendJoint, type BlendPath,
 } from "./cad-engine-brep.js";
 import { gemDims } from "./cad-engine.js";
-import { centrelineOffset, padProfile, polygonDistance, radialHit, roundedPoints, spineSamples } from "./head-layout.js";
+import { centrelineOffset, padProfile, radialHit, roundedPoints, spineSamples } from "./head-layout.js";
 import { benchBounds, resolveBench, type BenchValues, type ResolvedBench } from "./setting-standards.js";
 import { MANUFACTURING_LIMITS, type MetalType } from "./ring-spec.js";
 import { checkStl, type StlCheck } from "./stl-check.js";
@@ -1095,13 +1095,3 @@ function measureBasket(
   };
 }
 
-function convexHull2(pts: [number, number][]): [number, number][] {
-  const P = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const turn = (o: [number, number], a: [number, number], c: [number, number]) => (a[0] - o[0]) * (c[1] - o[1]) - (a[1] - o[1]) * (c[0] - o[0]);
-  const half = (list: [number, number][]) => {
-    const h: [number, number][] = [];
-    for (const p of list) { while (h.length >= 2 && turn(h[h.length - 2], h[h.length - 1], p) <= 1e-12) h.pop(); h.push(p); }
-    return h;
-  };
-  return [...half(P).slice(0, -1), ...half([...P].reverse()).slice(0, -1)];
-}
