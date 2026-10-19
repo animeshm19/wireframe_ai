@@ -1106,3 +1106,77 @@ test("light reaches the pavilion: under the stone only prongs and the gallery", 
     }
   }
 });
+
+/**
+ * What S3b promises of the head below the stone: flush with the band at the
+ * joint's front, middle and back (I15), and a basket, not a plate (I16): the
+ * wire and pad within the feet's footprint grown by one prong, the legs only
+ * coming in, the base open round the culet.
+ */
+async function checkBasket(spec) {
+  const { INVARIANTS } = await import("./scripts/structure-invariants.mjs");
+  const r = isolated("audit", spec);
+  const tag = JSON.stringify(spec);
+  assert.deepEqual(r.errors, [], `${tag}: measurement errors`);
+  for (const id of ["I15", "I16"]) {
+    const res = INVARIANTS.find((x) => x.id === id).evaluate(r, spec, { stage: "S3" });
+    assert.equal(res.status, "PASS", `${tag} ${id}: ${res.detail}`);
+  }
+  assert.ok(r.basket.overhang <= 0.05, `${tag}: ${r.basket.overhang} mm beyond the flank at ${r.basket.overhangAt}`);
+  return r;
+}
+
+// Every profile, and the split and tapered shanks, at each width (one test
+// a width: the suite runs a test per process, see run-brep-tests.mjs).
+async function checkBasketWidth(bandWidth) {
+  for (const bandProfile of ["comfort", "flat", "knife", "round"]) await checkBasket({ bandWidth, bandProfile });
+  for (const shankStyle of ["split", "tapered"]) await checkBasket({ bandWidth, shankStyle });
+}
+
+test("basket: flush with a 1.2 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(1.2);
+});
+
+test("basket: flush with a 1.6 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(1.6);
+});
+
+test("basket: flush with a 2.5 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(2.5);
+});
+
+test("basket: flush with a 6 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(6);
+});
+
+test("basket: flush with a 8 mm band, every profile, split and tapered", async () => {
+  await checkBasketWidth(8);
+});
+
+test("basket: the default ring's head metal is less than S3's", async () => {
+  // The base and joint less the band (I17), against the figure measured on
+  // S3's code (structure-head-metal-s3.json, 68.4458 mm³): at most 1% over,
+  // and S3b's basket clearly less (20.16 mm³ when written).
+  const ref = JSON.parse(readFileSync("claude/tasks/structure-head-metal-s3.json", "utf8")).designs["{}"].headMetal;
+  const r = await checkBasket({});
+  assert.ok(Number.isFinite(r.basket.headMetal), "head metal measured");
+  assert.ok(r.basket.headMetal <= ref * 1.01, `head metal ${r.basket.headMetal} mm³ against S3's ${ref}`);
+  assert.ok(r.basket.headMetal <= 0.5 * ref, `head metal ${r.basket.headMetal} mm³ is not clearly less than S3's ${ref}`);
+});
+
+test("no prong foot is filleted under 0.10 mm: it is flared instead", async () => {
+  // Animesh, q. 29: the feet's fillet may be held under filletRadius, never
+  // under 0.10 mm; where it would be, the feet are flared. Small stones,
+  // thin and thick prongs, the least rounding.
+  const std = await import("./.brepcheck/setting-standards.js");
+  const least = std.benchBounds("filletRadius", "platinum").min;
+  for (const spec of [{}, { gemSize: 0.25 }, { bench: { filletRadius: least } }, { bench: { prongDiameter: 2 } },
+    { bench: { prongDiameter: std.benchBounds("prongDiameter", "platinum").min } }, { gemShape: "marquise", prongCount: 4 }]) {
+    const tag = JSON.stringify(spec);
+    const r = isolated("audit", spec);
+    const planned = r.blend.planned.feet, path = r.blend.paths.feet, m = r.blend.measured.feet;
+    assert.ok(planned === 0 || planned >= 0.10 - 1e-9, `${tag}: feet laid out at ${planned} mm`);
+    assert.ok(path === "fillet" || path === "flare", `${tag}: feet ${path}`);
+    if (path === "fillet") assert.ok(m && m.min >= 0.10 - 0.005, `${tag}: a foot filleted at ${m?.min} mm`);
+  }
+});
