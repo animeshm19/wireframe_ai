@@ -631,6 +631,13 @@ export type LayoutOptions = {
   /** The alloy's minimum prong diameter: an engine clamp never goes below it. */
   minProngDiameter?: number;
   /**
+   * False: the prongs as asked, never thinned for the joint or the wire
+   * (see layoutHead). For a layout asked only a question the thickness does
+   * not decide, such as whether the gallery hides (the culet clamp's
+   * search, which lays the head out about eight times).
+   */
+  clampProngs?: boolean;
+  /**
    * Other stones, as half spaces bounding them in this head's frame, that
    * every part of this head must keep `clearance` from; and points it must
    * keep `r` from. A three-stone's side heads are given the centre stone and
@@ -675,9 +682,9 @@ export function layoutHead(
   //   their thickness squared, and the pad's length along the band is held
   //   by the culet's gap inside and the footprint + d outside (I16), which
   //   grow only with it;
-  // - where the wire, 1.1 × the prong thick, cannot keep its gaps to the
-  //   stone at any taper (an oval with 2 mm prongs: 0.001 mm from the
-  //   pavilion, 0.33 mm³ in the stone).
+  // - where the wire, 1.1 × the prong thick, would touch the stone at any
+  //   taper (an oval with 2 mm prongs: 0.001 mm from the pavilion, 0.33 mm³
+  //   in the stone).
   // The thickest on the field's 0.05 mm steps that does neither. Where even
   // the alloy's minimum does not (an all-max marquise's wire keeps no
   // 1.5 mm culet gap at any thickness), the head is left as asked, for the
@@ -687,20 +694,37 @@ export function layoutHead(
     if (!b || b.seat == null) return false;
     return b.seat < SEAT_SPARE * FIXED_STANDARDS.JOINT_AREA_RATIO.value * L.prongs.length * Math.PI * (L.values.prongDiameter / 2) ** 2;
   };
-  const bad = (L: HeadLayout) => !!L.base && (!L.base.ok || short(L));
-  if (!bad(first)) return first;
+  // The wire's gap to the stone only: a culet gap the wire cannot keep is
+  // the culet clamp's (cad-engine-brep), and thinning for it took a 0.25 ct
+  // all-max round that passed every invariant to one that did not.
+  // The wire as good as touching the stone (its reckoned gap a lower bound,
+  // under 0.05 mm): the oval's read 0.001. Short of pavilionClearance by
+  // less, the metal as built still kept it, and thinning took a 0.25 ct
+  // all-max round that passed to feet outside basketTaper's bounds.
+  const bad = (L: HeadLayout) => !!L.base && (L.base.clearance < 0.05 || short(L));
+  // A thinner head is taken only if every leg is one a sweep can follow,
+  // and its wire keeps the culet's gap at least as well as the head asked
+  // (the culet clamp, cad-engine-brep, settles the gap for the prongs as
+  // asked).
+  // And its feet inside basketTaper's bounds: thinned to 1.45 mm, the
+  // 0.25 ct all-max round's straight legs landed at 1.037 of the girdle.
+  const { min: tLo, max: tHi } = benchBounds("basketTaper", "platinum");
+  const sweeps = (L: HeadLayout) => L.prongs.every((p) => !p.spine || spineFits(p.spine.points, p.spine.bends)) &&
+    (!L.base || !first.base || L.base.culetClearance >= Math.min(first.base.culetClearance, L.values.culetClearance + 0.02) - 1e-6) &&
+    L.values.basketTaper >= tLo - 1e-9 && L.values.basketTaper <= tHi + 1e-9;
+  if (opts.clampProngs === false || !bad(first)) return first;
   const asked = bench.prongDiameter, floor = opts.minProngDiameter ?? 0;
   const steps: number[] = [];
   for (let d = first.values.prongDiameter - 0.05; d >= floor - 1e-9; d -= 0.05) steps.push(+d.toFixed(2));
   if (!steps.length) return first;
   const at = (d: number) => layoutHeadOnce(cut, girdleR, prongCount, { ...bench, prongDiameter: d }, band, opts);
   let good = at(steps[steps.length - 1]);
-  if (bad(good)) return first;
+  if (bad(good) || !sweeps(good)) return first;
   // Thinner never makes either worse: the largest step that is good, by halves.
   let lo = steps.length - 1, hi = -1;
   while (lo - hi > 1) {
     const mid = (lo + hi) >> 1, L = at(steps[mid]);
-    if (bad(L)) hi = mid; else { lo = mid; good = L; }
+    if (bad(L) || !sweeps(L)) hi = mid; else { lo = mid; good = L; }
   }
   const d = steps[lo];
   good.warnings.push({ key: "prongDiameter", kind: "engine-clamped", asked, delivered: d,
@@ -993,8 +1017,10 @@ function layoutHeadOnce(
       // marquise's legs crossed the gallery at its edge, 0.006 mm³ in it (I4).
       const legsOn = (b: BasePlan) => {
         if (!b.touchesGallery) return legs(gallery);
+        // Every leg fitting, too: one that did not came back as the
+        // search's last resort, a knee 30 mm off (0.25 ct all-max round).
         const l = legs(gallery, true), t = feetTaper(l);
-        return t >= tMin - 1e-9 && t <= tMax + 1e-9 ? l : legs(gallery);
+        return l.every((r) => r.fits && r.clearanceMet) && t >= tMin - 1e-9 && t <= tMax + 1e-9 ? l : legs(gallery);
       };
       for (const at of tries) {
         const b = planBase(stone, values, d, band, gallery, prongs, opts.minGalleryThickness ?? 0, at);
@@ -1006,8 +1032,10 @@ function layoutHeadOnce(
       base = best!.base;
       laid = best!.laid;
       // The taper built: the wire's, or where the straight legs land when
-      // that is more than 0.03 off it. Reported with both numbers.
-      const built = Math.abs(feetTaper(laid) - best!.at) > 0.03 ? +feetTaper(laid).toFixed(3) : best!.at;
+      // that is more than 0.02 off it. Reported with both numbers.
+      // (0.02: inside I13's 0.03, which the feet as built must meet; 0.0285
+      // unreported failed it on a 3 ct all-max marquise.)
+      const built = Math.abs(feetTaper(laid) - best!.at) > 0.02 ? +feetTaper(laid).toFixed(3) : best!.at;
       if (Math.abs(built - asked) > 1e-9) {
         values.basketTaper = built;
         warnings.push({ key: "basketTaper", kind: "engine-clamped", asked, delivered: built,

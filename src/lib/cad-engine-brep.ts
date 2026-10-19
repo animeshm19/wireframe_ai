@@ -1978,7 +1978,7 @@ export function buildRingParts(p: any, opts: BuildOptions = {}): RingParts {
     const lim = MANUFACTURING_LIMITS[alloy] ?? MANUFACTURING_LIMITS.platinum;
     const sized = { minProngDiameter: lim.minProngDia, minGalleryThickness: lim.minWall, base: true };
     const hides = (l: HeadLayout) => l.galleryShows == null;
-    const shows = (cc: number) => !hides(layoutHead(cut, girdleR, prongCount, { ...centreBench.values, culetClearance: cc }, probeAt(topAtHead + cc), sized));
+    const shows = (cc: number) => !hides(layoutHead(cut, girdleR, prongCount, { ...centreBench.values, culetClearance: cc }, probeAt(topAtHead + cc), { ...sized, clampProngs: false }));
     const asked = centreBench.values.culetClearance, least = benchBounds("culetClearance", alloy).min;
     askedLayout = layoutHead(cut, girdleR, prongCount, centreBench.values, probeAt(topAtHead + asked), sized);
     if (asked > least + 1e-9 && !hides(askedLayout) && !shows(least)) {
