@@ -1,6 +1,6 @@
 # S3b: a real basket head (tapered prongs, a wire lower gallery, a band that rises to meet it)
 
-**Status: stopped for decisions.** The basket is built, the performance budget is met, and the decided I7 clamp is in. The full matrix still has **9 failing rows**, in three groups (below). None of them can be fixed without one of Animesh's decisions, and the prompt forbids loosening the rules to pass them. Branch `structure/ring-head`, worktree `~/Downloads/wireframe-structure`. Run in Claude Code on the Mac (Darwin 25.6.0, arm64), Node v26.12.0.
+**Status: S3b close stopped on the performance rule (q. 43), 2026-10-19.** Animesh's decisions on q. 38–45 are recorded (`7977af6`). Two of them are done and pushed: perf-baseline holds the budgets on every fast-matrix design (`23aa7c6`), and I17 is measured on all non-prong metal against a rebuilt S3 reference (`e2239a4`). Measured with that new perf-baseline, S3b's own code as it stood at the start of the close (`c2281ab`) breaks q. 43's budgets on 19 of the 34 other fast-matrix designs (preview) and on 7 (resolve). That is a stop rule, so the geometry work for q. 38, 39, 42 and 44 is not committed: it is saved, unfinished, in `claude/tasks/S3b-close-wip.patch` (see "S3b close" below). Branch `structure/ring-head`, worktree `~/Downloads/wireframe-structure`. Run in Claude Code on the Mac (Darwin 25.6.0, arm64), Node v26.12.0.
 
 **S3b start:** `943430e` (S3 complete), then `f05641c` (Animesh's decisions on S3's questions). All S3b work is `943430e..HEAD`.
 
@@ -38,7 +38,7 @@ Setter / caster questions 1–9 are still open, and question 10 (basketTaper) is
 | Joint to the band | solid saddle prism, wider than narrow bands | a **pad** from inside the wire down into the band, cut to the band's width at the band line and widening above it, with its flare to the band built in |
 | Blends | fillet or flare at feet, base and saddle | the same three joints. Pad to band is always the designed flare (below) |
 
-**The wire is 1.1× the rule's thickness.** At exactly 1.0× the legs meet the wire as an equal-radius T, which OCCT cannot fillet. This is a deliberate deviation (q. 41).
+**The wire is 1.1× the rule's thickness.** At exactly 1.0× the legs meet the wire as an equal-radius T, which OCCT cannot fillet. Accepted by Animesh on 2026-10-19 (q. 41).
 
 **basketTaper** (`f3b5f92`):
 - default 0.60, bounds 0.45–0.90, "our default";
@@ -277,3 +277,79 @@ Off the default ring, a 1.2 mm band: preview 180 ms (6 ms under the default ring
 | 12 | Legs are read from the layout's spine, not the solid | As S3's I10c. Recorded |
 
 Also noted: the joint is a clipped pad solid, not a change to the band's section function (`shankSection`, `applyRegions`), which the prompt suggests. The band's section is a revolve along the whole ring; a local rise under the head would need regions on the band's top, and a pad was cheaper to make flush.
+
+## S3b close (2026-10-19): stopped on q. 43
+
+Prompt: `~/Downloads/structure-prompts/S3b-close-prompt.md`. Start `c2281ab` (S3B_CLOSE_START).
+
+### Done and pushed
+
+| Commit | What |
+|---|---|
+| `7977af6` | Animesh's decisions on q. 38–45, under each question and in "S3b-close decisions — 2026-10-19" |
+| `23aa7c6` | q. 43: `perf-baseline.mjs` times every fast-matrix design too (median of `--matrix-runs`, default 3), names every design over its budget and exits 1. The matrices moved to `scripts/structure-matrix.mjs`, shared with the audit (35 fast and 253 full designs, unchanged) |
+| `e2239a4` | q. 45: I17's head metal is every non-prong metal below the upper gallery; S3's reference rebuilt on `943430e` with the same measure (logged under "Assertions changed") |
+
+**I17, the new measure.** The resolved metal below the gallery's bottom (less 0.001 mm), less the union there of every part that is not the centre's base or wire, pad or struts. The centre prongs are cut bare, built without seats, so without their foot flares. The union is taken by inclusion and exclusion over the parts' own overlaps: cutting the fused metal by its own parts gained metal on 28 of S3's designs.
+- Reference (`structure-head-metal-s3.json`): 253 designs on S3's code, 232 prong heads measured, 0 errors. New ÷ old 0.70–1.12, median 1.00. Default ring 68.4458 → 68.1342 mm³.
+- S3b by the same measure, at `c2281ab`'s geometry: default ring 19.0371 mm³, three-stone 18.9334, 3 ct 4-prong cushion 28.2623. The audit and the scratch measure agree to 1e-4.
+- Fast audit at `e2239a4` (`--fast --stage S3 --compare s3`): 35 designs, 0 crashed, 5 binding failures (the all-max 1 ct marquise, q. 38, as before), 0 regressions; I17 passes on every design.
+
+### Why it stopped: q. 43's budgets, measured on `c2281ab`
+
+`node scripts/perf-baseline.mjs --runs 9` on a scratch export of `c2281ab` (its own compiled engine), quiet machine, warm:
+- **Default ring:** preview 158.9 ms (186, headroom 27.1), resolve 1969.2 ms (2249.4, headroom 280.2). Within budget.
+- **The fast matrix, median of 3:** preview over 186 ms on 19 of 34 designs; resolve over 4498.8 ms on 7.
+
+| Design | Preview, ms | Resolve, ms |
+|---|---|---|
+| all-max 1 ct marquise | 32200 | 36076 |
+| all-max 1 ct round | 8231 | 11505 |
+| three-stone | 3423 | 8695 |
+| 0.25 ct round | 2917 | 7504 |
+| marquise halo | 627 | 10710 |
+| oval halo | 430 | 17061 |
+| halo | 221 | 10655 |
+| marquise | 515 | 3551 |
+| marquise, 4 prongs | 465 | 2787 |
+| split shank | 367 | 2221 |
+| emerald | 362 | 3682 |
+| pear | 361 | 4167 |
+| oval | 339 | 4341 |
+| bezel | 291 | 849 |
+| cushion | 272 | 3103 |
+| princess | 268 | 2283 |
+| culetClearance 1.5 | 237 | 1739 |
+| 0.5 ct, size 4 | 236 | 3143 |
+| pavé | 202 | 3351 |
+
+The other 15 are within both (the closest: 8 prongs, 156 / 4405 ms). Most of the time off the default ring is the layout's searches (the culet clamp lays the head out about eight times, the prong clamp by halves, the legs' tiers), run on every preview.
+
+**On S3's code** (`943430e`, `--runs 3`), for comparison: 0.25 ct 155 / 3395 ms, three-stone 12901 / 20841, marquise 519 / 3244, halo 231 / 6280, oval 231 / 2366. So most of these designs were already over the per-design budget before S3b. S3b made the 0.25 ct stones and the halos' resolve slower, and the three-stone faster.
+
+### The rest, unfinished and not committed
+
+Saved as `claude/tasks/S3b-close-wip.patch` (950 lines, untracked; `git apply` it on `e2239a4`). Measured with a full audit of an earlier state of it, then re-audits of the 61 failing rows (scratch, not committed reports):
+
+- **q. 42, one wire for gallery and base.** Where the wire chosen meets the gallery, one wire is built: the gallery's height and thickness, following the gallery's own path (its corners rounded as the base's are), the pad holding it, the legs ending in it; the audit reads it as the base too (I4, I6 on one tie, I12 at the gallery's thickness).
+  - From 0.5 ct up the taper search first looks for a wire clear of the gallery.
+  - The merged wire is lowered, 0.05 mm at a time, where it would show or, from 0.5 ct, put the feet past 0.90; it is thinned, as the gallery is, where it still shows.
+  - It is kept only where every leg ends in it keeping its gaps and every foot has room for a 0.10 mm flare.
+  - **Open:** on the 0.25 ct emeralds (q. 42's own rows) a merged wire cannot hold the legs: a 0.8 mm prong ending in a 0.545 mm wire set the gallery's 0.25 mm off the stone comes within 0.015 mm of the pavilion (the layout's own figure). They keep their own wire, and their I4 failure stays. On 1 and 3 ct marquises the outline that passes outside every corner of the gallery's path stands 0.42–0.54 mm off the stone and shows up to 0.51 mm past the girdle; an earlier outline kept 0.226–0.228, short of I4's 0.23. Not settled.
+- **q. 44, every blend ≥ 0.10 mm.** I14 tightened (an assertion change, in the patch, not logged as committed). The base's flare reached only 0.091–0.097 because the pad's outer face ran straight just 0.03 mm under the wire; lowered where a 0.10 flare needs it, the base flares are 0.104–0.105. The feet's flare room is tested only where the flare adds metal (outside the wire and the leg), and a failing fillet is tried smaller, to 0.10, before the flare, reported with both numbers. **Open:** a 1 ct emerald's 4- and 8-prong feet (flares 0.041 and 0.021 mm) and 0.25 ct 8-prong pear and marquise (0.094, 0.096). Where a kicked leg runs at the pavilion gap into the wire, no 0.10 mm blend fits on the stone's side; a flare moved into the wire would pass I14 and blend nothing, so it was not done.
+- **q. 38, the culet hold.** Where the wire basket cannot keep the gap asked, culetClearance is held to the largest on the 0.05 mm steps that it keeps and that still hides the gallery, by halves from 0.30, reported with both numbers; never under 0.30. Fast audit: the all-max 1 ct round held 1.5 → 1.25.
+- **q. 39.** The engine may report a taper up to 1.0 under 0.5 ct (`taperMost`); I13 accepts it there. From 0.5 ct the 0.90 bound stands; no design of 0.5 ct or more delivered over 0.90 in the last probe.
+- **Report counts.** The audit's markdown gets a "Basket" section: merged designs, culet holds, tapers over 0.90, prong clamps, blend sizes per joint, q. 32 and q. 34.
+- **Speed.** The merge's searches multiply layouts: the all-max 1 ct round's layout took 526 s before the culet hold was made a bisection and the lowering capped at 0.5 mm. Not re-measured after.
+
+### For Animesh
+
+1. **q. 43's scope (new, q. 46).** The per-design budgets cannot be met by finishing the close: S3b's own code breaks them on 19 designs (preview) and 7 (resolve), several by 10–200×, and S3's did on most of the same. Options:
+   - (a) budgets on the default ring as before, with the fast matrix reported, not binding;
+   - (b) a per-design budget relative to S3's or S3b's own times (no design slower than it was);
+   - (c) a stage first to make the layout fast off the default ring (cache the head's layout across previews, cut the searches), then the close;
+   - (d) the budget as written, all-max corners excepted.
+2. **q. 47 (new):** a merged wire cannot hold 0.8 mm legs on a 0.25 ct emerald at the gallery's own thickness and gap (0.015 mm kept from the pavilion). Allow it thicker or further out there (an exception to the gallery's rules), or keep two wires there and accept I4 at 0.006–0.014 mm³?
+3. **q. 48 (new):** feet where no 0.10 mm blend fits on the stone's side (1 ct emerald 4- and 8-prong, 0.25 ct 8-prong pear and marquise). Allow a flare that is 0.10 everywhere but the stone's side, or move these legs out (a larger basketTaper there)?
+
+Setter questions 1–10 are still open; every bench default is provisional.

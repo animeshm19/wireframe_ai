@@ -110,7 +110,7 @@ Stricter since (`7c36cb5`): a held value counts only if `delivered < asked` and 
 
 **S3b, `d4296cd`: I16 also needs an opening on the head's axis** (from the band's top up to the wire's, clear of the wire and the pad: 0.376–1.575 mm on the fast matrix), and the basket audit's own booleans are checked. Stricter only; from the adversarial review.
 
-**S3b close: I17's head metal is every non-prong metal below the upper gallery, and S3's reference is rebuilt on that measure** (Animesh, 2026-10-19, q. 45; commit below).
+**S3b close: I17's head metal is every non-prong metal below the upper gallery, and S3's reference is rebuilt on that measure** (Animesh, 2026-10-19, q. 45; `e2239a4`).
 - **Before:** vol((base ∪ pad) − band), on the parts as built. It left out the base's flare where its fillet fails, the foot flares, every fillet and a cathedral's struts, and counted the prongs' feet inside the base as base.
 - **Now:** the resolved metal (fused and blended) below the gallery's bottom (less 0.001 mm: a box face tangent to the wire's underside left OCCT's common empty on S3's 3 ct emerald), less the union there of every part that is not the centre's base or wire, pad or struts, the centre prongs bare (built without seats, so without the foot flares a flared head builds into them). The union by inclusion and exclusion over the parts' own overlaps: cutting the merged metal by the parts it was fused from gained metal on 28 of S3's designs.
 - **The reference** (`structure-head-metal-s3.json`) is that measure on S3's code (`943430e`, a scratch export, its compiled engine checked against the source), for all 253 designs: 232 prong heads measured, 0 errors. Against the old reference, new ÷ old 0.70 to 1.12, median 1.00. Default ring 68.4458 → 68.1342 mm³.
@@ -275,6 +275,9 @@ For Animesh (decisions, not bench questions):
     - **Decided (Animesh, 2026-10-19): rejected.** Every joint's blend (fillet or flare) must be at least 0.10 mm, the Q29 floor. I14 is tightened to require it, and the feet of these designs are reworked to pass; the floor is not relaxed.
 45. **I17 measures the wire and pad, not every non-prong metal below the gallery (S3b, from the review).** Left out: the base's flare where its fillet fails, the foot flares, and a cathedral's struts. It is the same formula as S3's reference, so like is compared with like. Should the reference be recomputed on S3's code with everything below the gallery that is not a prong?
     - **Decided (Animesh, 2026-10-19): recompute it.** S3's reference is rebuilt on S3's code (`943430e`) counting all metal below the upper gallery that is not a prong (wire or base, pad, base flares, foot flares, cathedral struts), and S3b is measured the same way.
+46. **q. 43's budgets cannot be met off the default ring (S3b close, the stop).** Measured with the new per-design perf-baseline on S3b's own code at the close's start (`c2281ab`, warm, median of 3): preview over 186 ms on 19 of the 34 other fast-matrix designs (0.25 ct round 2917 ms, three-stone 3423, all-max round 8231, all-max marquise 32200), resolve over 4498.8 ms on 7 (halos 10655–17061). On S3's code most of the same were over too (three-stone 12901 / 20841 ms). The time is mostly the layout's searches, run on every preview. Options: (a) budgets on the default ring as before, the fast matrix reported, not binding; (b) no design slower than it was at S3 or S3b; (c) a stage first to make the layout fast (cache it across previews, cut the searches); (d) the budget as written, all-max corners excepted. Table in S3b.md.
+47. **A merged wire cannot hold the legs on a 0.25 ct emerald (S3b close, q. 42 work, not committed).** At the gallery's own thickness (0.545 mm) and gap (0.25), a 0.8 mm prong ending in it comes within 0.015 mm of the pavilion (the layout's figure). Allow a merged wire thicker or further out than the gallery's rule there, or keep two wires and accept I4's 0.006–0.014 mm³?
+48. **Feet with no room for a 0.10 mm blend on the stone's side (S3b close, q. 44 work, not committed).** Where a leg runs at the pavilion gap into the wire (a kicked leg on a 1 ct 4- or 8-prong emerald, 0.25 ct 8-prong pear and marquise), neither a fillet (OCCT fails at every radius from 0.3 to 0.10) nor a flare wider than 0.02–0.096 fits. Allow a flare that is 0.10 everywhere but the stone's side, or move those legs out?
 
 ## Progress
 
@@ -429,3 +432,12 @@ Animesh's answers to S3b's stop (q. 38–45), recorded before the close (each is
 - **Q45 recompute:** S3's reference rebuilt on `943430e` with all non-prong metal below the upper gallery; S3b measured the same way.
 
 Stop rules unchanged. Setter questions 1–10 are still open; the bench defaults stay provisional.
+
+### S3b close — 2026-10-19 — stopped on q. 43
+
+Status: **stopped on the performance rule** (q. 43's per-design budgets); see `claude/tasks/S3b.md`, "S3b close". Commits `7977af6`..`e2239a4`.
+- **Done:** decisions recorded (`7977af6`); perf-baseline times every fast-matrix design against q. 43's budgets (`23aa7c6`); I17 on every non-prong metal below the gallery, S3's reference rebuilt on `943430e` (`e2239a4`, logged under "Assertions changed"; default ring 68.1342 mm³ in S3, 19.0371 in S3b).
+- **Stop:** on `c2281ab`, the close's start, preview is over 186 ms on 19 of 34 fast-matrix designs and resolve over 4498.8 ms on 7 (q. 46). The default ring holds: 158.9 / 186 ms, 1969.2 / 2249.4 ms.
+- **Not committed:** the q. 38, 39, 42 and 44 geometry and their assertion changes, unfinished, saved in `claude/tasks/S3b-close-wip.patch` (applies to `e2239a4`). Open within it: q. 47, q. 48, and the merged outline on 1 and 3 ct marquises.
+- **Verified at `e2239a4`:** build passes; lint 103 errors + 4 warnings on tracked files (unchanged); test:cad 32/32; the head-metal brep test passes; fast audit 35 designs, 0 crashed, 5 binding failures (the all-max marquise, q. 38), 0 regressions.
+- **For Animesh:** q. 46–48. Setter questions 1–10 are open.
