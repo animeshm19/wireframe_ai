@@ -107,10 +107,16 @@ export const BENCH_MEASURES = {
     ok: clearOrNone(b.pavilionClearance) && Number(b.pavilionClearance) >= v - 0.02,
     why: `${fmt(b.pavilionClearance)} mm from the pavilion, wants ≥ ${fmt(v - 0.02)}`,
   })),
-  prongDiameter: (r, v) => everyBearing(r, (b) => ({
-    ok: num(b.postWidth) && Math.abs(b.postWidth - v) <= 0.01,
-    why: `post ${fmt(b.postWidth)} mm across, wants ${fmt(v)} ± 0.01`,
-  })),
+  // Thinned by the engine to the thickest whose joint holds them on a
+  // narrow band (I7; Animesh, 2026-10-19) and reported with both numbers:
+  // judged by the thickness built.
+  prongDiameter: (r, asked) => {
+    const v = heldTo(r, "prongDiameter", asked);
+    return everyBearing(r, (b) => ({
+      ok: num(b.postWidth) && Math.abs(b.postWidth - v) <= 0.01,
+      why: `post ${fmt(b.postWidth)} mm across, wants ${fmt(v)} ± 0.01`,
+    }));
+  },
   asCastProngHeight: (r, v) => everyBearing(r, (b) => {
     const want = b.expected.zT + v;
     return { ok: num(b.top) && Math.abs(b.top - want) <= 0.05, why: `top ${fmt(b.top)} mm above the culet, wants ${fmt(want)} ± 0.05` };

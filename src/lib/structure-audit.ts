@@ -189,7 +189,7 @@ export type StructureAudit = {
    * for this design's alloy, from setting-standards and not from the engine:
    * the invariants accept a reported hold only inside them (review).
    */
-  bounds: Record<"culetClearance" | "galleryClearance" | "basketTaper", { min: number; max: number }>;
+  bounds: Record<"culetClearance" | "galleryClearance" | "basketTaper" | "prongDiameter", { min: number; max: number }>;
   /** Microscopic sealed cavities the merge filled (fuseMetal → sealVoids). */
   voidsFilled: number;
   /** Fuses OCCT got wrong that a retry 0.001 mm over got right (see fuseMetal). */
@@ -690,6 +690,7 @@ export async function auditStructure(
       culetClearance: benchBounds("culetClearance", (spec.metalType as MetalType) ?? "platinum"),
       galleryClearance: benchBounds("galleryClearance", (spec.metalType as MetalType) ?? "platinum"),
       basketTaper: benchBounds("basketTaper", (spec.metalType as MetalType) ?? "platinum"),
+      prongDiameter: benchBounds("prongDiameter", (spec.metalType as MetalType) ?? "platinum"),
     },
     solidCount: metal.solids.length,
     dropped,
