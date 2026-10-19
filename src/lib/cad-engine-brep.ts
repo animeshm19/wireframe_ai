@@ -2354,9 +2354,16 @@ export function fuseMetal(parts: Shape3D[]): FuseResult {
     // taken only if it is a true union that joins (below). A part that does
     // not touch, or only grazes, stays apart, and every retry taken is
     // counted (FuseResult.shiftedRetries, recorded by the structure audit).
-    if (next && nv >= vol - 1e-6 && next.solids.length > out.solids.length) {
+    // Also where the fuse threw or lost metal: an oval's foot flares on
+    // 2 mm prongs, two of six, failed so, and the merge stopped (S3b). The
+    // retry is taken only as the same exact union below.
+    if (!next || nv < vol - 1e-6 || next.solids.length > out.solids.length) {
       const pv = measureVolume(parts[i]);
-      for (const d of [[1e-3, 0, 0], [-1e-3, 0, 0], [0, 1e-3, 0], [0, -1e-3, 0], [0, 0, 1e-3], [0, 0, -1e-3]] as V3[]) {
+      // 0.001 mm first; 0.005 where no 0.001 move finds it (an 8-prong
+      // emerald's side prongs and their wire, swept along the cut's sides,
+      // read no overlap at any 0.001 move and joined at 0.005, S3b).
+      const moves = [1e-3, 5e-3].flatMap((m) => [[m, 0, 0], [-m, 0, 0], [0, m, 0], [0, -m, 0], [0, 0, m], [0, 0, -m]] as V3[]);
+      for (const d of moves) {
         const moved = parts[i].clone().translate(d) as Shape3D;
         let retry: Shape3D | null = null, common = 0;
         try {
